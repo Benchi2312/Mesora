@@ -1,0 +1,232 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Naranja de marca Mesora */
+  --color-brand-50: #fff8ed;
+  --color-brand-100: #ffefd4;
+  --color-brand-200: #ffdca8;
+  --color-brand-300: #ffc270;
+  --color-brand-400: #ffa037;
+  --color-brand-500: #ff9500;
+  --color-brand-600: #f07000;
+  --color-brand-700: #c74e02;
+  --color-brand-800: #9e3c0b;
+  --color-brand-900: #7f320b;
+
+  /* Fondo oscuro del sistema */
+  --color-surface-950: #0d0f12;
+  --color-surface-900: #13161b;
+  --color-surface-800: #1b1f27;
+  --color-surface-700: #252b35;
+  --color-surface-600: #333b48;
+  --color-surface-500: #4a5466;
+
+  /* Estados */
+  --color-ok-500: #22c55e;
+  --color-warn-500: #ff9500;
+  --color-danger-500: #ef4444;
+  --color-info-500: #38bdf8;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+/*
+ * Un contenedor con scroll horizontal debe ser también el bloque contenedor de
+ * sus descendientes absolutos. Sin esto, un `.sr-only` (position: absolute)
+ * dentro de una tabla más ancha que la pantalla escapa del recorte del
+ * contenedor y ensancha todo el documento: aparece scroll horizontal en el
+ * celular aunque la tabla esté correctamente envuelta.
+ */
+.overflow-x-auto {
+  position: relative;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  @apply bg-surface-950 text-zinc-100 antialiased;
+}
+
+@keyframes guiaEntra {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes guiaPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes guiaConfeti {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px) rotate(0deg);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(120px) rotate(320deg);
+  }
+}
+
+::selection {
+  @apply bg-brand-500/30 text-white;
+}
+
+/* Scrollbar discreta y consistente */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-surface-700) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-surface-700);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ------------------------------------------------------------ Sistema base */
+@layer components {
+  /* Tarjeta estándar de la app */
+  .card {
+    @apply rounded-2xl border border-surface-800 bg-surface-900;
+  }
+  .card-hover {
+    @apply transition hover:border-surface-700 hover:bg-surface-900;
+  }
+
+  /* Botones */
+  .btn {
+    @apply inline-flex touch-manipulation items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-primary {
+    @apply bg-brand-500 text-surface-950 hover:bg-brand-400 active:bg-brand-500;
+  }
+  .btn-outline {
+    @apply border border-surface-700 bg-transparent text-zinc-300 hover:border-brand-500/50 hover:text-white;
+  }
+  .btn-ghost {
+    @apply bg-transparent text-zinc-300 hover:bg-surface-800 hover:text-white;
+  }
+  .btn-danger-ghost {
+    @apply bg-transparent text-zinc-300 hover:border-danger-500 hover:text-danger-500;
+  }
+
+  /* Formularios */
+  .input {
+    @apply w-full rounded-lg border border-surface-700 bg-surface-800 px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-zinc-400;
+  }
+
+  /* Chips / badges */
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium;
+  }
+  .chip-ok {
+    @apply border-ok-500/40 bg-ok-500/10 text-ok-500;
+  }
+  .chip-warn {
+    @apply border-brand-500/40 bg-brand-500/10 text-brand-400;
+  }
+  .chip-danger {
+    @apply border-danger-500/40 bg-danger-500/10 text-danger-500;
+  }
+  .chip-neutral {
+    @apply border-surface-700 bg-surface-800 text-zinc-400;
+  }
+  .chip-info {
+    @apply border-info-500/40 bg-info-500/10 text-info-500;
+  }
+
+  /* Título de sección */
+  .titulo-seccion {
+    @apply uppercase tracking-widest text-zinc-400;
+  }
+
+  /* Alerta informativa */
+  .aviso {
+    @apply flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .boleta-print,
+  .boleta-print * {
+    visibility: visible;
+  }
+  .boleta-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    margin: 0;
+    box-shadow: none;
+  }
+
+  /* Reporte del admin: `body.imprimir-reporte` lo pone DashboardTab antes de
+     llamar a window.print(). Se usa visibility (y no display) para no romper
+     los bloques flex/grid que dependen de sus hijos. */
+  body.imprimir-reporte * {
+    visibility: visible;
+  }
+  body.imprimir-reporte .no-print {
+    display: none !important;
+  }
+  body.imprimir-reporte main {
+    padding: 0;
+  }
+  body.imprimir-reporte .card {
+    border-color: #d4d4d8;
+    background: #fff;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+  /* En papel los textos claros desaparecen: se fuerzan a negro. */
+  body.imprimir-reporte .text-zinc-100,
+  body.imprimir-reporte .text-zinc-200,
+  body.imprimir-reporte .text-zinc-300,
+  body.imprimir-reporte .text-brand-400,
+  body.imprimir-reporte .text-ok-500 {
+    color: #18181b !important;
+  }
+  body.imprimir-reporte .text-zinc-500 {
+    color: #52525b !important;
+  }
+}
