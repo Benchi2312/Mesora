@@ -10,7 +10,7 @@ reglas de negocio.
 - React 19 + TypeScript + Vite
 - Sin framework de UI: los componentes viven en `src/components/ui.tsx`
 - Supabase (Postgres + Auth + Realtime) como backend real
-- RLS en todas las tablas; las operaciónes atómicas van por RPC (`security definer`)
+- RLS en todas las tablas; las operaciones atómicas van por RPC (`security definer`)
 - `localStorage` para el modo local, con botón de reset en `/login`
 
 ## Roles
@@ -94,6 +94,15 @@ directorio de entorno temporal para forzar el modo QA sin mover
 `.env.local` ni alterar servidores Vite que ya estén abiertos.
 
 Ambas suites salen con código 1 si algún check falla.
+
+## Interfaz y experiencia móvil
+
+La interfaz usa una paleta oscura con acentos naranja para conservar el mismo
+lenguaje visual en administración, caja, cocina y atención. Los paneles se
+adaptan a escritorio, tablet y móvil; en pantallas pequeñas, las tablas se
+desplazan dentro de su contenedor y la guía del demo limita su altura para dejar
+visible parte de la vista que explica. `npm run verificar:responsive` comprueba
+las rutas y controles táctiles en los cuatro anchos indicados arriba.
 
 ## Desplegar en Vercel
 
@@ -239,3 +248,10 @@ la raíz del repositorio GitHub.
 Mesora requiere `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` para el acceso
 real. Si faltan, el login falla cerrado; el backend simulado requiere activación
 manual en desarrollo y `/demo` permanece público.
+
+## Flujo de ramas
+
+`main` es la rama estable. Para cada cambio, crea una rama `respaldo/<tema>`,
+sube el trabajo, revisa que CI y la aceptación correspondiente pasen, integra a
+`main` y elimina la rama de respaldo después de confirmar la integración. No
+incluyas `.env.local`, credenciales ni datos reales en commits.

@@ -433,7 +433,11 @@ export default function GuiaDemo() {
   // desbordarse o de solaparse con lo que hay que pulsar.
   estilo.maxHeight = compacto
     ? 'calc(100dvh - 24px)'
-    : `min(calc(100dvh - 24px), ${GUI_ALTO_EXPANDIDO}px)`
+    : esMovil
+      // En móviles, limita la introducción para que siga visible parte de la
+      // pantalla detrás de la guía; el contenido de la tarjeta puede desplazarse.
+      ? 'min(calc(100dvh - 24px), 60dvh)'
+      : `min(calc(100dvh - 24px), ${GUI_ALTO_EXPANDIDO}px)`
   estilo.overflowY = 'auto'
 
   // -------------------------------------------------------------- experiencia
