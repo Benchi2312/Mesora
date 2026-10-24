@@ -3,12 +3,12 @@ import { getApi } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import { fmtHora, fmtPEN } from '../../lib/format'
 import { METODOS_PAGO_LABEL } from '../../lib/pagos'
-import { MOTIVOS_ANULACION_COBRO, errorAlAnularCobro } from '../../lib/autorizacion'
+import { esPinValido, MOTIVOS_ANULACION_COBRO, errorAlAnularCobro } from '../../lib/autorizacion'
 import type { Cuenta } from '../../types/database'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 import { IconoInfo, Modal } from '../../components/ui'
-import { CampoPin, usePinAutorizacion } from '../../components/pin'
+import { AvisoPin, CampoPin, usePinAutorizacion } from '../../components/pin'
 
 /**
  * Boletas del día con la opción de anular un cobro.
@@ -180,7 +180,7 @@ function ModalAnularCobro({
 }) {
   const { restaurante } = useCurrentContext()
   const rid = restaurante?.id
-  const { pin, setPin, requierePin } = usePinAutorizacion(rid)
+  const { pin, setPin, requierePin, cargando: consultandoPin } = usePinAutorizacion(rid)
   const [motivo, setMotivo] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
@@ -239,7 +239,15 @@ function ModalAnularCobro({
         </div>
       </div>
 
+      {consultandoPin ? <AvisoPin visible /> : null}
       {requierePin ? <CampoPin pin={pin} onChange={setPin} /> : null}
+
+      {enviando && (
+        <div role="status" aria-live="polite" className="aviso mt-4 border-brand-500/30 bg-brand-500/10 text-brand-300">
+          <Spinner className="mr-2 h-4 w-4 align-middle" />
+          Validando el PIN y registrando la anulación. Mantén esta ventana abierta.
+        </div>
+      )}
 
       {error && (
         <div className="aviso mt-4 border-danger-500/40 bg-danger-500/10 text-danger-500">{error}</div>
@@ -252,10 +260,10 @@ function ModalAnularCobro({
         <button
           type="button"
           onClick={() => void confirmar()}
-          disabled={enviando || (requierePin && pin.length === 0)}
+          disabled={enviando || consultandoPin || (requierePin && !esPinValido(pin))}
           className="btn min-h-11 bg-danger-500 px-4 text-white transition-colors hover:bg-danger-500/90"
         >
-          {enviando ? 'Anulando…' : 'Anular cobro'}
+          {enviando ? 'Anulando boleta…' : 'Anular cobro'}
         </button>
       </div>
     </Modal>

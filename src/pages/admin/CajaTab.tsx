@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getApi } from '../../lib/api'
+import { esFalloDeRed, getApi } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import { arqueoTurno, errorAlAbrirTurno, errorAlCerrarTurno, parseMonto } from '../../lib/caja'
 import { fmtFecha, fmtPEN } from '../../lib/format'
@@ -36,24 +36,33 @@ export default function CajaTab() {
       setCargando(false)
       return
     }
-    const api = getApi()
-    const [t, hist, c, pg, porCobrarRes] = await Promise.all([
-      api.getTurnoAbierto(rid),
-      api.getTurnos(rid),
-      api.getCuentasPagadas(rid),
-      api.getPagosDeCuentas(rid),
-      api.getMesasPorCobrar(rid),
-    ])
-    if (t.error) return setError(t.error)
-    setTurno(t.data)
-    setTurnos(hist.data ?? [])
-    // getCuentasPagadas devuelve el resumen; para el arqueo solo total/método/
-    // estado/pagado_at/vuelto, que es exactamente lo que pide arqueoTurno.
-    setCuentas((c.data ?? []) as Cuenta[])
-    setPagos(pg.data ?? [])
-    setPorCobrar(porCobrarRes.data ?? [])
-    setCargando(false)
-    return undefined
+    try {
+      const api = getApi()
+      const [t, hist, c, pg, porCobrarRes] = await Promise.all([
+        api.getTurnoAbierto(rid),
+        api.getTurnos(rid),
+        api.getCuentasPagadas(rid),
+        api.getPagosDeCuentas(rid),
+        api.getMesasPorCobrar(rid),
+      ])
+      const errorCarga = t.error ?? hist.error ?? c.error ?? pg.error ?? porCobrarRes.error
+      if (errorCarga) {
+        setError(errorCarga)
+        return
+      }
+      setTurno(t.data)
+      setTurnos(hist.data ?? [])
+      // getCuentasPagadas devuelve el resumen; para el arqueo solo total/método/
+      // estado/pagado_at/vuelto, que es exactamente lo que pide arqueoTurno.
+      setCuentas((c.data ?? []) as Cuenta[])
+      setPagos(pg.data ?? [])
+      setPorCobrar(porCobrarRes.data ?? [])
+      setError(null)
+    } catch {
+      setError('No se pudo cargar la información de caja. Revisa tu conexión e inténtalo de nuevo.')
+    } finally {
+      setCargando(false)
+    }
   }, [rid])
 
   useEffect(() => {
@@ -80,13 +89,26 @@ export default function CajaTab() {
     if (falla) return setError(falla)
     setGuardando(true)
     setError(null)
-    const res = await getApi().abrirTurno(rid, usuario.id, montoInicial)
-    setGuardando(false)
-    if (res.error) return setError(res.error)
-    setInicial('')
-    setCargando(true)
-    await cargar()
-    return undefined
+    try {
+      const res = await getApi().abrirTurno(rid, usuario.id, montoInicial)
+      if (res.error) {
+        if (esFalloDeRed(res.error)) {
+          setCargando(true)
+          await cargar()
+          setError('La respuesta de apertura se perdió. Revisa si el turno quedó abierto antes de volver a intentarlo.')
+        } else setError(res.error)
+        return
+      }
+      setInicial('')
+      setCargando(true)
+      await cargar()
+    } catch {
+      setCargando(true)
+      await cargar()
+      setError('No se pudo confirmar la apertura. Revisa si el turno quedó abierto antes de intentarlo de nuevo.')
+    } finally {
+      setGuardando(false)
+    }
   }
 
   async function cerrar() {
@@ -95,14 +117,27 @@ export default function CajaTab() {
     if (falla) return setError(falla)
     setGuardando(true)
     setError(null)
-    const res = await getApi().cerrarTurno(rid, usuario.id, montoDeclarado, observaciones.trim() || null)
-    setGuardando(false)
-    if (res.error) return setError(res.error)
-    setDeclarado('')
-    setObservaciones('')
-    setCargando(true)
-    await cargar()
-    return undefined
+    try {
+      const res = await getApi().cerrarTurno(rid, usuario.id, montoDeclarado, observaciones.trim() || null)
+      if (res.error) {
+        if (esFalloDeRed(res.error)) {
+          setCargando(true)
+          await cargar()
+          setError('La respuesta de cierre se perdió. Revisa el historial y el turno abierto antes de repetirlo.')
+        } else setError(res.error)
+        return
+      }
+      setDeclarado('')
+      setObservaciones('')
+      setCargando(true)
+      await cargar()
+    } catch {
+      setCargando(true)
+      await cargar()
+      setError('No se pudo confirmar el cierre. Revisa el historial y el turno abierto antes de repetirlo.')
+    } finally {
+      setGuardando(false)
+    }
   }
 
   return (
@@ -110,6 +145,7 @@ export default function CajaTab() {
       {error && (
         <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
           {error}
+          <button type="button" onClick={() => { setCargando(true); void cargar() }} className="ml-3 underline">Actualizar caja</button>
         </div>
       )}
 

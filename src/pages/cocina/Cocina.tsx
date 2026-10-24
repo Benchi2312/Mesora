@@ -96,22 +96,24 @@ export default function Cocina() {
   const cargar = useCallback(async () => {
     const rid = restaurante?.id
     if (!rid) return
-    const api = getApi()
-    const [pRes, mRes, uRes] = await Promise.all([
-      api.getPedidosActivos(rid),
-      api.getMesas(rid),
-      api.getMeseros(rid),
-    ])
-    if (pRes.error || mRes.error || uRes.error) {
-      setError(pRes.error ?? mRes.error ?? uRes.error ?? 'Error al cargar comandas')
-      return
+    try {
+      const api = getApi()
+      const [pRes, mRes, uRes] = await Promise.all([
+        api.getPedidosActivos(rid),
+        api.getMesas(rid),
+        api.getMeseros(rid),
+      ])
+      if (pRes.error || mRes.error || uRes.error) {
+        setError(pRes.error ?? mRes.error ?? uRes.error ?? 'Error al cargar comandas')
+        return
+      }
+      setPedidos(pRes.data ?? [])
+      setMesas(mRes.data ?? [])
+      setMeseros(uRes.data ?? [])
+      setError(null)
+    } catch {
+      setError('No se pudo actualizar cocina. Comprueba tu conexión e inténtalo de nuevo.')
     }
-    setPedidos(pRes.data ?? [])
-    setMesas(mRes.data ?? [])
-    setMeseros(uRes.data ?? [])
-    // Refetch OK: el error anterior era de la corrida previa, no de esta.
-    // Sin esto, un fallo puntual queda pegado en pantalla para siempre.
-    setError(null)
   }, [restaurante?.id])
 
   useEffect(() => {
@@ -139,22 +141,25 @@ export default function Cocina() {
     // misma tarjeta advancing dos veces se salta un estado de la comanda.
     if (avanzando.has(p.id)) return
     setAvanzando((prev) => new Set(prev).add(p.id))
-    const { error: apiErr } = await getApi().avanzarPedido(rid, p.id)
-    if (apiErr) {
-      setError(apiErr)
+    try {
+      const { error: apiErr } = await getApi().avanzarPedido(rid, p.id)
+      if (apiErr) {
+        setError(apiErr)
+        await cargar()
+        setError(apiErr)
+        return
+      }
+      await cargar()
+    } catch {
+      await cargar()
+      setError('No se pudo confirmar el cambio. Verifica el estado actualizado en el tablero.')
+    } finally {
       setAvanzando((prev) => {
         const next = new Set(prev)
         next.delete(p.id)
         return next
       })
-      return
     }
-    await cargar()
-    setAvanzando((prev) => {
-      const next = new Set(prev)
-      next.delete(p.id)
-      return next
-    })
   }
 
   const nombreMesa = new Map(mesas.map((m) => [m.id, m.nombre]))

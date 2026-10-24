@@ -1,12 +1,26 @@
 import { create } from 'zustand'
 import type { Session } from '@supabase/supabase-js'
 import { apiMode, enDemo } from '../lib/api'
-import { supabase, supabaseConfigurado, supabaseFaltaEnProduccion } from '../lib/supabase'
+import {
+  modoLocalHabilitado,
+  supabase,
+  supabaseConfigurado,
+  supabaseFaltaConfig,
+} from '../lib/supabase'
 import { cargarDatosLocal, localCredenciales, localSeed } from '../lib/localSeed'
 import type { Restaurante, Usuario } from '../types/database'
 
 /** Clave en localStorage que persiste la sesión del backend local simulado. */
 const KEY_SESION_LOCAL = 'mesora.local.sesion'
+
+function mensajeErrorAuth(mensaje: string): string {
+  if (/invalid login credentials/i.test(mensaje)) return 'El correo o la contraseña no son correctos.'
+  if (/email not confirmed/i.test(mensaje)) return 'Confirma tu correo antes de iniciar sesión.'
+  if (/too many requests|rate limit/i.test(mensaje)) return 'Demasiados intentos. Espera un momento y vuelve a intentarlo.'
+  if (/password should be at least|password is too short/i.test(mensaje)) return 'La contraseña debe tener al menos 8 caracteres.'
+  if (/fetch|network|timeout|connection/i.test(mensaje)) return 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.'
+  return mensaje
+}
 
 /** Devuelve true si la suscripción del restaurante está vencida o inactiva. */
 export function suSuscripcionVencida(r: Restaurante | null): boolean {
@@ -72,21 +86,21 @@ export const useAuthStore = create<AuthState>()((set, get) => {
       return
     }
 
-    if (supabaseFaltaEnProduccion) {
+    if (supabaseFaltaConfig) {
       set({
         session: null,
         usuario: null,
         restaurante: null,
         loading: false,
         initDone: true,
-        authError: 'El acceso no está configurado. Contacta al administrador del sistema.',
+        authError: 'Supabase no está configurado. Contacta al administrador del sistema.',
       })
       return
     }
 
     // MODO LOCAL: restaura el dataset + credenciales persistidos (una sola vez)
     // y luego la sesión guardada del backend local simulado.
-    if (!supabaseConfigurado) {
+    if (modoLocalHabilitado) {
       cargarDatosLocal()
       try {
         const raw = localStorage.getItem(KEY_SESION_LOCAL)
@@ -190,12 +204,12 @@ export const useAuthStore = create<AuthState>()((set, get) => {
     refresh,
 
     signIn: async (email, password) => {
-      if (supabaseFaltaEnProduccion) {
-        return 'El acceso no está configurado. Contacta al administrador del sistema.'
+      if (supabaseFaltaConfig) {
+        return 'Supabase no está configurado. Contacta al administrador del sistema.'
       }
 
       // MODO LOCAL — validación contra las credenciales de localSeed.ts.
-      if (!supabaseConfigurado) {
+      if (modoLocalHabilitado) {
         const emailNorm = email.trim().toLowerCase()
         const usuario = localSeed.usuarios.find(
           (u) => u.email?.toLowerCase() === emailNorm && u.activo !== false,
@@ -220,7 +234,7 @@ export const useAuthStore = create<AuthState>()((set, get) => {
       set({ authError: null })
       try {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
-        if (error) return error.message
+        if (error) return mensajeErrorAuth(error.message)
         await get().refresh()
         return get().authError
       } catch {
@@ -230,7 +244,7 @@ export const useAuthStore = create<AuthState>()((set, get) => {
 
     signOut: async () => {
       localStorage.removeItem(KEY_SESION_LOCAL)
-      if (supabaseConfigurado) {
+      if (supabaseConfigurado && !modoLocalHabilitado) {
         try {
           await supabase.auth.signOut()
         } catch {
@@ -241,14 +255,14 @@ export const useAuthStore = create<AuthState>()((set, get) => {
     },
 
     pedirRecuperacion: async (email) => {
-      if (!supabaseConfigurado) {
+      if (!supabaseConfigurado || modoLocalHabilitado) {
         return 'La recuperación de contraseña solo está disponible con el servidor conectado.'
       }
       try {
         const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
           redirectTo: `${window.location.origin}/restablecer`,
         })
-        if (error) return error.message
+        if (error) return mensajeErrorAuth(error.message)
         return null
       } catch {
         return 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.'
@@ -256,12 +270,18 @@ export const useAuthStore = create<AuthState>()((set, get) => {
     },
 
     cambiarPassword: async (password) => {
-      if (!supabaseConfigurado) {
+      if (!supabaseConfigurado || modoLocalHabilitado) {
         return 'El cambio de contraseña solo está disponible con el servidor conectado.'
       }
       try {
         const { error } = await supabase.auth.updateUser({ password })
-        if (error) return error.message
+        if (error) return mensajeErrorAuth(error.message)
+        const usuarioActual = get().usuario
+        if (usuarioActual?.debe_cambiar_password) {
+          const { error: errorConfirmacion } = await supabase.rpc('confirmar_cambio_password')
+          if (errorConfirmacion) return 'La contraseña cambió, pero no se pudo confirmar el cambio. Vuelve a intentarlo.'
+          set({ usuario: { ...usuarioActual, debe_cambiar_password: false } })
+        }
         return null
       } catch {
         return 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.'
@@ -271,7 +291,7 @@ export const useAuthStore = create<AuthState>()((set, get) => {
 })
 
 // Solo se escuchan eventos de sesión reales cuando el backend está configurado.
-if (supabaseConfigurado) {
+if (supabaseConfigurado && !modoLocalHabilitado) {
   supabase.auth.onAuthStateChange((event, session) => {
     // DEMO MODE: no procesar eventos de sesión real en el modo demo.
     if (enDemo()) return

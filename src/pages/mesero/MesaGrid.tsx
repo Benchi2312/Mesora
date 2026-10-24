@@ -15,6 +15,7 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
   const [mesas, setMesas] = useState<Mesa[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [intento, setIntento] = useState(0)
 
   useEffect(() => {
     const rid = restaurante?.id
@@ -25,23 +26,28 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
     let activo = true
     setCargando(true)
     ;(async () => {
-      const api = getApi()
-      const [zRes, mRes] = await Promise.all([api.getZonas(rid), api.getMesas(rid)])
+      try {
+        const api = getApi()
+        const [zRes, mRes] = await Promise.all([api.getZonas(rid), api.getMesas(rid)])
 
-      if (!activo) return
-      if (zRes.error || mRes.error) {
-        setError(zRes.error ?? mRes.error ?? 'Error al cargar mesas')
-        setCargando(false)
-        return
+        if (!activo) return
+        if (zRes.error || mRes.error) {
+          setError(zRes.error ?? mRes.error ?? 'Error al cargar mesas')
+          return
+        }
+        setZonas(zRes.data ?? [])
+        setMesas(mRes.data ?? [])
+        setError(null)
+      } catch {
+        if (activo) setError('No se pudo conectar para cargar las mesas. Inténtalo de nuevo.')
+      } finally {
+        if (activo) setCargando(false)
       }
-      setZonas(zRes.data ?? [])
-      setMesas(mRes.data ?? [])
-      setCargando(false)
     })()
     return () => {
       activo = false
     }
-  }, [restaurante?.id])
+  }, [restaurante?.id, intento])
 
   if (cargando)
     return (
@@ -54,6 +60,7 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
     return (
       <div className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
         No se pudieron cargar las mesas. {error}
+        <button type="button" onClick={() => setIntento((n) => n + 1)} className="ml-3 underline">Reintentar</button>
       </div>
     )
 

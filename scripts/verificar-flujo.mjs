@@ -8,30 +8,15 @@
 // Sale con código 1 si algún check falla.
 
 import { createServer } from 'vite'
-import { existsSync, renameSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 
 const RAIZ = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 
-// Esta suite ejercita el backend LOCAL. Si existe .env.local con credenciales
-// reales, Vite activaría el modo Supabase y los checks escribirían contra la
-// base de producción: se aparta mientras corre y se restaura al salir.
-const ENV_LOCAL = join(RAIZ, '.env.local')
-const ENV_PAUSA = join(RAIZ, '.env.local.pausa-verificar')
-if (existsSync(ENV_PAUSA) && !existsSync(ENV_LOCAL)) renameSync(ENV_PAUSA, ENV_LOCAL)
-const teniaEnvLocal = existsSync(ENV_LOCAL)
-if (teniaEnvLocal) renameSync(ENV_LOCAL, ENV_PAUSA)
-const restaurarEnvLocal = () => {
-  if (teniaEnvLocal && existsSync(ENV_PAUSA)) renameSync(ENV_PAUSA, ENV_LOCAL)
-}
-process.on('exit', restaurarEnvLocal)
-for (const senal of ['SIGINT', 'SIGTERM']) {
-  process.on(senal, () => {
-    restaurarEnvLocal()
-    process.exit(130)
-  })
-}
-if (teniaEnvLocal) console.log('· .env.local apartado durante la verificación (modo local forzado)')
+// Esta suite ejercita el backend LOCAL. Su Vite usa un envDir temporal vacío
+// para ignorar .env.local sin moverlo ni afectar a servidores ya abiertos.
+const ENV_DIR = mkdtempSync(join(tmpdir(), 'mesora-verificar-env-'))
 
 // localStorage no existe en Node: shim en memoria para que el modo local
 // persista de verdad durante la verificación.
@@ -49,6 +34,8 @@ globalThis.localStorage = {
 
 const servidor = await createServer({
   root: RAIZ,
+  envDir: ENV_DIR,
+  define: { 'import.meta.env.VITE_MESORA_MODO_LOCAL': JSON.stringify('true') },
   logLevel: 'error',
   appType: 'custom',
   server: { middlewareMode: true },
@@ -165,6 +152,7 @@ const { normalizarDominio, esDominioValido, esUsuarioValido, construirEmail, sep
 const { formatearNumeroBoleta, numeroBoletaDeCuenta, SERIE_BOLETA } = await servidor.ssrLoadModule(
   '/src/lib/boleta.ts',
 )
+const { rutaDespuesDeLogin } = await servidor.ssrLoadModule('/src/lib/roles.ts')
 
 // ----------------------------------------------------------------- aserciones
 let ok = 0
@@ -199,6 +187,8 @@ const MESA = 'm-4' // Mesa 4 del dataset semilla, estado "libre"
 
 titulo('0 · El backend activo es el local (sin Supabase)')
 check('esModoLocal()', esModoLocal() === true)
+check('login admin desde caja vuelve a /admin', rutaDespuesDeLogin('admin_restaurante', '/cajero') === '/admin')
+check('login cajero desde caja conserva /cajero', rutaDespuesDeLogin('cajero', '/cajero') === '/cajero')
 check('crearPedido exige que la mesa sea del restaurante', (await api.crearPedido(RID, 'm-inexistente', [pedir(prod('p-1'), 1)]).then((r) => !!r.error)))
 
 // ---------------------------------------------------------------------------
@@ -3344,6 +3334,7 @@ check(
 )
 
 await servidor.close()
+rmSync(ENV_DIR, { recursive: true, force: true })
 
 console.log(`\n${'-'.repeat(60)}`)
 if (fallos.length === 0) {

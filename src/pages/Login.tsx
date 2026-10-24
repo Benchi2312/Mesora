@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/auth'
 import { esModoLocal } from '../lib/api'
 import { supabaseConfigurado } from '../lib/supabase'
 import { localUsuarios, PASSWORD_DE_PRUEBA, restablecerDatosLocal } from '../lib/localSeed'
-import { homeForRole, rolLabel } from '../lib/roles'
+import { rutaDespuesDeLogin, rolLabel } from '../lib/roles'
 import { Spinner } from '../components/LoadingScreen'
 
 export default function Login() {
@@ -21,11 +21,11 @@ export default function Login() {
   const [recuperarOk, setRecuperarOk] = useState<string | null>(null)
 
   const from = (location.state as { from?: string } | null)?.from
-  const backendSinConfigurar = import.meta.env.PROD && !supabaseConfigurado
+  const backendSinConfigurar = !supabaseConfigurado && !esModoLocal()
 
   useEffect(() => {
     if (session && usuario) {
-      navigate(from ?? homeForRole(usuario.rol), { replace: true })
+      navigate(rutaDespuesDeLogin(usuario.rol, from), { replace: true })
     }
   }, [session, usuario, navigate, from])
 
@@ -36,7 +36,7 @@ export default function Login() {
   }, [initDone, initialize])
 
   if (!loading && session && usuario) {
-    return <Navigate to={from ?? homeForRole(usuario.rol)} replace />
+    return <Navigate to={rutaDespuesDeLogin(usuario.rol, from)} replace />
   }
 
   async function handleSubmit(e: React.FormEvent) {

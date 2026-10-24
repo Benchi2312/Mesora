@@ -32,6 +32,7 @@ export default function CerrarCuenta({ mesa, onVolver, onCuentaCerrada }: Cerrar
   const [items, setItems] = useState<ItemResumen[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [intentoCarga, setIntentoCarga] = useState(0)
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
   const [cobrando, setCobrando] = useState(false)
   const [cuenta, setCuenta] = useState<Cuenta | null>(null)
@@ -49,37 +50,38 @@ export default function CerrarCuenta({ mesa, onVolver, onCuentaCerrada }: Cerrar
     let activo = true
     setCargando(true)
     ;(async () => {
-      const api = getApi()
-      const pedRes = await api.getPedidosDeMesa(rid, mesa.id)
+      try {
+        const api = getApi()
+        const pedRes = await api.getPedidosDeMesa(rid, mesa.id)
 
-      if (!activo) return
-      if (pedRes.error) {
-        setError(pedRes.error)
-        setCargando(false)
-        return
-      }
-      const pList = pedRes.data ?? []
-      setPedidos(pList)
+        if (!activo) return
+        if (pedRes.error) {
+          setError(pedRes.error)
+          return
+        }
+        const pList = pedRes.data ?? []
+        setPedidos(pList)
 
-      if (pList.length === 0) {
-        setCargando(false)
-        return
-      }
+        if (pList.length === 0) return
 
-      const itsRes = await api.getPedidoItems(pList.map((p) => p.id))
-      if (!activo) return
-      if (itsRes.error) {
-        setError(itsRes.error)
-        setCargando(false)
-        return
+        const itsRes = await api.getPedidoItems(pList.map((p) => p.id))
+        if (!activo) return
+        if (itsRes.error) {
+          setError(itsRes.error)
+          return
+        }
+        setItems(itsRes.data ?? [])
+        setError(null)
+      } catch {
+        if (activo) setError('No se pudo cargar la cuenta. Revisa tu conexión e inténtalo de nuevo.')
+      } finally {
+        if (activo) setCargando(false)
       }
-      setItems(itsRes.data ?? [])
-      setCargando(false)
     })()
     return () => {
       activo = false
     }
-  }, [restaurante?.id, mesa.id])
+  }, [restaurante?.id, mesa.id, intentoCarga])
 
   // Un ítem anulado no se cobra: ni en el total, ni en los subtotales, ni en la boleta.
   const total = useMemo(() => totalItems(items), [items])
@@ -163,19 +165,26 @@ export default function CerrarCuenta({ mesa, onVolver, onCuentaCerrada }: Cerrar
     const pagoSimpleExacto =
       !dividido && propina === 0 && (Number.isNaN(recibidoEfectivo) || recibidoEfectivo <= aPagar)
 
-    const { data: cuentaGuardada, error: apiErr } = pagoSimpleExacto
-      ? await api.cerrarCuenta(restaurante.id, mesa.id, pedidos.map((p) => p.id), metodo)
-      : await api.cerrarCuentaDividida(
-          restaurante.id,
-          mesa.id,
-          pedidos.map((p) => p.id),
-          dividido
-            ? partesCobro.map((p) => ({ metodo_pago: p.metodo, monto: p.monto, referencia: p.referencia ?? null }))
-            : [{ metodo_pago: metodo, monto: Number.isNaN(recibidoEfectivo) ? 0 : recibidoEfectivo }],
-          propina,
-        )
+    let cuentaGuardada: Cuenta | null = null
+    let apiErr: string | null = null
+    try {
+      const resultado = pagoSimpleExacto
+        ? await api.cerrarCuenta(restaurante.id, mesa.id, pedidos.map((p) => p.id), metodo)
+        : await api.cerrarCuentaDividida(
+            restaurante.id,
+            mesa.id,
+            pedidos.map((p) => p.id),
+            dividido
+              ? partesCobro.map((p) => ({ metodo_pago: p.metodo, monto: p.monto, referencia: p.referencia ?? null }))
+              : [{ metodo_pago: metodo, monto: Number.isNaN(recibidoEfectivo) ? 0 : recibidoEfectivo }],
+            propina,
+          )
+      cuentaGuardada = resultado.data
+      apiErr = resultado.error
+    } catch {
+      apiErr = 'Se perdió la respuesta del cobro. Estoy comprobando si quedó registrado.'
+    }
 
-    setCobrando(false)
     if (apiErr || !cuentaGuardada) {
       // El servidor pudo haber cerrado la cuenta y perderse la respuesta (caída
       // de red). Antes de mostrar error, reconciliamos con el estado real de la
@@ -184,15 +193,18 @@ export default function CerrarCuenta({ mesa, onVolver, onCuentaCerrada }: Cerrar
       const recuperada = await reconciliarCobro()
       if (recuperada) {
         setCuenta(recuperada)
+        setCobrando(false)
         return
       }
       setError(apiErr ?? 'No se pudo cerrar la cuenta')
+      setCobrando(false)
       return
     }
 
     // La boleta se arma con la cuenta YA GUARDADA (total y pagado_at del
     // servidor), no con lo que el navegador tenía en pantalla.
     setCuenta(cuentaGuardada)
+    setCobrando(false)
   }
 
   /**
@@ -207,13 +219,17 @@ export default function CerrarCuenta({ mesa, onVolver, onCuentaCerrada }: Cerrar
    */
   async function reconciliarCobro(): Promise<Cuenta | null> {
     if (!restaurante) return null
-    const api = getApi()
-    const abiertos = await api.getPedidosDeMesa(restaurante.id, mesa.id)
-    if (abiertos.error) return null
-    const idsIntentados = pedidos.map((p) => p.id)
-    if ((abiertos.data ?? []).some((p) => idsIntentados.includes(p.id))) return null
-    const delDia = await api.getCuentasDelDia(restaurante.id)
-    return (delDia.data ?? []).find((c) => c.mesa_id === mesa.id) ?? null
+    try {
+      const api = getApi()
+      const abiertos = await api.getPedidosDeMesa(restaurante.id, mesa.id)
+      if (abiertos.error) return null
+      const idsIntentados = pedidos.map((p) => p.id)
+      if ((abiertos.data ?? []).some((p) => idsIntentados.includes(p.id))) return null
+      const delDia = await api.getCuentasDelDia(restaurante.id)
+      return (delDia.data ?? []).find((c) => c.mesa_id === mesa.id) ?? null
+    } catch {
+      return null
+    }
   }
 
   function alternarDividido() {
@@ -246,13 +262,18 @@ export default function CerrarCuenta({ mesa, onVolver, onCuentaCerrada }: Cerrar
   async function liberarMesa() {
     if (!restaurante) return
     setLiberando(true)
-    const { error: apiErr } = await getApi().liberarMesa(restaurante.id, mesa.id)
-    setLiberando(false)
-    if (apiErr) {
-      setError(apiErr)
-      return
+    try {
+      const { error: apiErr } = await getApi().liberarMesa(restaurante.id, mesa.id)
+      if (apiErr) {
+        setError(apiErr)
+        return
+      }
+      onCuentaCerrada()
+    } catch {
+      setError('No se pudo liberar la mesa. Actualiza la pantalla y verifica su estado.')
+    } finally {
+      setLiberando(false)
     }
-    onCuentaCerrada()
   }
 
   if (cuenta) {
@@ -292,6 +313,7 @@ export default function CerrarCuenta({ mesa, onVolver, onCuentaCerrada }: Cerrar
       {error && (
         <div className="aviso mb-4 border-danger-500/40 bg-danger-500/10 text-danger-500">
           {error}
+          {pedidos.length === 0 && <button type="button" onClick={() => setIntentoCarga((n) => n + 1)} className="ml-3 underline">Reintentar carga</button>}
         </div>
       )}
 

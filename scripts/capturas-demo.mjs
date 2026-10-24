@@ -9,9 +9,10 @@
 
 import { chromium } from '@playwright/test'
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, renameSync, openSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, openSync, rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { tmpdir } from 'node:os'
 
 const SCRIPTS = dirname(fileURLToPath(import.meta.url))
 const RAIZ = join(SCRIPTS, '..')
@@ -26,16 +27,9 @@ const VIEWPORTS = [
   { w: 390, h: 844 },
 ]
 
-// Modo demo: se aparta .env.local (si existe) para que Vite no active Supabase
-// y las capturas corran siempre contra los datos mock, sin tocar nada real.
-const ENV_LOCAL = join(RAIZ, '.env.local')
-const ENV_PAUSA = join(RAIZ, '.env.local.pausa-capturas')
-if (existsSync(ENV_PAUSA) && !existsSync(ENV_LOCAL)) renameSync(ENV_PAUSA, ENV_LOCAL)
-const teniaEnvLocal = existsSync(ENV_LOCAL)
-if (teniaEnvLocal) renameSync(ENV_LOCAL, ENV_PAUSA)
-const restaurarEnvLocal = () => {
-  if (teniaEnvLocal && existsSync(ENV_PAUSA)) renameSync(ENV_PAUSA, ENV_LOCAL)
-}
+// Modo demo: Vite usa un directorio de entorno temporal y vacÃ­o, sin mover
+// .env.local ni alterar la configuraciÃ³n de otros servidores abiertos.
+const ENV_DIR = mkdtempSync(join(tmpdir(), 'mesora-capturas-env-'))
 
 mkdirSync(CAPTURAS, { recursive: true })
 
@@ -56,8 +50,8 @@ function solapa(a, b) {
 
 function iniciarVite() {
   const log = openSync(join(RAIZ, 'vite-capturas.log'), 'a')
-  const bin = join(RAIZ, 'node_modules', 'vite', 'bin', 'vite.js')
-  return spawn(process.execPath, [bin, '--host', '127.0.0.1', '--port', String(PUERTO), '--strictPort'], {
+  const entry = join(SCRIPTS, 'qa-vite.mjs')
+  return spawn(process.execPath, [entry, RAIZ, ENV_DIR, String(PUERTO)], {
     cwd: RAIZ,
     stdio: ['ignore', log, log],
   })
@@ -186,7 +180,7 @@ async function run() {
   } finally {
     if (browser) await browser.close()
     vite.kill()
-    restaurarEnvLocal()
+    rmSync(ENV_DIR, { recursive: true, force: true })
   }
 
   console.log(`\n${'-'.repeat(60)}`)
@@ -201,6 +195,6 @@ async function run() {
 
 run().catch((e) => {
   console.error(e)
-  restaurarEnvLocal()
+  rmSync(ENV_DIR, { recursive: true, force: true })
   process.exit(1)
 })

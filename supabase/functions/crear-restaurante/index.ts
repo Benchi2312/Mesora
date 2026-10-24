@@ -165,6 +165,7 @@ Deno.serve(async (req) => {
       nombre: adminNombre,
       email,
       activo: true,
+      debe_cambiar_password: true,
     })
     if (errPerfil) {
       // Se deshace lo hecho: no queda restaurante sin administrador ni cuenta suelta.

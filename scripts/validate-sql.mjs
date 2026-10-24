@@ -51,6 +51,7 @@ const ORDEN = [
   '00_seguridad_rpcs.sql',
   'migracion_items_anulables.sql',
   'migracion_productos_es_bebida.sql',
+  'migracion_password_recovery.sql',
   'pin_autorizacion.sql',
   'rpc_crear_pedido.sql',
   'rpc_cerrar_cuenta.sql',
@@ -64,7 +65,7 @@ const ORDEN = [
   'suscripciones_super_admin.sql',
   'auditoria.sql',
   'configuracion_global.sql',
-  '99_crear_usuario_prueba.sql',
+  'seguridad_piloto.sql',
 ]
 
 const fallos = []
@@ -155,32 +156,21 @@ const cabecera = `-- ===========================================================
 -- Mesora · TODO_EN_UNO.sql — PEGA ESTE ARCHIVO ENTERO EN EL SQL EDITOR
 -- =============================================================================
 -- Levantá la base de datos de Mesora desde cero: tablas, funciones, permisos,
--- RLS y los perfiles de prueba. Todo en un solo archivo, en el orden correcto.
+-- RLS y permisos de produccion. No crea usuarios ni datos de prueba.
 --
--- CÓMO USARLO (3 pasos)
---   1. ANTES, creá estos 5 usuarios en Supabase → Authentication → Users →
---      Add user, con "Auto Confirm User" marcado:
---           super@prueba.app   → super_admin
---           admin@prueba.app   → admin_restaurante
---           mesero@prueba.app  → mesero
---           cocina@prueba.app  → cocina
---           cajero@prueba.app  → cajero
---      El último bloque de este script los enlaza por email. Si alguno no
---      existe en Auth, aparece un aviso y se lo saltea (no rompe nada).
---   2. Abrí el SQL Editor → New query → pegá TODO este archivo → Run.
---   3. Listo. Al final hay consultas de verificación: la última debe listar los
---      5 roles de prueba.
+-- COMO USARLO
+--   1. Abre SQL Editor, crea una consulta, pega TODO este archivo y ejecuta.
+--   2. Configura un super_admin inicial segun SUPABASE_SETUP.md y crea
+--      el restaurante piloto desde la plataforma.
 --
--- DESPUÉS DE APLICARLO
+-- DESPUES DE APLICARLO
 --   Copiá la URL y la anon key del proyecto a tu .env.local y reiniciá Vite.
 --
 -- NOTAS
---   · Es idempotente: podés pegarlo las veces que quieras, no duplica nada.
---   · Si algo falla, los comentarios "-- # n/${ORDEN.length} · archivo.sql" marcan
---     el bloque exacto donde estabas.
---   · El archivo es generado por \`npm run sql:install\` desde
---     \`supabase/fuentes/\`. No lo edites a mano: se pisa en la próxima
---     generación. Editá la fuente correspondiente.
+--   - No crea cuentas ni datos de prueba. Respalda la base y revisa el
+--     impacto antes de aplicarlo a un proyecto que ya contiene datos.
+--   - Si algo falla, los comentarios de bloque indican donde revisar.
+--   - Generado por npm run sql:install. Edita los fuentes, no este archivo.
 --
 -- Contenido: ${contenidos.length} archivos · sha256(cuerpo) = ${hash}
 -- Orden: ${ORDEN.join(' → ')}

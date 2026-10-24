@@ -2,35 +2,24 @@
 -- Mesora · TODO_EN_UNO.sql — PEGA ESTE ARCHIVO ENTERO EN EL SQL EDITOR
 -- =============================================================================
 -- Levantá la base de datos de Mesora desde cero: tablas, funciones, permisos,
--- RLS y los perfiles de prueba. Todo en un solo archivo, en el orden correcto.
+-- RLS y permisos de produccion. No crea usuarios ni datos de prueba.
 --
--- CÓMO USARLO (3 pasos)
---   1. ANTES, creá estos 5 usuarios en Supabase → Authentication → Users →
---      Add user, con "Auto Confirm User" marcado:
---           super@prueba.app   → super_admin
---           admin@prueba.app   → admin_restaurante
---           mesero@prueba.app  → mesero
---           cocina@prueba.app  → cocina
---           cajero@prueba.app  → cajero
---      El último bloque de este script los enlaza por email. Si alguno no
---      existe en Auth, aparece un aviso y se lo saltea (no rompe nada).
---   2. Abrí el SQL Editor → New query → pegá TODO este archivo → Run.
---   3. Listo. Al final hay consultas de verificación: la última debe listar los
---      5 roles de prueba.
+-- COMO USARLO
+--   1. Abre SQL Editor, crea una consulta, pega TODO este archivo y ejecuta.
+--   2. Configura un super_admin inicial segun SUPABASE_SETUP.md y crea
+--      el restaurante piloto desde la plataforma.
 --
--- DESPUÉS DE APLICARLO
+-- DESPUES DE APLICARLO
 --   Copiá la URL y la anon key del proyecto a tu .env.local y reiniciá Vite.
 --
 -- NOTAS
---   · Es idempotente: podés pegarlo las veces que quieras, no duplica nada.
---   · Si algo falla, los comentarios "-- # n/19 · archivo.sql" marcan
---     el bloque exacto donde estabas.
---   · El archivo es generado por `npm run sql:install` desde
---     `supabase/fuentes/`. No lo edites a mano: se pisa en la próxima
---     generación. Editá la fuente correspondiente.
+--   - No crea cuentas ni datos de prueba. Respalda la base y revisa el
+--     impacto antes de aplicarlo a un proyecto que ya contiene datos.
+--   - Si algo falla, los comentarios de bloque indican donde revisar.
+--   - Generado por npm run sql:install. Edita los fuentes, no este archivo.
 --
--- Contenido: 19 archivos · sha256(cuerpo) = 42dcf05d2289
--- Orden: 00_schema_base.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → migracion_password_recovery.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → 99_crear_usuario_prueba.sql
+-- Contenido: 19 archivos · sha256(cuerpo) = c055e195f51f
+-- Orden: 00_schema_base.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → migracion_password_recovery.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql
 -- =============================================================================
 
 
@@ -1052,6 +1041,15 @@ create table if not exists public.cuenta_pagos (
   created_at timestamptz not null default now()
 );
 
+-- Compatibilidad con instalaciones antiguas: `create table if not exists` no
+-- agrega columnas a una tabla ya creada. La caja y los reportes necesitan esta
+-- columna; los pagos históricos sin detalle conservan el fallback a
+-- cuentas.metodo_pago.
+alter table public.cuenta_pagos
+  add column if not exists metodo_pago text;
+create index if not exists cuenta_pagos_por_cuenta_metodo
+  on public.cuenta_pagos (cuenta_id, metodo_pago);
+
 comment on table public.cuenta_pagos is
   'Partes de un pago de cuenta (pago dividido). La suma de montos = total + propina + vuelto.';
 
@@ -1432,6 +1430,11 @@ declare
   v_reembolso numeric := 0;
   v_motivo text;
 begin
+  -- Una transacción abandonada no debe dejar la pantalla de caja esperando
+  -- minutos por el bloqueo de esta boleta. El cliente resuelve el estado final
+  -- antes de permitir que se repita la operación.
+  set local lock_timeout = '5s';
+
   perform public.validar_acceso_restaurante(p_restaurante_id);
 
   -- Admin o cajero: es una operación de caja. El mesero no puede tocar una
@@ -4535,137 +4538,137 @@ select
 
 
 -- #############################################################################
--- # 19/19 · 99_crear_usuario_prueba.sql
+-- # 19/19 · seguridad_piloto.sql
 -- #############################################################################
 
 -- -- =============================================================================
--- Mesora · Usuario y restaurante de PRUEBA (ejecutar AL FINAL, una sola vez)
+-- Mesora · controles de piloto: límite de administradores y credenciales
 -- =============================================================================
---
--- QUÉ HACE Y QUÉ NO HACE
--- Inserta el restaurante y los PERFILES en `public.usuarios`. Los usuarios de
--- Supabase Auth no se crean aquí: `auth.users` es de GoTrue y escribirlo a mano
--- deja filas sin `auth.identities`, que después no pueden iniciar sesión. Se
--- crean desde el panel (Authentication → Users → Add user) o con la Admin API,
--- y este script solo los enlaza por email.
---
--- POR QUÉ HAY DOS PASOS Y NO UNO
--- `usuarios.id` ES `auth.users.id` (ver 00_schema_base.sql). El perfil no tiene
--- contraseña ni sabe nadie: es la fila de negocio. Por eso el alta real de
--- meseros desde la app (crearPersonal) inserta el perfil y deja el usuario de
--- Auth para cuando el mesero entre por primera vez. Este script es el camino
--- corto para tener con qué probar la app hoy.
---
--- CÓMO USARLO
---   1. En Supabase → Authentication → Users → Add user, crea estos usuarios con
---      la casilla "Auto Confirm User" marcada (si no, el login falla con
---      "Email not confirmed").
---   2. Vuelve a este archivo, cambia SOLO el bloque de correos de abajo por los
---      que creaste.
---   3. Pégalo en el SQL Editor y ejecútalo.
---   4. La consulta del final dice qué quedó creado y qué falta.
---
--- ES IDEMPOTENTE
--- Se puede volver a ejecutar: el restaurante se busca por RUC y los perfiles por
--- id de Auth, así que no duplica nada. Volver a ejecutarlo solo completa el
--- `restaurante_id` de un super_admin que estuviera suelto.
--- =============================================================================
+-- Aditivo e idempotente. El trigger protege el límite aunque se escriba desde
+-- otra ruta (PostgREST, Edge Function o SQL); bloquear la fila del restaurante
+-- serializa altas concurrentes.
 
-do $$
+alter table public.planes
+  add column if not exists max_administradores integer not null default 3;
+
+update public.planes
+   set max_administradores = 3
+ where clave = 'mesora_pro'
+   and max_administradores is null;
+
+comment on column public.planes.max_administradores is
+  'Máximo de administradores activos por restaurante; un valor negativo significa sin límite.';
+
+create or replace function public.validar_limite_administradores()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
 declare
-  v_restaurante uuid;
-  v_omitidos text[] := array[]::text[];
-  v_fila record;
+  v_limite integer;
+  v_actuales integer;
 begin
-  -- ---------------------------------------------------------------------------
-  -- 1. Restaurante de prueba
-  -- ---------------------------------------------------------------------------
-  -- El RUC es el identificador del negocio en Perú (11 dígitos). Cámbialo por el
-  -- real si ya lo tienes; el `if not exists` evita duplicarlo.
-  insert into public.restaurantes (nombre, ruc, direccion, telefono, email_contacto)
-  select 'Restaurante de Prueba', '20500000000', 'Av. Siempre Viva 742',
-         '999999999', 'prueba@mesora.app'
-   where not exists (
-     select 1 from public.restaurantes where ruc = '20500000000'
-   )
-  returning id into v_restaurante;
-
-  if v_restaurante is null then
-    select id into v_restaurante
-      from public.restaurantes where ruc = '20500000000';
+  if new.rol <> 'admin_restaurante' or new.activo is not true then
+    return new;
   end if;
 
-  -- ---------------------------------------------------------------------------
-  -- 2. Perfiles enlazados a los usuarios de Auth
-  -- ---------------------------------------------------------------------------
-  -- Los cinco roles que la app distingue. Los tres últimos son los que usan el
-  -- flujo real de caja (mesero toma la comanda, cocina o barra la preparan,
-  -- cajero cobra); los dos primeros administran.
-  for v_fila in
-    select * from (values
-      ('super_admin',       'super@prueba.app'),
-      ('admin_restaurante', 'admin@prueba.app'),
-      ('mesero',            'mesero@prueba.app'),
-      ('cocina',            'cocina@prueba.app'),
-      ('cajero',            'cajero@prueba.app')
-    ) as t(rol, correo)
+  -- Cambios de datos de un administrador existente no consumen otro cupo.
+  if tg_op = 'UPDATE'
+     and old.rol = 'admin_restaurante'
+     and old.activo is true
+     and old.restaurante_id = new.restaurante_id then
+    return new;
+  end if;
+
+  -- Evita que dos altas concurrentes vean el mismo cupo libre.
+  perform 1
+    from public.restaurantes
+   where id = new.restaurante_id
+   for update;
+
+  select coalesce(p.max_administradores, 3)
+    into v_limite
+    from public.restaurantes r
+    left join public.planes p on p.id = r.plan_id
+   where r.id = new.restaurante_id;
+
+  if v_limite < 0 then
+    return new;
+  end if;
+
+  select count(*)
+    into v_actuales
+    from public.usuarios u
+   where u.restaurante_id = new.restaurante_id
+     and u.rol = 'admin_restaurante'
+     and u.activo is true
+     and u.id <> new.id;
+
+  if v_actuales >= v_limite then
+    raise exception 'El plan permite hasta % administradores activos.', v_limite
+      using errcode = '23514';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function public.validar_limite_administradores() from public;
+revoke all on function public.validar_limite_administradores() from anon;
+revoke all on function public.validar_limite_administradores() from authenticated;
+
+drop trigger if exists usuarios_limite_administradores on public.usuarios;
+create trigger usuarios_limite_administradores
+before insert or update of rol, activo, restaurante_id on public.usuarios
+for each row execute function public.validar_limite_administradores();
+
+-- Los clientes solo pueden cambiar los campos de personal usados por la UI.
+-- email pertenece a Supabase Auth y se fija al crear la cuenta; id y restaurante
+-- no se cambian desde PostgREST. El flag de contraseña lo modifican la Edge
+-- Function de reset y esta RPC, nunca una escritura directa del navegador.
+revoke update on public.usuarios from authenticated;
+do $$
+declare
+  v_columna text;
+begin
+  for v_columna in
+    select a.attname
+      from pg_attribute a
+     where a.attrelid = 'public.usuarios'::regclass
+       and a.attnum > 0
+       and not a.attisdropped
   loop
-    -- Sin usuario de Auth no hay perfil: un `usuarios` fila sin su
-    -- `auth.users` detrás no puede iniciar sesión y además rompería el login
-    -- (el bootstrap de la app no encuentra nada). Se avisa y se sigue.
-    if not exists (select 1 from auth.users where email = v_fila.correo) then
-      v_omitidos := array_append(v_omitidos, v_fila.correo);
-      continue;
-    end if;
-
-    insert into public.usuarios (id, restaurante_id, rol, nombre, email, activo)
-    select a.id,
-           -- El super_admin va con restaurante_id NULL a propósito: administra
-           -- los locales desde fuera y no opera dentro de ninguno. Las policies
-           -- de lectura global de `01_rls_completo.sql` lo contemplan.
-           case when v_fila.rol = 'super_admin' then null else v_restaurante end,
-           v_fila.rol,
-           initcap(replace(v_fila.rol, '_', ' ')),
-           v_fila.correo,
-           true
-      from auth.users a
-     where a.email = v_fila.correo
-    on conflict (id) do update
-       set restaurante_id = excluded.restaurante_id,
-           rol            = excluded.rol,
-           nombre         = excluded.nombre,
-           email          = excluded.email,
-           activo         = true;
+    execute format(
+      'revoke update (%I) on public.usuarios from authenticated',
+      v_columna
+    );
   end loop;
+end;
+$$;
+grant update (nombre, rol, activo) on public.usuarios to authenticated;
 
-  if array_length(v_omitidos, 1) is not null then
-    raise warning
-      'Estos correos no tienen usuario de Supabase Auth y quedaron sin perfil: %. Crealos en Authentication → Add user con "Auto Confirm User" y vuelve a correr este script.',
-      array_to_string(v_omitidos, ', ');
+create or replace function public.confirmar_cambio_password()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Se requiere una sesión válida';
+  end if;
+
+  update public.usuarios
+     set debe_cambiar_password = false
+   where id = auth.uid();
+
+  if not found then
+    raise exception 'No se encontró el perfil del usuario';
   end if;
 end;
 $$;
 
--- -----------------------------------------------------------------------------
--- 3. Comprobación
--- -----------------------------------------------------------------------------
--- Lo que importa es `existe_en_auth`: si dice false, ese perfil no puede
--- iniciar sesión aunque la fila exista (no hay usuario de Auth detrás).
-select r.nombre as restaurante,
-       u.rol,
-       u.nombre as perfil,
-       u.email,
-       u.activo,
-       exists (select 1 from auth.users a where a.id = u.id) as existe_en_auth
-  from public.usuarios u
-  left join public.restaurantes r on r.id = u.restaurante_id
- order by u.rol;
-
--- El usuario con el que conviene empezar: el admin del restaurante.
-select a.email as correo_para_entrar,
-       u.rol,
-       r.nombre as restaurante
-  from auth.users a
-  join public.usuarios u on u.id = a.id
-  left join public.restaurantes r on r.id = u.restaurante_id
- where a.email = 'admin@prueba.app';
+revoke all on function public.confirmar_cambio_password() from public;
+revoke all on function public.confirmar_cambio_password() from anon;
+grant execute on function public.confirmar_cambio_password() to authenticated;

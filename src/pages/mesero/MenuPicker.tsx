@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getApi, type ItemComanda } from '../../lib/api'
+import { esFalloDeRed, getApi, type ItemComanda } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import type { CategoriaProducto, Mesa, Producto } from '../../types/database'
 import { fmtPEN } from '../../lib/format'
@@ -44,6 +44,8 @@ export default function MenuPicker({
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [envioIncierto, setEnvioIncierto] = useState(false)
+  const [intentoCarga, setIntentoCarga] = useState(0)
   const [exito, setExito] = useState(false)
   /** Aviso no bloqueante (tope de cantidad, etc.). */
   const [aviso, setAviso] = useState<string | null>(null)
@@ -54,23 +56,28 @@ export default function MenuPicker({
     let activo = true
     setCargando(true)
     ;(async () => {
-      const api = getApi()
-      const [cRes, pRes] = await Promise.all([api.getCategorias(rid), api.getProductos(rid)])
+      try {
+        const api = getApi()
+        const [cRes, pRes] = await Promise.all([api.getCategorias(rid), api.getProductos(rid)])
 
-      if (!activo) return
-      if (cRes.error || pRes.error) {
-        setError(cRes.error ?? pRes.error ?? 'Error al cargar el menú')
-        setCargando(false)
-        return
+        if (!activo) return
+        if (cRes.error || pRes.error) {
+          setError(cRes.error ?? pRes.error ?? 'Error al cargar el menú')
+          return
+        }
+        setCategorias(cRes.data ?? [])
+        setProductos(pRes.data ?? [])
+        setError(null)
+      } catch {
+        if (activo) setError('No se pudo cargar el menú. Revisa tu conexión e inténtalo de nuevo.')
+      } finally {
+        if (activo) setCargando(false)
       }
-      setCategorias(cRes.data ?? [])
-      setProductos(pRes.data ?? [])
-      setCargando(false)
     })()
     return () => {
       activo = false
     }
-  }, [restaurante?.id])
+  }, [restaurante?.id, intentoCarga])
 
   const productosVisibles = useMemo(
     () => (catActiva ? productos.filter((p) => p.categoria_id === catActiva) : productos),
@@ -140,10 +147,24 @@ export default function MenuPicker({
       nota: it.nota,
     }))
 
-    const { data: pedidoId, error: apiErr } = await getApi().crearPedido(restaurante.id, mesa.id, items)
+    let pedidoId: string | null = null
+    let apiErr: string | null = null
+    try {
+      const resultado = await getApi().crearPedido(restaurante.id, mesa.id, items)
+      pedidoId = resultado.data
+      apiErr = resultado.error
+    } catch {
+      setEnvioIncierto(true)
+      apiErr = 'No se pudo confirmar el envío. Revisa las comandas antes de volver a intentarlo.'
+    }
 
     setEnviando(false)
     if (apiErr || !pedidoId) {
+      if (esFalloDeRed(apiErr)) {
+        setEnvioIncierto(true)
+        setError('No se pudo confirmar el envío. Vuelve a mesas y revisa la comanda antes de reenviarla.')
+        return
+      }
       setError(apiErr ?? 'No se pudo enviar la comanda')
       return
     }
@@ -188,6 +209,9 @@ export default function MenuPicker({
         {error && (
           <div className="w-full rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-sm text-danger-500 sm:w-auto">
             {error}
+            {categorias.length === 0 && productos.length === 0 && (
+              <button type="button" onClick={() => setIntentoCarga((n) => n + 1)} className="ml-3 underline">Reintentar carga</button>
+            )}
           </div>
         )}
       </div>
@@ -350,12 +374,17 @@ export default function MenuPicker({
             <button
               type="button"
               data-guia="enviar-comanda"
-              disabled={cart.length === 0 || enviando || Boolean(itemFueraDeRango)}
+              disabled={cart.length === 0 || enviando || envioIncierto || Boolean(itemFueraDeRango)}
               onClick={() => void enviarComanda()}
               className="mt-4 min-h-14 w-full touch-manipulation rounded-xl bg-brand-500 py-3.5 text-base font-semibold text-surface-950 transition hover:bg-brand-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {enviando ? 'Enviando…' : 'Enviar comanda a cocina'}
             </button>
+            {envioIncierto && (
+              <button type="button" onClick={onVolver} className="mt-2 min-h-11 w-full rounded-xl border border-surface-700 px-4 text-sm text-zinc-300">
+                Volver a mesas y revisar antes de reenviar
+              </button>
+            )}
           </div>
         </div>
       </div>

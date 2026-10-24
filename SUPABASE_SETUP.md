@@ -6,8 +6,8 @@ hace desde el panel web y el SQL Editor.
 
 > Tiempo estimado: 15→20 minutos la primera vez.
 >
-> Al terminar tendrás: base con RLS, 5 usuarios de prueba, la app conectada y el
-> primer administrador con el que entrar.
+> Al terminar tendras la base protegida, un super administrador inicial y
+> un restaurante piloto con sus cuentas de acceso.
 
 ---
 
@@ -25,7 +25,7 @@ El SQL **no está escrito a mano**: se genera desde `supabase/fuentes/`.
 npm run sql:install
 ```
 
-Ese comando concatena los 19 archivos en el orden correcto, comprueba los
+Ese comando concatena los 19 archivos de produccion en el orden correcto, comprueba los
 delimitadores `$$`, el encoding y que no haya ningún `drop table`, y deja
 `supabase/TODO_EN_UNO.sql` listo para pegar. Si tocas cualquier archivo de
 `supabase/fuentes/`, vuelve a ejecutarlo antes de instalar.
@@ -55,6 +55,18 @@ Guarda estos dos datos de **Settings →  API**:
 
 ## 2. Aplicar el SQL
 
+`supabase/TODO_EN_UNO.sql` sirve para instalar un proyecto nuevo. Si tu proyecto
+ya tiene datos, no pegues el instalador completo: primero compara el esquema y
+respalda la base. La mejora de piloto esta en `supabase/fuentes/seguridad_piloto.sql`;
+aplicala por separado solo después de confirmar que el esquema actual ya tiene
+las tablas y columnas que usa.
+
+Para actualizar una instalación existente con la corrección de caja y anulaciones,
+aplica en el SQL Editor estos fuentes, en este orden: `rpc_cerrar_cuenta.sql`,
+`rpc_anular_cuenta.sql` y `caja_turnos.sql`. Esto agrega `cuenta_pagos.metodo_pago`
+si falta, actualiza el cálculo de efectivo y limita los bloqueos al anular una
+boleta. No hace falta volver a ejecutar el instalador completo.
+
 1. Supabase →  **SQL Editor** →  **New query**.
 2. Abre `supabase/TODO_EN_UNO.sql`, copia **todo** y pégalo.
 3. **Run**. Tarda unos segundos y al final imprime varias tablas de verificación.
@@ -67,8 +79,9 @@ Qué hace, en orden:
 - activa RLS y crea las policies;
 - revoca permisos peligrosos a `anon` y `truncate` a `authenticated`;
 - siembra la configuración global y los planes;
-- al final ejecuta `99_crear_usuario_prueba.sql`, que **avisa** de que todavía no
-  existen los usuarios de Auth. Es normal: el paso 3 los crea.
+No crea usuarios, perfiles de acceso ni datos de demostracion; el primer super administrador se configura en el paso 3.
+
+El script es aditivo. En una base que ya contiene datos, respalda y revisa primero el impacto de cada cambio.
 
 Es idempotente: se puede volver a ejecutar entero sin duplicar datos ni borrar
 nada. Si algo falla a mitad, corrige y vuelve a correrlo.
@@ -92,34 +105,27 @@ select has_column_privilege('anon', 'public.configuracion_global', 'precio_plan_
 
 ---
 
-## 3. Crear los usuarios de prueba
+## 3. Preparar el acceso inicial
 
-Los perfiles de negocio (`public.usuarios`) **no** se crean a mano: cada fila se
-enlaza por `id` con un usuario real de Supabase Auth. Si creas la fila sin el
-usuario de Auth, ese correo no puede iniciar sesión.
+El instalador no crea usuarios, contraseñas compartidas ni datos de demostracion.
+Primero conecta la app con las variables de Supabase del paso siguiente y despliega
+las Edge Functions indicadas en el paso 5. Para habilitar el primer acceso de
+plataforma, crea una cuenta Auth con tu correo y contraseña unica desde
+**Authentication > Users > Add user** (marca **Auto Confirm User**). Despues
+usa el SQL Editor para insertar su perfil de super administrador, sustituyendo
+los valores por los tuyos:
 
-En **Authentication →  Users →  Add user**, crea estos cinco correos con la
-casilla **Auto Confirm User** marcada y la misma contraseña (por ejemplo
-`Mesora2026!`):
+```sql
+insert into public.usuarios (id, restaurante_id, rol, nombre, email, activo)
+select id, null, 'super_admin', 'Nombre del operador', email, true
+  from auth.users
+ where email = 'tu-correo@dominio.com'
+on conflict (id) do nothing;
+```
 
-| Correo | Rol que tendrá |
-| --- | --- |
-| `super@prueba.app` | super admin de la plataforma |
-| `admin@prueba.app` | administrador del restaurante |
-| `mesero@prueba.app` | mesero |
-| `cocina@prueba.app` | cocina/barra |
-| `cajero@prueba.app` | cajero |
-
-Después, vuelve al SQL Editor y pega **solo**
-`supabase/fuentes/99_crear_usuario_prueba.sql` (o todo `TODO_EN_UNO.sql` otra
-vez). Crea el restaurante "Restaurante de Prueba" y enlaza los cinco perfiles.
-La consulta final te dice cuáles quedaron con `existe_en_auth = true`.
-
-> El `super_admin` va con `restaurante_id = null` a propósito: administra la
-> plataforma desde fuera y no opera dentro de un local.
-
-Si prefieres usar tus correos reales, edita el bloque `values` de ese archivo
-antes de ejecutarlo.
+Limita este acceso a operadores de confianza. Desde ese panel crea el restaurante
+piloto y su administrador; el sistema obliga a cambiar la contraseña inicial al
+primer ingreso. No reutilices cuentas ni contraseñas de prueba en el piloto.
 
 ---
 
@@ -138,13 +144,11 @@ VITE_SUPABASE_URL=https://<ref>.supabase.co
 VITE_SUPABASE_ANON_KEY=sb_publishable_...
 ```
 
-Reinicia el servidor (`npm run dev`) y entra a `/login` con
-`admin@prueba.app`. Si en lugar del login ves el aviso de modo local, es que
-Vite no leyó `.env.local`: para el proceso y vuelve a arrancarlo (las variables
-`VITE_*` se inyectan al iniciar).
+Reinicia el servidor (`npm run dev`) y entra a `/login` con el correo del administrador piloto. Si aparece el aviso de Supabase sin configurar, revisa que `.env.local` tenga ambas variables y vuelve a iniciar Vite (las variables `VITE_*` se inyectan al arrancar).
 
-> Sin `.env.local` la app usa el backend local simulado. Eso es intencional:
-> permite desarrollar sin red y sin tocar la base real.
+> Si falta `.env.local`, el acceso real falla cerrado y la app no usa datos locales
+> automáticamente. Para pruebas locales aisladas, habilita `VITE_MESORA_MODO_LOCAL=true`
+> en desarrollo; esa opción no tiene efecto en producción.
 
 ### En Vercel
 
@@ -220,7 +224,7 @@ Authentication.
 
 ## 7. Primer arranque: qué hacer dentro de la app
 
-1. Entra como `admin@prueba.app` →  verás el panel de administración.
+1. Entra como el correo del administrador piloto →  verás el panel de administración.
 2. **Datos del local**: nombre real, RUC, dirección y teléfono.
 3. **Mesas y zonas**: crea las zonas y mesas del salón.
 4. **Menú**: categorías y productos (marca `es_bebida` en lo que prepare barra).
@@ -246,18 +250,25 @@ npm run build              # build de producción
 npm run sql:install        # regenera TODO_EN_UNO.sql si tocaste el SQL
 ```
 
-Las suites `verificar` y `verificar:responsive` **no** necesitan Supabase: usan el
-backend local y apartan `.env.local` mientras corren. Son la red de seguridad de
-las reglas de negocio y del layout, no un test de integración contra Postgres.
+Las suites `verificar` y `verificar:responsive` **no** necesitan Supabase: usan un
+entorno temporal aislado y fuerzan el backend local solo para QA. No mueven
+`.env.local` ni cambian la configuración de servidores abiertos. Son la red de
+seguridad de las reglas de negocio y del layout, no un test de integración contra
+Postgres.
 
-Contra la base real, la comprobación es manual y corta:
+La aceptación contra la base de staging debe ser manual y con cuentas de prueba:
 
-1. Login de los cinco roles.
-2. Una comanda de principio a fin y su boleta.
-3. Anular un ítem y ver que deja de sumar en la cuenta.
-4. Abrir y cerrar caja con mesas pendientes (debe avisar, no bloquear).
-5. Recargar (F5) en cada vista: la sesión debe persistir.
-
+1. Iniciar sesión con cada rol piloto y confirmar que el administrador que entra
+   desde /cajero llega al panel /admin.
+2. Como mesero, crear una comanda; como cocina, avanzar sus estados hasta listo.
+3. Abrir el turno de caja, cobrar la cuenta y verificar la boleta y el método de
+   pago registrado.
+4. Intentar anular con PIN incorrecto y confirmar que no cambie el estado; luego
+   anular con PIN correcto y verificar motivo, actor, reembolso y estado anulada.
+5. Cerrar el turno y comparar el efectivo esperado con la apertura, cobros y
+   reembolsos de la ventana del turno.
+6. Recargar cada vista y confirmar que la sesión persiste. Registrar tiempos y
+   errores vistos en cada paso.
 ---
 
 ## 9. Errores frecuentes
@@ -266,7 +277,7 @@ Contra la base real, la comprobación es manual y corta:
 | --- | --- |
 | "Email not confirmed" | El usuario se creó sin *Auto Confirm*. Confírmalo en Authentication →  Users o desactiva *Confirm email*. |
 | La app entra pero todo sale vacío | El usuario existe en Auth pero no en `public.usuarios`, o su `restaurante_id` no coincide. Revisa la consulta final del paso 3. |
-| `401` / `permission denied for table ...` | Falta un `grant`, no una policy. Vuelve a correr `TODO_EN_UNO.sql` completo (incluye los grants de `01_rls_completo.sql`). |
+| 401 / permission denied for table ... | Compara los grants y policies de la tabla con 01_rls_completo.sql y aplica la corrección puntual al esquema existente. No vuelvas a ejecutar el instalador completo sobre una base con datos. |
 | `Invalid API key` | El valor de `VITE_SUPABASE_ANON_KEY` está incompleto o es la `service_role`. Copia la clave pública de Settings →  API. |
 | Cambios de `.env.local` que no se aplican | Reinicia `npm run dev`; Vite solo lee las variables al arrancar. |
 | El enlace de recuperación lleva a localhost | Falta la Redirect URL del dominio en Authentication →  URL Configuration. |
@@ -297,14 +308,28 @@ API/Auth** tras el primer uso real.
 
 ---
 
-## 11. Checklist de publicación
+## 11. Checklist previo al piloto
 
-- [ ] `npm run sql:install` sin errores.
-- [ ] `TODO_EN_UNO.sql` aplicado en el proyecto de producción.
-- [ ] Cinco usuarios de Auth creados y enlazados (`existe_en_auth = true`).
-- [ ] `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` en Vercel.
-- [ ] Site URL y Redirect URLs con el dominio final.
-- [ ] SMTP propio configurado (si usas recuperación de contraseña).
-- [ ] `npm run typecheck && npm run build` en verde.
-- [ ] Recorrido manual de mesero →  cocina →  cajero →  admin.
-- [ ] Datos de prueba borrados y restaurante real creado.
+- [ ] Confirmar el proyecto de Supabase objetivo y que sea staging antes de
+  ejecutar operaciones que creen pedidos, pagos, anulaciones o turnos.
+- [ ] Hacer una copia de seguridad y confirmar cómo restaurarla.
+- [ ] npm run sql:install termina sin errores y el diff generado está revisado.
+- [ ] En una base existente, aplicar únicamente las migraciones pendientes, en
+  el orden indicado en la sección 3. No pegar TODO_EN_UNO.sql sobre datos
+  existentes: ese archivo es para una instalación nueva.
+- [ ] Verificar en la base que cuenta_pagos.metodo_pago, las RPC de cierre y
+  anulación y las RPC de caja estén presentes; confirmar PIN y permisos por rol.
+- [ ] Crear el administrador y personal piloto con cuentas individuales; revisar
+  restaurante_id, rol y activo en public.usuarios.
+- [ ] Configurar VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en el hosting y
+  Site URL/Redirect URLs de Supabase Auth para el dominio del piloto.
+- [ ] Configurar SMTP propio si se habilitan invitaciones o recuperación de
+  contraseña.
+- [ ] npm run typecheck, npm run verificar,
+  npm run verificar:responsive y npm run build pasan.
+- [ ] Registrar una aceptación en staging: login de cada rol, pedido de mesero,
+  avance de cocina, apertura de caja, cobro y boleta, anulación con PIN válido e
+  inválido, cierre de caja y comprobación del arqueo.
+- [ ] Confirmar el procedimiento manual de contingencia y quién revisará los
+  logs durante el piloto.
+- [ ] Desplegar el piloto solo después de completar y aprobar los puntos previos.

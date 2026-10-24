@@ -1,8 +1,8 @@
 // CAPA DE DATOS — Tres modos.
 // Todas las vistas piden datos a través de `getApi()`.
 //   * apiMode.demo = true                          → mockApi (modo /demo, datos falsos)
-//   * !supabaseConfigurado (y no /demo)            → localApi (backend local simulado)
-//   * supabaseConfigurado (y no /demo)             → realApi (Supabase, producción)
+//   * VITE_MESORA_MODO_LOCAL=true (y no /demo)     → localApi (QA opt-in)
+//   * demás rutas                             → realApi (Supabase, falla cerrada)
 //
 // El modo "local" permite probar el flujo real de login y las restricciones por
 // rol sin Supabase: las credenciales y el dataset viven en src/lib/localSeed.ts.
@@ -10,7 +10,7 @@
 // Para remover el demo: borra src/demo/, src/lib/mockData.ts, la rama `demo`
 // de getApi() y este comentario. Ver README → "Quitar el modo demo".
 
-import { supabase, supabaseConfigurado } from './supabase'
+import { modoLocalHabilitado, supabase, supabaseConfigurado } from './supabase'
 import { computeMetricas, type MetricasAdmin } from './metricas'
 import { arqueoTurno, errorAlAbrirTurno, errorAlCerrarTurno, redondear } from './caja'
 import { completarPartes, resumirPago, type PagoParte } from './pagos'
@@ -65,6 +65,38 @@ import { formatearNumeroBoleta } from './boleta'
 export interface Res<T> {
   data: T | null
   error: string | null
+}
+
+/** Detecta errores de transporte cuya operacion pudo confirmarse en el servidor. */
+export function esFalloDeRed(error: string | null | undefined): boolean {
+  return Boolean(error && /network|fetch|timeout|timed out|connection|conexi[oó]n|offline|aborted|request may have completed/i.test(error))
+}
+
+const apiConErroresNormalizados = new WeakMap<DataApi, DataApi>()
+
+function envolverErroresApi(api: DataApi): DataApi {
+  const existente = apiConErroresNormalizados.get(api)
+  if (existente) return existente
+  const seguro = new Proxy(api, {
+    get(objetivo, propiedad, receptor) {
+      const miembro = Reflect.get(objetivo, propiedad, receptor)
+      if (!Object.prototype.hasOwnProperty.call(objetivo, propiedad) || typeof miembro !== 'function') return miembro
+      return (...args: unknown[]) =>
+        Promise.resolve()
+          .then(() => miembro.apply(objetivo, args))
+          .catch((causa: unknown) => {
+            const mensaje = causa instanceof Error ? causa.message : ''
+            return {
+              data: null,
+              error: esFalloDeRed(mensaje)
+                ? 'La conexión se interrumpió. Actualiza los datos antes de repetir la operación; la solicitud pudo haberse completado.'
+                : mensaje || 'No se pudo completar la operación. Inténtalo de nuevo.',
+            }
+          })
+    },
+  })
+  apiConErroresNormalizados.set(api, seguro)
+  return seguro
 }
 
 export type ItemComanda = {
@@ -762,13 +794,62 @@ const realApi: DataApi = {
     return { data: null, error: error?.message ?? null }
   },
   async anularCuenta(rid, cuentaId, motivo, pin = null) {
-    const { data, error } = await supabase.rpc('anular_cuenta', {
-      p_restaurante_id: rid,
-      p_cuenta_id: cuentaId,
-      p_motivo: motivo,
-      p_pin: pin,
-    })
-    return { data: data as Cuenta | null, error: error?.message ?? null }
+    const controller = new AbortController()
+    let vencio = false
+    const timeout = setTimeout(() => {
+      vencio = true
+      controller.abort()
+    }, 25_000)
+    try {
+      const { data, error } = await supabase
+        .rpc('anular_cuenta', {
+          p_restaurante_id: rid,
+          p_cuenta_id: cuentaId,
+          p_motivo: motivo,
+          p_pin: pin,
+        })
+        .abortSignal(controller.signal)
+      if (!error) return { data: data as Cuenta | null, error: null }
+
+      if (vencio || esFalloDeRed(error.message)) {
+        // La desconexión puede ocurrir después del COMMIT. Lee el estado antes
+        // de pedir al usuario que repita una acción que mueve dinero.
+        const verificacion = await supabase
+          .from('cuentas')
+          .select('*')
+          .eq('id', cuentaId)
+          .eq('restaurante_id', rid)
+          .maybeSingle()
+        if (!verificacion.error && verificacion.data?.estado === 'anulada') {
+          return { data: verificacion.data as Cuenta, error: null }
+        }
+        return {
+          data: null,
+          error: 'La operación tardó más de 25 segundos y no se pudo confirmar. Actualiza las boletas antes de volver a intentarlo.',
+        }
+      }
+      return { data: null, error: error.message }
+    } catch (causa) {
+      const mensaje = causa instanceof Error ? causa.message : ''
+      if (vencio || esFalloDeRed(mensaje)) {
+        const verificacion = await supabase
+          .from('cuentas')
+          .select('*')
+          .eq('id', cuentaId)
+          .eq('restaurante_id', rid)
+          .maybeSingle()
+        if (!verificacion.error && verificacion.data?.estado === 'anulada') {
+          return { data: verificacion.data as Cuenta, error: null }
+        }
+        return {
+          data: null,
+          error: 'La operación tardó más de 25 segundos y no se pudo confirmar. Actualiza las boletas antes de volver a intentarlo.',
+        }
+      }
+      return { data: null, error: mensaje || 'No se pudo completar la anulación.' }
+    } finally {
+      clearTimeout(timeout)
+    }
   },
   async tienePinAutorizacion(rid) {
     const { data, error } = await supabase.rpc('tiene_pin_autorizacion', { p_restaurante_id: rid })
@@ -1385,9 +1466,14 @@ const realApi: DataApi = {
     return { data: usuario, error: null }
   },
   async actualizarPersonal(rid, id, cambios) {
+    const actualizacion = {
+      ...(cambios.nombre !== undefined ? { nombre: cambios.nombre } : {}),
+      ...(cambios.rol !== undefined ? { rol: cambios.rol } : {}),
+      ...(cambios.activo !== undefined ? { activo: cambios.activo } : {}),
+    }
     const { data, error } = await supabase
       .from('usuarios')
-      .update(cambios)
+      .update(actualizacion)
       .eq('id', id)
       .eq('restaurante_id', rid)
       .in('rol', ROLES_PERSONAL)
@@ -3261,16 +3347,16 @@ export function enDemo(): boolean {
 
 /** True cuando NO estamos en /demo y Supabase no está configurado. */
 export function esModoLocal(): boolean {
-  return !enDemo() && !import.meta.env.PROD && !supabaseConfigurado
+  return !enDemo() && modoLocalHabilitado
 }
 
 export function getApi(): DataApi {
   if (typeof window !== 'undefined' && window.location.pathname.startsWith('/demo')) {
-    return mockApi
+    return envolverErroresApi(mockApi)
   }
-  if (apiMode.demo) return mockApi
-  if (esModoLocal()) return localApi
-  return realApi
+  if (apiMode.demo) return envolverErroresApi(mockApi)
+  if (esModoLocal()) return envolverErroresApi(localApi)
+  return envolverErroresApi(realApi)
 }
 
 if (import.meta.env.DEV) {

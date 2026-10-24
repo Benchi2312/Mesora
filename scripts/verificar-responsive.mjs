@@ -4,14 +4,15 @@
 //
 //   npm run verificar:responsive
 //
-// Levanta Vite en modo demo (aparta .env.local para no tocar Supabase), así los
-// datos son los mock y no hace falta iniciar sesión.
+// Levanta Vite con un directorio de entorno vacío para usar los datos mock,
+// sin mover .env.local ni cambiar la configuración de otros servidores.
 
 import { chromium } from '@playwright/test'
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, openSync, renameSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, openSync, rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { tmpdir } from 'node:os'
 
 const SCRIPTS = dirname(fileURLToPath(import.meta.url))
 const RAIZ = join(SCRIPTS, '..')
@@ -41,14 +42,7 @@ const PANTALLAS = [
   { ruta: '/demo/cajero', nombre: 'cajero' },
 ]
 
-const ENV_LOCAL = join(RAIZ, '.env.local')
-const ENV_PAUSA = join(RAIZ, '.env.local.pausa-responsive')
-if (existsSync(ENV_PAUSA) && !existsSync(ENV_LOCAL)) renameSync(ENV_PAUSA, ENV_LOCAL)
-const teniaEnvLocal = existsSync(ENV_LOCAL)
-if (teniaEnvLocal) renameSync(ENV_LOCAL, ENV_PAUSA)
-const restaurarEnvLocal = () => {
-  if (teniaEnvLocal && existsSync(ENV_PAUSA)) renameSync(ENV_PAUSA, ENV_LOCAL)
-}
+const ENV_DIR = mkdtempSync(join(tmpdir(), 'mesora-responsive-env-'))
 
 mkdirSync(CAPTURAS, { recursive: true })
 
@@ -63,8 +57,8 @@ function check(nombre, condicion, detalle = '') {
 
 function iniciarVite() {
   const log = openSync(join(RAIZ, 'vite-responsive.log'), 'a')
-  const bin = join(RAIZ, 'node_modules', 'vite', 'bin', 'vite.js')
-  return spawn(process.execPath, [bin, '--host', '127.0.0.1', '--port', String(PUERTO), '--strictPort'], {
+  const entry = join(SCRIPTS, 'qa-vite.mjs')
+  return spawn(process.execPath, [entry, RAIZ, ENV_DIR, String(PUERTO)], {
     cwd: RAIZ,
     stdio: ['ignore', log, log],
   })
@@ -270,7 +264,7 @@ async function run() {
   } finally {
     if (browser) await browser.close()
     vite.kill()
-    restaurarEnvLocal()
+    rmSync(ENV_DIR, { recursive: true, force: true })
   }
 
   console.log(`\n${'-'.repeat(60)}`)
@@ -284,6 +278,6 @@ async function run() {
 
 run().catch((e) => {
   console.error(e)
-  restaurarEnvLocal()
+  rmSync(ENV_DIR, { recursive: true, force: true })
   process.exit(1)
 })

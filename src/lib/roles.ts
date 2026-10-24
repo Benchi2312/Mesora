@@ -22,6 +22,12 @@ export function homeForRole(rol: Rol): string {
   return HOME_BY_ROLE[rol] ?? `/login`
 }
 
+/** Respeta el destino original, salvo la ruta de caja compartida con el admin. */
+export function rutaDespuesDeLogin(rol: Rol, desde?: string | null): string {
+  if (rol === 'admin_restaurante' && desde === '/cajero') return homeForRole(rol)
+  return desde ?? homeForRole(rol)
+}
+
 export function rolLabel(rol: Rol): string {
   return ROL_LABELS[rol] ?? rol
 }

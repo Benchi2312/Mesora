@@ -1,4 +1,4 @@
-﻿# Mesora
+# Mesora
 
 Sistema de gestión para restaurantes: mesas, comandas, cocina, caja y reportes.
 Una app web (SPA) que funciona en tres modos — **local** con datos simulados,
@@ -10,7 +10,7 @@ reglas de negocio.
 - React 19 + TypeScript + Vite
 - Sin framework de UI: los componentes viven en `src/components/ui.tsx`
 - Supabase (Postgres + Auth + Realtime) como backend real
-- RLS en todas las tablas; las operaciones atómicas van por RPC (`security definer`)
+- RLS en todas las tablas; las operaciónes atómicas van por RPC (`security definer`)
 - `localStorage` para el modo local, con botón de reset en `/login`
 
 ## Roles
@@ -29,9 +29,8 @@ frontend, y un restaurante con `suscripcion_activa = false` o
 
 ## Modos de ejecución
 
-1. **Local** (en desarrollo, sin `.env.local`): login y roles sobre un
-   dataset simulado (restaurante demo con mesas y dinero, un restaurante vacío y
-   uno vencido) persistido en `localStorage`. Credenciales en `/login`.
+1. **Local** (solo QA opt-in): login y roles sobre un dataset simulado,
+   habilitado manualmente con `VITE_MESORA_MODO_LOCAL=true` en desarrollo.
 2. **Demo** (`/demo`): las 4 vistas con datos de ejemplo, sin login, con el
    recorrido guiado "Hazlo por mí" y persistencia en `localStorage` (el botón
    *Vaciar el demo* lo reinicia). No toca Supabase.
@@ -43,20 +42,16 @@ devuelve `getApi()` (`realApi`, `localApi` o `mockApi`).
 
 ## Instalación
 
-Sin Supabase (modo local, por defecto):
-
-```bash
-npm install
-npm run dev
-```
-
-Con Supabase:
-
 ```bash
 npm install
 cp .env.example .env.local   # completa URL y anon key de Supabase
 npm run dev
 ```
+
+El backend simulado no se activa automáticamente. Para QA local, define
+`VITE_MESORA_MODO_LOCAL=true` en `.env.local`; nunca se habilita en producción.
+Si falta Supabase y el modo QA no está habilitado, el login muestra un error de
+configuración y no acepta credenciales locales.
 
 Para crear el proyecto, aplicar el SQL y los usuarios:
 [`SUPABASE_SETUP.md`](./SUPABASE_SETUP.md).
@@ -94,8 +89,9 @@ dashboard, la caja por turnos y el round-trip de `localStorage` simulando un F5.
 `npm run verificar:responsive` usa Playwright con Chromium: recorre landing,
 login, demo, las 8 pestañas del admin, mesero, cocina, cajero y las 10 secciones
 del super admin con datos, en 360, 390, 768 y 1280 px. Falla si el documento
-gana scroll horizontal o si un control táctil queda por debajo de 28 px. Aparta
-`.env.local` mientras corre (modo local) y lo restaura al terminar.
+gana scroll horizontal o si un control táctil queda por debajo de 28 px. Usa un
+directorio de entorno temporal para forzar el modo QA sin mover
+`.env.local` ni alterar servidores Vite que ya estén abiertos.
 
 Ambas suites salen con código 1 si algún check falla.
 
@@ -197,33 +193,10 @@ Los permisos están endurecidos en `01_rls_completo.sql` y en cada módulo:
 
 ## Schema de Supabase
 
-El SQL completo vive en `supabase/fuentes/` (19 archivos) y se empaqueta en
-`supabase/TODO_EN_UNO.sql`. Ese es el archivo que se pega en el SQL Editor; no
-hay que ejecutar los fuentes uno a uno. `npm run sql:install` lo regenera.
-
-El frontend asume estos nombres de tabla y columna (`src/types/database.ts`):
-
-- `restaurantes`: `id`, `nombre`, `suscripcion_activa` (bool), `fecha_vencimiento` (timestamptz)
-- `usuarios`: `id` (= `auth.users.id`, PK), `restaurante_id`, `rol` (`super_admin` | `admin_restaurante` | `mesero` | `cocina`), `nombre`
-- `zonas`: `id`, `restaurante_id`, `nombre`
-- `mesas`: `id`, `restaurante_id`, `zona_id`, `nombre`, `estado`
-- `categorias_productos`: `id`, `restaurante_id`, `nombre`
-- `productos`: `id`, `restaurante_id`, `categoria_id`, `nombre`, `precio`, `disponible`, `es_promocion`, `precio_promocion`, `es_bebida`
-- `pedidos`: `id`, `restaurante_id`, `mesa_id`, `mesero_id`, `estado` (`pendiente` | `en_preparacion` | `listo` | `entregado` | `anulado`), `created_at`, `updated_at`
-- `pedido_items`: `id`, `pedido_id`, `producto_id`, `nombre_producto`, `cantidad`, `precio_unitario`, `nota`, `anulado`, `anulado_por`, `anulado_at`
-- `cuentas`: `id`, `restaurante_id`, `mesa_id`, `total`, `metodo_pago`, `estado`, `pagado_at`
-- `cuenta_pedidos`: `id`, `cuenta_id`, `pedido_id`, `subtotal`
-- `cuenta_pagos`: pagos parciales (efectivo/tarjeta/Yape), propina y vuelto
-- `caja_turnos`: turnos de caja con monto inicial, arqueo y diferencia
-- `correlativos`: contador de boletas por restaurante (solo lo usa la RPC)
-- `restaurante_pins`: PIN de autorización para anular cobros
-- `configuracion_global`: fila única con nombre, soporte, logo y precio del plan
-- `planes`, `suscripciones_historial`: catálogo y bitácora de suscripciones
-- `soporte_tickets`: tickets de soporte
-- `audit_logs`: auditoría de cambios sensibles
-
-> El usuario en `usuarios` debe existir para cada cuenta de Supabase Auth (RLS permite leer su propia fila y la del restaurante al que pertenece).
-
+El instalador generado, supabase/TODO_EN_UNO.sql, es para proyectos nuevos.
+En un proyecto existente se aplican solo migraciones revisadas en el orden
+indicado en SUPABASE_SETUP.md; no se vuelve a pegar el instalador completo.
+El orden de fuentes y su cobertura se verifican con npm run sql:install.
 ## Estado actual
 
 Implementado. Última verificación registrada (`npm run verificar`: 500 checks;
@@ -234,7 +207,7 @@ Implementado. Última verificación registrada (`npm run verificar`: 500 checks;
 - **Vista Cocina**: comandas en columnas por estado (pendientes / en preparación / listos) con cronómetro de espera, avance de estado y separación cocina/barra por `es_bebida`. Las comandas cobradas desaparecen y los ítems anulados salen tachados.
 - **Vista Admin**: dashboard de ventas (hoy/mes, ticket promedio, top productos, ventas por mesero, métodos de pago y horarios pico), **Caja por turnos** con arqueo y aviso (no bloqueo) de mesas sin cobrar, **Cobros** con anulación y PIN, gestión de zonas, mesas, categorías y productos, personal y datos del local. Export CSV y reportes imprimibles.
 - **Vista Super Admin**: restaurantes, administradores, usuarios, suscripciones, estadísticas, auditoría, notificaciones, soporte y configuración global.
-- **Modo local** (en desarrollo, sin `.env.local`): login y roles reales sobre un dataset simulado, persistencia en `localStorage` y botón de reset en `/login`.
+- **Modo local** (solo desarrollo, activación explícita con VITE_MESORA_MODO_LOCAL=true): login y roles simulados sobre un dataset de prueba, persistencia en localStorage y botón de reset en /login. Sin esa variable, la app falla cerrada si Supabase no está configurado.
 - **Modo demo** (`/demo`): las 4 vistas sin login, con recorrido guiado que escribe por ti ("Hazlo por mí"), persistencia en `localStorage` y botón para vaciarlo.
 - **Rendimiento**: code-splitting por ruta; la landing y el login no descargan el panel.
 - **Base reproducible**: `supabase/TODO_EN_UNO.sql` (19 archivos, RLS y grants incluidos).
@@ -246,18 +219,23 @@ igual; `npm run verificar` las cubre automáticamente.
 
 ### Pendiente para publicar
 
-- Aplicar `supabase/TODO_EN_UNO.sql` en el proyecto real y crear los usuarios
-  ([`SUPABASE_SETUP.md`](./SUPABASE_SETUP.md)).
-- Variables de entorno en Vercel y dominio final en Supabase Auth.
-- Recorrido manual de aceptación contra la base real (mesero → cocina → cajero).
-- Mejoras pendientes: reconciliación ante una respuesta incierta al cobrar e impresión de ticket de cocina. El focus trap de los modales y el filtro de productos agotados ya están implementados.
-
+- Respaldar la base existente y aplicar solo las migraciones pendientes en el
+  orden documentado; TODO_EN_UNO.sql es para una instalación nueva, no para
+  actualizar una base con datos.
+- Verificar el primer administrador, el restaurante piloto y sus roles en
+  Supabase; configurar variables de producción y URLs de Auth para el dominio.
+- Ejecutar y registrar la aceptación punta a punta contra un proyecto de
+  staging: login por rol, comanda, cocina, cobro, anulación con PIN y arqueo de
+  caja. Las pruebas locales no sustituyen esa aceptación.
+- Acordar respaldo y restauración, monitoreo de errores y operación manual ante
+  fallos. Ver SUPABASE_SETUP.md para los pasos previos.
 ## Integración continua
 
-GitHub Actions ejecuta `npm ci`, `npm run typecheck` y `npm run build` al abrir
-un pull request o actualizar `main`/`master`. Para que se active, Mesora debe ser
+GitHub Actions ejecuta `npm ci`, `npm run sql:install`, `npm run verificar`,
+`npm run typecheck` y `npm run build` al abrir un pull request o actualizar
+`main`/`master`. Para que se active, Mesora debe ser
 la raíz del repositorio GitHub.
 
-En builds de producción, Mesora requiere `VITE_SUPABASE_URL` y
-`VITE_SUPABASE_ANON_KEY`. Si faltan, el login de prueba local se deshabilita; el
-modo local sigue disponible durante el desarrollo y `/demo` permanece público.
+Mesora requiere `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` para el acceso
+real. Si faltan, el login falla cerrado; el backend simulado requiere activación
+manual en desarrollo y `/demo` permanece público.

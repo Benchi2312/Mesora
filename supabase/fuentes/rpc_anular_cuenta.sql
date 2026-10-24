@@ -108,6 +108,11 @@ declare
   v_reembolso numeric := 0;
   v_motivo text;
 begin
+  -- Una transacción abandonada no debe dejar la pantalla de caja esperando
+  -- minutos por el bloqueo de esta boleta. El cliente resuelve el estado final
+  -- antes de permitir que se repita la operación.
+  set local lock_timeout = '5s';
+
   perform public.validar_acceso_restaurante(p_restaurante_id);
 
   -- Admin o cajero: es una operación de caja. El mesero no puede tocar una

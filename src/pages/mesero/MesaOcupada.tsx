@@ -59,31 +59,34 @@ export default function MesaOcupada({
       const rid = restaurante?.id
       if (!rid) return
       if (!silencioso) setCargando(true)
-      const api = getApi()
-      const pedRes = await api.getPedidosDeMesa(rid, mesa.id)
-      if (!vivo.current) return
-      if (pedRes.error) {
-        setError(pedRes.error)
-        setCargando(false)
-        return
+      try {
+        const api = getApi()
+        const pedRes = await api.getPedidosDeMesa(rid, mesa.id)
+        if (!vivo.current) return
+        if (pedRes.error) {
+          setError(pedRes.error)
+          return
+        }
+        const pList = pedRes.data ?? []
+        setPedidos(pList)
+        if (pList.length === 0) {
+          setItems([])
+          setError(null)
+          return
+        }
+        const itsRes = await api.getPedidoItems(pList.map((p) => p.id))
+        if (!vivo.current) return
+        if (itsRes.error) {
+          setError(itsRes.error)
+          return
+        }
+        setItems(itsRes.data ?? [])
+        setError(null)
+      } catch {
+        if (vivo.current) setError('No se pudieron actualizar las comandas. Comprueba tu conexión e inténtalo de nuevo.')
+      } finally {
+        if (vivo.current) setCargando(false)
       }
-      const pList = pedRes.data ?? []
-      setPedidos(pList)
-      if (pList.length === 0) {
-        setItems([])
-        setCargando(false)
-        return
-      }
-      const itsRes = await api.getPedidoItems(pList.map((p) => p.id))
-      if (!vivo.current) return
-      if (itsRes.error) {
-        setError(itsRes.error)
-        setCargando(false)
-        return
-      }
-      setItems(itsRes.data ?? [])
-      setError(null)
-      setCargando(false)
     },
     [restaurante?.id, mesa.id],
   )
@@ -119,16 +122,22 @@ export default function MesaOcupada({
     if (!restaurante || !anulando) return
     setAnulandoEnCurso(true)
     setErrorAnulacion(null)
-    const { error: apiErr } = await getApi().anularItem(restaurante.id, anulando.pedidoId, anulando.item.id, pin)
-    setAnulandoEnCurso(false)
-    if (apiErr) {
-      setErrorAnulacion(apiErr)
-      return
+    try {
+      const { error: apiErr } = await getApi().anularItem(restaurante.id, anulando.pedidoId, anulando.item.id, pin)
+      if (apiErr) {
+        setErrorAnulacion(apiErr)
+        return
+      }
+      setAnulando(null)
+      setPin('')
+      setFlash(`Se anuló ${anulando.item.nombre_producto}.`)
+      await cargar(true)
+    } catch {
+      setErrorAnulacion('No se pudo confirmar la anulación. Actualiza la comanda antes de volver a intentarlo.')
+      await cargar(true)
+    } finally {
+      setAnulandoEnCurso(false)
     }
-    setAnulando(null)
-    setPin('')
-    setFlash(`Se anuló ${anulando.item.nombre_producto}.`)
-    await cargar(true)
   }
 
   return (
@@ -157,7 +166,9 @@ export default function MesaOcupada({
       </div>
 
       {error && (
-        <div className="aviso mb-4 border-danger-500/40 bg-danger-500/10 text-danger-500">{error}</div>
+        <div className="aviso mb-4 border-danger-500/40 bg-danger-500/10 text-danger-500">
+          {error}<button type="button" onClick={() => void cargar(false)} className="ml-3 underline">Actualizar</button>
+        </div>
       )}
       {flash && (
         <div className="aviso mb-4 border-ok-500/40 bg-ok-500/10 text-ok-500">{flash}</div>
@@ -345,16 +356,21 @@ function ModalEditarItem({
     if (!restaurante) return
     setGuardando(true)
     setError(null)
-    const { error: apiErr } = await getApi().editarItem(restaurante.id, edicion.pedidoId, edicion.item.id, {
-      cantidad,
-      nota: nota.trim() || null,
-    })
-    setGuardando(false)
-    if (apiErr) {
-      setError(apiErr)
-      return
+    try {
+      const { error: apiErr } = await getApi().editarItem(restaurante.id, edicion.pedidoId, edicion.item.id, {
+        cantidad,
+        nota: nota.trim() || null,
+      })
+      if (apiErr) {
+        setError(apiErr)
+        return
+      }
+      await onGuardado(`Se actualizó ${edicion.item.nombre_producto}.`)
+    } catch {
+      setError('No se pudo confirmar el cambio. Actualiza la comanda antes de volver a intentarlo.')
+    } finally {
+      setGuardando(false)
     }
-    await onGuardado(`Se actualizó ${edicion.item.nombre_producto}.`)
   }
 
   return (

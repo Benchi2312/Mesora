@@ -69,7 +69,7 @@ export type Plan = {
   orden: number
   precio_mensual: number | null
   max_usuarios: number | null
-  /** Máximo de administradores del restaurante permitidos (0 = sin límite definido). */
+  /** Máximo de administradores activos; los valores negativos indican que no hay límite. */
   max_administradores: number | null
   duracion_dias: number | null
   funcionalidades: string[] | null
@@ -479,6 +479,8 @@ export interface Database {
       configurar_pin_autorizacion: { Args: { p_restaurante_id: string; p_pin: string }; Returns: undefined }
       /** Solo admin. Deja el restaurante sin PIN (las anulaciones quedan libres). */
       quitar_pin_autorizacion: { Args: { p_restaurante_id: string }; Returns: undefined }
+      /** Solo limpia el flag del propio usuario tras cambiar su contrasena. */
+      confirmar_cambio_password: { Args: Record<string, never>; Returns: undefined }
       cerrar_cuenta: {
         Args: {
           p_restaurante_id: string

@@ -157,6 +157,7 @@ Deno.serve(async (req) => {
         nombre,
         email,
         activo: true,
+        debe_cambiar_password: true,
       })
       .select('id, nombre, email, rol, restaurante_id, activo, created_at')
       .single()

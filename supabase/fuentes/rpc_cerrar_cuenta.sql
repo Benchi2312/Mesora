@@ -42,6 +42,15 @@ create table if not exists public.cuenta_pagos (
   created_at timestamptz not null default now()
 );
 
+-- Compatibilidad con instalaciones antiguas: `create table if not exists` no
+-- agrega columnas a una tabla ya creada. La caja y los reportes necesitan esta
+-- columna; los pagos históricos sin detalle conservan el fallback a
+-- cuentas.metodo_pago.
+alter table public.cuenta_pagos
+  add column if not exists metodo_pago text;
+create index if not exists cuenta_pagos_por_cuenta_metodo
+  on public.cuenta_pagos (cuenta_id, metodo_pago);
+
 comment on table public.cuenta_pagos is
   'Partes de un pago de cuenta (pago dividido). La suma de montos = total + propina + vuelto.';
 

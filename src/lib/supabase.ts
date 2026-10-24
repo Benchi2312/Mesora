@@ -16,12 +16,15 @@ const hayKeyReal = !!anonKey && anonKey !== 'placeholder-anon-key' && anonKey !=
 
 /** Indica si hay credenciales reales de Supabase configuradas en env. */
 export const supabaseConfigurado = hayUrlReal && hayKeyReal
-/** Producción debe fallar cerrada: nunca autenticar con usuarios de prueba. */
-export const supabaseFaltaEnProduccion = import.meta.env.PROD && !supabaseConfigurado
+/** El backend local solo se activa por opt-in en desarrollo; nunca en el piloto. */
+export const modoLocalHabilitado =
+  import.meta.env.DEV && import.meta.env.VITE_MESORA_MODO_LOCAL === 'true'
+/** Sin backend configurado, la app falla cerrada en cualquier entorno. */
+export const supabaseFaltaConfig = !supabaseConfigurado && !modoLocalHabilitado
 
 if (!supabaseConfigurado && import.meta.env.DEV) {
   console.warn(
-    'Faltan VITE_SUPABASE_URL y/o VITE_SUPABASE_ANON_KEY. En desarrollo se usará el backend local; en producción configura ambas variables.',
+    'Faltan VITE_SUPABASE_URL y/o VITE_SUPABASE_ANON_KEY. Configura Supabase; el backend local requiere VITE_MESORA_MODO_LOCAL=true y solo funciona en desarrollo.',
   )
 }
 

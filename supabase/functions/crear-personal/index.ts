@@ -21,7 +21,7 @@ const CORS = {
 }
 
 const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const ROLES_PERMITIDOS = ['mesero', 'cocina', 'cajero']
+const ROLES_PERMITIDOS = ['mesero', 'cocina', 'cajero', 'admin_restaurante']
 
 type Cuerpo = { nombre?: unknown; email?: unknown; password?: unknown; rol?: unknown }
 
@@ -105,7 +105,33 @@ Deno.serve(async (req) => {
 
     const rol = texto(cuerpo.rol, 40)
     if (!rol || !ROLES_PERMITIDOS.includes(rol)) {
-      return json({ error: 'Rol no permitido. Solo se permite mesero, cocina o cajero.' }, 400)
+      return json({ error: 'Rol no permitido.' }, 400)
+    }
+
+    if (rol === 'admin_restaurante') {
+      const { data: restaurante, error: errRestaurante } = await servicio
+        .from('restaurantes')
+        .select('plan_id')
+        .eq('id', rid)
+        .maybeSingle()
+      if (errRestaurante || !restaurante) return json({ error: 'No se pudo validar el plan del restaurante.' }, 500)
+      const { data: plan, error: errPlan } = await servicio
+        .from('planes')
+        .select('max_administradores')
+        .eq('id', restaurante.plan_id)
+        .maybeSingle()
+      if (errPlan) return json({ error: 'No se pudo validar el plan del restaurante.' }, 500)
+      const limite = plan?.max_administradores ?? 3
+      if (limite >= 0) {
+        const { count, error: errConteo } = await servicio
+          .from('usuarios')
+          .select('id', { count: 'exact', head: true })
+          .eq('restaurante_id', rid)
+          .eq('rol', 'admin_restaurante')
+          .eq('activo', true)
+        if (errConteo) return json({ error: 'No se pudo validar el límite de administradores.' }, 500)
+        if ((count ?? 0) >= limite) return json({ error: `El plan permite hasta ${limite} administradores activos.` }, 409)
+      }
     }
 
     // 4 — Cuenta de Auth (correo ya confirmado: la app trabaja sin confirmación).
@@ -132,6 +158,7 @@ Deno.serve(async (req) => {
         nombre,
         email,
         activo: true,
+        debe_cambiar_password: true,
       })
       .select('id, nombre, email, rol, restaurante_id, activo')
       .single()
@@ -144,7 +171,7 @@ Deno.serve(async (req) => {
     try {
       await servicio.rpc('registrar_auditoria', {
         p_actor_id: user.id,
-        p_accion: 'usuario_crear',
+        p_accion: rol === 'admin_restaurante' ? 'administrador_crear' : 'usuario_crear',
         p_restaurante_id: rid,
         p_entidad: 'usuario',
         p_entidad_id: creado.user.id,

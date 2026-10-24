@@ -24,6 +24,10 @@ export default function ProtectedRoute({ roles, children }: ProtectedRouteProps)
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
+  if (usuario.debe_cambiar_password && location.pathname !== '/restablecer') {
+    return <Navigate to="/restablecer" replace state={{ from: location.pathname }} />
+  }
+
   if (usuario.rol !== 'super_admin' && restaurante && suSuscripcionVencida(restaurante)) {
     return <Navigate to="/suscripcion-vencida" replace />
   }

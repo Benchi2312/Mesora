@@ -89,22 +89,26 @@ export default function PersonalTab() {
 
   const cargar = useCallback(async () => {
     if (!rid) return
-    const api = getApi()
-    const { data, error: apiErr } = await api.getPersonal(rid)
-    if (apiErr) {
-      setError(apiErr)
-      return
+    try {
+      const api = getApi()
+      const { data, error: apiErr } = await api.getPersonal(rid)
+      if (apiErr) {
+        setError(apiErr)
+        return
+      }
+      setPersonal(
+        (data ?? []).map((u) => ({
+          id: u.id,
+          nombre: u.nombre,
+          email: u.email ?? null,
+          activo: Boolean(u.activo),
+          rol: u.rol === 'cocina' ? 'cocina' : u.rol === 'admin_restaurante' ? 'admin_restaurante' : u.rol === 'cajero' ? 'cajero' : 'mesero',
+        })),
+      )
+      setError(null)
+    } catch {
+      setError('No se pudo cargar el personal. Revisa tu conexión e inténtalo de nuevo.')
     }
-    setPersonal(
-      (data ?? []).map((u) => ({
-        id: u.id,
-        nombre: u.nombre,
-        email: u.email ?? null,
-        activo: Boolean(u.activo),
-        rol: u.rol === 'cocina' ? 'cocina' : u.rol === 'admin_restaurante' ? 'admin_restaurante' : u.rol === 'cajero' ? 'cajero' : 'mesero',
-      })),
-    )
-    setError(null)
   }, [rid])
 
   const adminsActivos = personal.filter((m) => m.rol === 'admin_restaurante' && m.activo).length
@@ -162,31 +166,37 @@ export default function PersonalTab() {
     setModalError(null)
     setEnviando(true)
     const api = getApi()
-    if (modal.accion === 'crear') {
-      const datos: DatosPersonal = { nombre, email: emailFinal, password, rol: modal.rol }
-      const res = await api.crearPersonal(rid, datos)
-      setEnviando(false)
-      if (res.error) {
-        setModalError(res.error)
-        return
+    try {
+      if (modal.accion === 'crear') {
+        const datos: DatosPersonal = { nombre, email: emailFinal, password, rol: modal.rol }
+        const res = await api.crearPersonal(rid, datos)
+        if (res.error) {
+          setModalError(res.error)
+          await cargar()
+          return
+        }
+        setPersonalCreado({
+          nombre: res.data?.nombre ?? nombre,
+          email: res.data?.email ?? null,
+          password: esModoLocal() ? PASSWORD_DE_PRUEBA : password,
+          rol: modal.rol,
+        })
+      } else {
+        const datos: DatosPersonal = { nombre, rol: modal.rol }
+        const res = await api.actualizarPersonal(rid, modal.id as string, datos)
+        if (res.error) {
+          setModalError(res.error)
+          return
+        }
       }
-      setPersonalCreado({
-        nombre: res.data?.nombre ?? nombre,
-        email: res.data?.email ?? null,
-        password: esModoLocal() ? PASSWORD_DE_PRUEBA : password,
-        rol: modal.rol,
-      })
-    } else {
-      const datos: DatosPersonal = { nombre, email: emailFinal, rol: modal.rol }
-      const res = await api.actualizarPersonal(rid, modal.id as string, datos)
+      setModal(null)
+      await cargar()
+    } catch {
+      setModalError('No se pudo confirmar la operación. Actualiza el listado antes de volver a intentarlo.')
+      await cargar()
+    } finally {
       setEnviando(false)
-      if (res.error) {
-        setModalError(res.error)
-        return
-      }
     }
-    setModal(null)
-    await cargar()
   }
 
   async function ejecutarEliminacion() {
@@ -197,27 +207,38 @@ export default function PersonalTab() {
     }
     setConfirmCargando(true)
     setConfirmError(null)
-    const api = getApi()
-    const res = await api.eliminarPersonal(rid, confirmar.id)
-    setConfirmCargando(false)
-    if (res.error) {
-      setConfirmError(res.error)
-      return
+    try {
+      const api = getApi()
+      const res = await api.eliminarPersonal(rid, confirmar.id)
+      if (res.error) {
+        setConfirmError(res.error)
+        return
+      }
+      setConfirmar(null)
+      await cargar()
+    } catch {
+      setConfirmError('No se pudo confirmar la baja. Actualiza el listado antes de volver a intentarlo.')
+      await cargar()
+    } finally {
+      setConfirmCargando(false)
     }
-    setConfirmar(null)
-    await cargar()
   }
 
   /** Activa/desactiva el acceso sin entrar al modal de edición. */
   async function alternarActivo(m: { id: string; nombre: string; activo: boolean }) {
     if (!rid) return
     setConfirmError(null)
-    const res = await getApi().actualizarPersonal(rid, m.id, { activo: !m.activo })
-    if (res.error) {
-      setError(`${m.nombre}: ${res.error}`)
-      return
+    try {
+      const res = await getApi().actualizarPersonal(rid, m.id, { activo: !m.activo })
+      if (res.error) {
+        setError(`${m.nombre}: ${res.error}`)
+        return
+      }
+      await cargar()
+    } catch {
+      setError(`${m.nombre}: no se pudo confirmar el cambio. Actualiza el listado.`)
+      await cargar()
     }
-    await cargar()
   }
 
   /**
@@ -228,20 +249,25 @@ export default function PersonalTab() {
     if (!resetear) return
     setResetCargando(true)
     setResetError(null)
-    const res = await getApi().resetPasswordPersonal(resetear.id)
-    setResetCargando(false)
-    if (res.error) {
-      setResetError(res.error)
-      return
+    try {
+      const res = await getApi().resetPasswordPersonal(resetear.id)
+      if (res.error) {
+        setResetError(res.error)
+        return
+      }
+      const password = res.data?.password_temporal
+      if (!password) {
+        setResetError('No se pudo obtener la contraseña nueva.')
+        return
+      }
+      setResetear(null)
+      setCopiado(false)
+      setPasswordTemporal({ nombre: resetear.nombre, password })
+    } catch {
+      setResetError('No se pudo confirmar el cambio. Inténtalo de nuevo para generar otra contraseña temporal.')
+    } finally {
+      setResetCargando(false)
     }
-    const password = res.data?.password_temporal
-    if (!password) {
-      setResetError('No se pudo obtener la contraseña nueva.')
-      return
-    }
-    setResetear(null)
-    setCopiado(false)
-    setPasswordTemporal({ nombre: resetear.nombre, password })
   }
 
   /** Copia la contraseña temporal al portapapeles. */
@@ -443,6 +469,7 @@ export default function PersonalTab() {
                     onChange={(e) => setModal({ ...modal, email: e.target.value })}
                     className="input rounded-r-none"
                     placeholder="carlos"
+                    disabled={modal.accion === 'editar'}
                   />
                   <span className="grid place-items-center rounded-r-xl border border-l-0 border-surface-700 bg-surface-800 px-3 text-sm text-zinc-400">
                     @{dominio}
@@ -459,8 +486,12 @@ export default function PersonalTab() {
                   onChange={(e) => setModal({ ...modal, email: e.target.value })}
                   className="input"
                   placeholder="nombre@correo.com"
+                  disabled={modal.accion === 'editar'}
                 />
               </Campo>
+            )}
+            {modal.accion === 'editar' && (
+              <p className="text-xs text-zinc-500">El correo de acceso no se puede cambiar desde esta pantalla.</p>
             )}
 
             {modal.accion === 'crear' && !esModoLocal() && (
