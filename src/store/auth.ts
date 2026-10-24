@@ -79,6 +79,7 @@ interface AuthState {
   signOut: () => Promise<void>
   pedirRecuperacion: (email: string) => Promise<string | null>
   cambiarPassword: (password: string) => Promise<string | null>
+  confirmarCambioPassword: () => Promise<string | null>
 }
 
 export const useAuthStore = create<AuthState>()((set, get) => {
@@ -272,18 +273,56 @@ export const useAuthStore = create<AuthState>()((set, get) => {
       }
     },
 
+    confirmarCambioPassword: async () => {
+      const usuarioActual = get().usuario
+      if (!usuarioActual?.debe_cambiar_password) return null
+      try {
+        const { error } = await supabase.rpc('confirmar_cambio_password')
+        if (!error) {
+          set({ usuario: { ...usuarioActual, debe_cambiar_password: false } })
+          return null
+        }
+
+        // La RPC pudo completar la escritura y perder solo la respuesta.
+        // Releer el flag evita dejar al usuario bloqueado en ese caso.
+        const { data: perfil, error: errorLectura } = await supabase
+          .from('usuarios')
+          .select('debe_cambiar_password')
+          .eq('id', usuarioActual.id)
+          .maybeSingle()
+        if (!errorLectura && perfil && perfil.debe_cambiar_password === false) {
+          set({ usuario: { ...usuarioActual, debe_cambiar_password: false } })
+          return null
+        }
+
+        const detalle = /could not find the function|function .* does not exist|schema cache/i.test(error.message)
+          ? 'Falta instalar o actualizar la migración de recuperación de contraseñas en Supabase.'
+          : `Detalle de Supabase: ${error.message}`
+        return `La contraseña ya está actualizada, pero falta confirmar el cambio en el perfil. ${detalle}`
+      } catch {
+        return 'La contraseña ya está actualizada, pero no se pudo confirmar el cambio por un problema de conexión. Reintenta la confirmación.'
+      }
+    },
+
     cambiarPassword: async (password) => {
       if (!supabaseConfigurado || modoLocalHabilitado) {
         return 'El cambio de contraseña solo está disponible con el servidor conectado.'
       }
       try {
         const { error } = await supabase.auth.updateUser({ password })
-        if (error) return mensajeErrorAuth(error.message)
+        if (error) {
+          if (
+            get().usuario?.debe_cambiar_password &&
+            /new password should be different from the old password|new password.*same as.*old password/i.test(error.message)
+          ) {
+            return `CONFIRMACION_PENDIENTE:La contraseña ingresada ya es la actual. Si ya la habías guardado y solo falló la confirmación, puedes reintentar esa confirmación sin cambiarla otra vez.`
+          }
+          return mensajeErrorAuth(error.message)
+        }
         const usuarioActual = get().usuario
         if (usuarioActual?.debe_cambiar_password) {
-          const { error: errorConfirmacion } = await supabase.rpc('confirmar_cambio_password')
-          if (errorConfirmacion) return 'La contraseña cambió, pero no se pudo confirmar el cambio. Vuelve a intentarlo.'
-          set({ usuario: { ...usuarioActual, debe_cambiar_password: false } })
+          const errorConfirmacion = await get().confirmarCambioPassword()
+          if (errorConfirmacion) return `CONFIRMACION_PENDIENTE:${errorConfirmacion}`
         }
         return null
       } catch {

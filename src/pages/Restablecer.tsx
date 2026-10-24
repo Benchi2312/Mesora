@@ -5,13 +5,14 @@ import { esModoLocal } from '../lib/api'
 import { homeForRole } from '../lib/roles'
 
 export default function Restablecer() {
-  const { session, usuario, loading, initDone, initialize, cambiarPassword, signOut } = useAuthStore()
+  const { session, usuario, loading, initDone, initialize, cambiarPassword, confirmarCambioPassword, signOut } = useAuthStore()
   const navigate = useNavigate()
   const [password, setPassword] = useState('')
   const [confirmar, setConfirmar] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [listo, setListo] = useState(false)
+  const [confirmacionPendiente, setConfirmacionPendiente] = useState(false)
 
   useEffect(() => {
     if (!initDone) void initialize()
@@ -32,9 +33,25 @@ export default function Restablecer() {
     const err = await cambiarPassword(password)
     setSubmitting(false)
     if (err) {
+      if (err.startsWith('CONFIRMACION_PENDIENTE:')) {
+        setConfirmacionPendiente(true)
+        setError(err.slice('CONFIRMACION_PENDIENTE:'.length))
+      } else setError(err)
+      return
+    }
+    setListo(true)
+  }
+
+  async function handleConfirmarCambio() {
+    setSubmitting(true)
+    setError(null)
+    const err = await confirmarCambioPassword()
+    setSubmitting(false)
+    if (err) {
       setError(err)
       return
     }
+    setConfirmacionPendiente(false)
     setListo(true)
   }
 
@@ -93,6 +110,21 @@ export default function Restablecer() {
                 Continuar
               </button>
             </>
+          ) : confirmacionPendiente ? (
+            <div>
+              <h2 className="mb-3 text-xl font-bold tracking-tight text-zinc-100">Confirma tu contraseña nueva</h2>
+              <p className="mb-4 text-sm leading-relaxed text-zinc-400">
+                La contraseña ya se actualizó. Reintenta la confirmación del perfil; no volveremos a cambiarla.
+              </p>
+              {error && (
+                <div className="aviso mb-4 border-danger-500/40 bg-danger-500/10 text-danger-500">
+                  {error}
+                </div>
+              )}
+              <button type="button" disabled={submitting} onClick={() => void handleConfirmarCambio()} className="btn btn-primary w-full py-3 text-base">
+                {submitting ? 'Confirmando…' : 'Reintentar confirmación'}
+              </button>
+            </div>
           ) : (
             <form onSubmit={(e) => void handleSubmit(e)}>
               <h2 className="mb-5 text-xl font-bold tracking-tight text-zinc-100">Crea tu nueva contraseña</h2>

@@ -67,6 +67,12 @@ aplica en el SQL Editor estos fuentes, en este orden: `rpc_cerrar_cuenta.sql`,
 si falta, actualiza el cálculo de efectivo y limita los bloqueos al anular una
 boleta. No hace falta volver a ejecutar el instalador completo.
 
+Si el cambio de una contraseña temporal se guarda en Auth pero Mesora no puede
+confirmarlo en el perfil, vuelve a ejecutar `migracion_password_recovery.sql`
+desde el SQL Editor. Es idempotente e instala la RPC `confirmar_cambio_password`
+que libera el acceso al cajero. Después, en la pantalla de restablecimiento,
+pulsa **Reintentar confirmación**; no vuelvas a cambiar la contraseña.
+
 1. Supabase →  **SQL Editor** →  **New query**.
 2. Abre `supabase/TODO_EN_UNO.sql`, copia **todo** y pégalo.
 3. **Run**. Tarda unos segundos y al final imprime varias tablas de verificación.

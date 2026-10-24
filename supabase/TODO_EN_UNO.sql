@@ -18,7 +18,7 @@
 --   - Si algo falla, los comentarios de bloque indican donde revisar.
 --   - Generado por npm run sql:install. Edita los fuentes, no este archivo.
 --
--- Contenido: 19 archivos · sha256(cuerpo) = c055e195f51f
+-- Contenido: 19 archivos · sha256(cuerpo) = 6f46cdc892eb
 -- Orden: 00_schema_base.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → migracion_password_recovery.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql
 -- =============================================================================
 
@@ -601,6 +601,34 @@ alter table public.usuarios
 create unique index if not exists usuarios_correo_recuperacion_unique
   on public.usuarios (correo_recuperacion)
   where correo_recuperacion is not null;
+
+-- Confirma el cambio de una contraseña temporal en el mismo perfil que usa
+-- ProtectedRoute. Se incluye aquí para poder actualizar instalaciones que ya
+-- añadieron debe_cambiar_password pero aún no tienen la RPC.
+create or replace function public.confirmar_cambio_password()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Se requiere una sesión válida';
+  end if;
+
+  update public.usuarios
+     set debe_cambiar_password = false
+   where id = auth.uid();
+
+  if not found then
+    raise exception 'No se encontró el perfil del usuario';
+  end if;
+end;
+$$;
+
+revoke all on function public.confirmar_cambio_password() from public;
+revoke all on function public.confirmar_cambio_password() from anon;
+grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
