@@ -17,6 +17,9 @@ function mensajeErrorAuth(mensaje: string): string {
   if (/invalid login credentials/i.test(mensaje)) return 'El correo o la contraseña no son correctos.'
   if (/email not confirmed/i.test(mensaje)) return 'Confirma tu correo antes de iniciar sesión.'
   if (/too many requests|rate limit/i.test(mensaje)) return 'Demasiados intentos. Espera un momento y vuelve a intentarlo.'
+  if (/new password should be different from the old password|new password.*same as.*old password/i.test(mensaje)) {
+    return 'La nueva contraseña debe ser distinta a la contraseña actual. Elige una que no hayas usado antes.'
+  }
   if (/password should be at least|password is too short/i.test(mensaje)) return 'La contraseña debe tener al menos 8 caracteres.'
   if (/fetch|network|timeout|connection/i.test(mensaje)) return 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.'
   return mensaje

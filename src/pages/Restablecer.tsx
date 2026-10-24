@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
 import { esModoLocal } from '../lib/api'
 import { homeForRole } from '../lib/roles'
@@ -36,6 +36,13 @@ export default function Restablecer() {
       return
     }
     setListo(true)
+  }
+
+  async function volverAlInicio() {
+    // Si llegó aquí tras iniciar sesión con una clave temporal, ir a /login
+    // sin cerrar sesión provoca que Login lo redirija de vuelta a esta ruta.
+    await signOut()
+    navigate('/login', { replace: true })
   }
 
   const sinEnlace = !loading && initDone && !session
@@ -90,6 +97,12 @@ export default function Restablecer() {
             <form onSubmit={(e) => void handleSubmit(e)}>
               <h2 className="mb-5 text-xl font-bold tracking-tight text-zinc-100">Crea tu nueva contraseña</h2>
 
+              {usuario?.debe_cambiar_password && (
+                <p className="aviso mb-4 border-brand-500/40 bg-brand-500/10 text-brand-300">
+                  Por seguridad, debes cambiar tu contraseña temporal antes de continuar. La nueva debe ser distinta a la actual.
+                </p>
+              )}
+
               {error && (
                 <div className="aviso mb-4 border-danger-500/40 bg-danger-500/10 text-danger-500">
                   {error}
@@ -132,9 +145,14 @@ export default function Restablecer() {
 
           {!listo && (
             <p className="mt-5 border-t border-surface-800 pt-4 text-center text-xs text-zinc-500">
-              <Link to="/login" className="font-semibold text-brand-400 transition hover:text-brand-300">
-                Volver a iniciar sesión
-              </Link>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => void volverAlInicio()}
+                className="font-semibold text-brand-400 transition hover:text-brand-300 disabled:opacity-50"
+              >
+                {session ? 'Cerrar sesión y volver al inicio de sesión' : 'Volver a iniciar sesión'}
+              </button>
             </p>
           )}
         </div>
