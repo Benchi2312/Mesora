@@ -41,3 +41,8 @@ _*.txt
 # Metadatos locales de Supabase CLI.
 /supabase/.temp/
 /supabase/.branches/
+
+# Metadatos del hosting y copias privadas; nunca se publican.
+/.vercel/
+/backups/
+*.dump

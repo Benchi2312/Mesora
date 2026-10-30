@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getApi } from '../../lib/api'
-import { contarPorNivel, type AlertaAdministrativa, type NivelAlerta } from '../../lib/notificaciones'
+import { contarPorNivel, type AlertaAdministrativa, type NivelAlerta } from '../../domain/platform/notificaciones'
 import { fmtFecha } from '../../lib/format'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'

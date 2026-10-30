@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import { esFalloDeRed, getApi } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
-import { arqueoTurno, errorAlAbrirTurno, errorAlCerrarTurno, parseMonto } from '../../lib/caja'
+import { arqueoTurno, errorAlAbrirTurno, errorAlCerrarTurno, parseMonto } from '../../domain/cashier/caja'
 import { fmtFecha, fmtPEN } from '../../lib/format'
 import type { MesaPorCobrar } from '../../lib/api'
 import type { Cuenta, Pago, TurnoCaja } from '../../types/database'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 import { IconoInfo } from '../../components/ui'
+import Precuenta from '../../components/Precuenta'
 
 /**
  * Caja por turnos del Admin: abrir la gaveta, ver cuánto debería haber y cerrar
- * con arqueo. Todo el cálculo del "¿cuánto debería haber?" está en lib/caja.ts
+ * con arqueo. Todo el cálculo del "¿cuánto debería haber?" está en
+ * domain/cashier/caja.ts
  * (misma función que usa el backend), así que la pantalla no inventa números.
  */
 export default function CajaTab() {
@@ -30,6 +32,7 @@ export default function CajaTab() {
   const [declarado, setDeclarado] = useState('')
   const [observaciones, setObservaciones] = useState('')
   const [guardando, setGuardando] = useState(false)
+  const [mesaPrecuenta, setMesaPrecuenta] = useState<MesaPorCobrar | null>(null)
 
   const cargar = useCallback(async () => {
     if (!rid) {
@@ -140,6 +143,10 @@ export default function CajaTab() {
     }
   }
 
+  if (mesaPrecuenta) {
+    return <Precuenta mesa={{ id: mesaPrecuenta.mesa_id, nombre: mesaPrecuenta.mesa_nombre }} onVolver={() => { setMesaPrecuenta(null); void cargar() }} />
+  }
+
   return (
     <div className="space-y-6">
       {error && (
@@ -147,6 +154,20 @@ export default function CajaTab() {
           {error}
           <button type="button" onClick={() => { setCargando(true); void cargar() }} className="ml-3 underline">Actualizar caja</button>
         </div>
+      )}
+
+      {porCobrar.length > 0 && (
+        <section aria-label="Precuentas de mesas" className="card p-4">
+          <h2 className="font-semibold text-zinc-100">Precuentas</h2>
+          <p className="mt-1 text-sm text-zinc-400">Consulta e imprime el consumo pendiente de cada mesa antes de cobrar.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {porCobrar.map((m) => (
+              <button key={m.mesa_id} type="button" disabled={guardando || Boolean(error)} onClick={() => setMesaPrecuenta(m)} className="btn btn-outline min-h-12 px-4">
+                Precuenta {m.mesa_nombre} · {fmtPEN(m.total)}
+              </button>
+            ))}
+          </div>
+        </section>
       )}
 
       {turno && porCobrar.length > 0 && (

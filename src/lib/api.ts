@@ -11,12 +11,12 @@
 // de getApi() y este comentario. Ver README → "Quitar el modo demo".
 
 import { modoLocalHabilitado, supabase, supabaseConfigurado } from './supabase'
-import { computeMetricas, type MetricasAdmin } from './metricas'
-import { arqueoTurno, errorAlAbrirTurno, errorAlCerrarTurno, redondear } from './caja'
-import { completarPartes, resumirPago, type PagoParte } from './pagos'
-import { MENSAJE_PIN_INCORRECTO, errorAlAnularCobro } from './autorizacion'
+import { computeMetricas, type MetricasAdmin } from '../domain/reporting/metricas'
+import { arqueoTurno, errorAlAbrirTurno, errorAlCerrarTurno, redondear } from '../domain/cashier/caja'
+import { completarPartes, resumirPago, type PagoParte } from '../domain/cashier/pagos'
+import { MENSAJE_PIN_INCORRECTO, errorAlAnularCobro } from '../domain/security/autorizacion'
 import { esMetodoPagoValido } from '../types/database'
-import { calcularEstadisticasGlobales, type EstadisticasGlobales } from './estadisticas'
+import { calcularEstadisticasGlobales, type EstadisticasGlobales } from '../domain/reporting/estadisticas'
 import type {
   AuditLog,
   CategoriaProducto,
@@ -42,14 +42,14 @@ import type {
 import {
   calcularAlertas,
   type AlertaAdministrativa,
-} from './notificaciones'
+} from '../domain/platform/notificaciones'
 import {
   CONFIGURACION_POR_DEFECTO,
   normalizarConfiguracionGlobal,
   validarConfiguracionGlobal,
   type DatosConfiguracionGlobal,
-} from './configuracion'
-import { PRIORIDADES_TICKET, ESTADOS_TICKET } from './soporte'
+} from '../domain/restaurant/configuracion'
+import { PRIORIDADES_TICKET, ESTADOS_TICKET } from '../domain/platform/soporte'
 import {
   mockPlanes,
   mockRestaurante,
@@ -57,9 +57,11 @@ import {
   mockUsuarios,
 } from './mockData'
 import { guardarDatosLocal, localCredenciales, localSeed, PASSWORD_DE_PRUEBA } from './localSeed'
-import { generarPasswordTemporal } from './password'
+import { generarPasswordTemporal } from '../domain/security/password'
 import type { LocalSeedData } from './localSeed'
-import { formatearNumeroBoleta } from './boleta'
+import { formatearNumeroBoleta } from '../domain/cashier/boleta'
+import { prepararDatosLocal, type CambiosDatosLocal } from '../domain/restaurant/datosLocal'
+import { registrarDiagnostico } from './diagnostico'
 
 // -------------------------------------------------------------- Tipos comunes
 export interface Res<T> {
@@ -84,7 +86,12 @@ function envolverErroresApi(api: DataApi): DataApi {
       return (...args: unknown[]) =>
         Promise.resolve()
           .then(() => miembro.apply(objetivo, args))
+          .then((resultado) => {
+            if (resultado?.error) registrarDiagnostico('api', String(propiedad))
+            return resultado
+          })
           .catch((causa: unknown) => {
+            registrarDiagnostico('api', String(propiedad))
             const mensaje = causa instanceof Error ? causa.message : ''
             return {
               data: null,
@@ -258,7 +265,7 @@ export type CambiosTicket = Partial<{
   responsable: string | null
 }>
 
-export type { DatosConfiguracionGlobal } from './configuracion'
+export type { DatosConfiguracionGlobal } from '../domain/restaurant/configuracion'
 
 /** Mapa usuario → último acceso (auth.users.last_sign_in_at); null = nunca ingresó. */
 export type UltimosAccesos = Record<string, string | null>
@@ -285,9 +292,7 @@ export type CambiosPersonal = Partial<Pick<DatosPersonal, 'nombre' | 'email' | '
  * incluye `suscripcion_activa` ni `fecha_vencimiento`: eso es de la plataforma
  * (super admin), no del restaurante.
  */
-export type CambiosRestaurante = Partial<
-  Pick<Restaurante, 'nombre' | 'ruc' | 'direccion' | 'telefono' | 'email_contacto' | 'dominio'>
->
+export type CambiosRestaurante = CambiosDatosLocal
 
 /** Pedido + sus ítems. Para cocina. */
 export type PedidoConItems = Pedido & {
@@ -583,24 +588,6 @@ async function mapaEsBebida(
   return (productoId: string | null) => (productoId ? esBebidaDe.get(productoId) === true : false)
 }
 
-/** Ids de pedidos que ya pertenecen a una cuenta pagada de este restaurante. */
-async function idsPedidosCobrados(rid: string): Promise<{ ids: string[]; error: string | null }> {
-  const { data: cuentas, error: cErr } = await supabase
-    .from('cuentas')
-    .select('id')
-    .eq('restaurante_id', rid)
-    .eq('estado', 'pagada')
-  if (cErr) return { ids: [], error: cErr.message }
-  const cuentaIds = (cuentas ?? []).map((c) => c.id).filter((v): v is string => !!v)
-  if (cuentaIds.length === 0) return { ids: [], error: null }
-  const { data: cps, error: cpErr } = await supabase
-    .from('cuenta_pedidos')
-    .select('pedido_id')
-    .in('cuenta_id', cuentaIds)
-  if (cpErr) return { ids: [], error: cpErr.message }
-  return { ids: (cps ?? []).map((cp) => cp.pedido_id).filter((v): v is string => !!v), error: null }
-}
-
 const realApi: DataApi = {
   async getZonas(rid) {
     const { data, error } = await supabase.from('zonas').select('*').eq('restaurante_id', rid).order('nombre')
@@ -611,64 +598,8 @@ const realApi: DataApi = {
     return { data, error: error?.message ?? null }
   },
   async getMesasPorCobrar(rid) {
-    // Mismo criterio que el motor local: pedidos no anulados que no entraron en
-    // una cuenta PAGADA y que todavía tienen ítems vigentes con dinero.
-    const { data: pedidos, error: pedErr } = await supabase
-      .from('pedidos')
-      .select('id, mesa_id')
-      .eq('restaurante_id', rid)
-      .neq('estado', 'anulado')
-    if (pedErr) return { data: null, error: pedErr.message }
-    const abiertos = (pedidos ?? []) as Pick<Pedido, 'id' | 'mesa_id'>[]
-    if (abiertos.length === 0) return { data: [], error: null }
-
-    const { data: cobradosRaw, error: cpErr } = await supabase
-      .from('cuenta_pedidos')
-      .select('pedido_id, cuentas!inner(restaurante_id, estado)')
-      .eq('cuentas.restaurante_id', rid)
-      .eq('cuentas.estado', 'pagada')
-    if (cpErr) return { data: null, error: cpErr.message }
-    const cobrados = new Set(
-      ((cobradosRaw ?? []) as { pedido_id: string }[]).map((cp) => cp.pedido_id),
-    )
-
-    const pendientes = abiertos.filter((p) => !cobrados.has(p.id))
-    if (pendientes.length === 0) return { data: [], error: null }
-
-    const [{ data: items, error: itErr }, { data: mesas, error: mesaErr }] = await Promise.all([
-      supabase
-        .from('pedido_items')
-        .select('pedido_id, cantidad, precio_unitario, anulado')
-        .in('pedido_id', pendientes.map((p) => p.id)),
-      supabase.from('mesas').select('id, nombre').eq('restaurante_id', rid),
-    ])
-    if (itErr) return { data: null, error: itErr.message }
-    if (mesaErr) return { data: null, error: mesaErr.message }
-
-    const nombreDe = new Map(((mesas ?? []) as Pick<Mesa, 'id' | 'nombre'>[]).map((m) => [m.id, m.nombre]))
-    const porMesa = new Map<string, { total: number; pedidos: number }>()
-    for (const pedido of pendientes) {
-      const total = ((items ?? []) as Pick<
-        PedidoItem,
-        'pedido_id' | 'cantidad' | 'precio_unitario' | 'anulado'
-      >[])
-        .filter((it) => it.pedido_id === pedido.id && it.anulado !== true)
-        .reduce((acc, it) => acc + it.cantidad * it.precio_unitario, 0)
-      if (total <= 0.004) continue
-      const acumulado = porMesa.get(pedido.mesa_id) ?? { total: 0, pedidos: 0 }
-      acumulado.total += total
-      acumulado.pedidos += 1
-      porMesa.set(pedido.mesa_id, acumulado)
-    }
-    const data: MesaPorCobrar[] = [...porMesa.entries()]
-      .map(([mesa_id, valor]) => ({
-        mesa_id,
-        mesa_nombre: nombreDe.get(mesa_id) ?? 'Mesa',
-        total: Math.round(valor.total * 100) / 100,
-        pedidos: valor.pedidos,
-      }))
-      .sort((a, b) => a.mesa_nombre.localeCompare(b.mesa_nombre, 'es'))
-    return { data, error: null }
+    const { data, error } = await supabase.rpc('mesas_por_cobrar', { p_restaurante_id: rid })
+    return { data: data as MesaPorCobrar[] | null, error: error?.message ?? null }
   },
   async getCategorias(rid) {
     const { data, error } = await supabase
@@ -705,19 +636,10 @@ const realApi: DataApi = {
     return { data, error: error?.message ?? null }
   },
   async getPedidosDeMesa(rid, mesaId) {
-    const { ids: cobrados, error: cobErr } = await idsPedidosCobrados(rid)
-    if (cobErr) return { data: null, error: cobErr }
-    let consulta = supabase
-      .from('pedidos')
-      .select('id, mesa_id, estado, created_at')
-      .eq('restaurante_id', rid)
-      .eq('mesa_id', mesaId)
-    if (cobrados.length > 0) {
-      // Excluye los pedidos que ya están en una cuenta pagada: no se vuelven a cobrar.
-      consulta = consulta.not('id', 'in', `(${cobrados.join(',')})`)
-    }
-    // Una comanda sin ítems vigentes (todo anulado) no se cobra ni se muestra.
-    const { data, error } = await consulta.neq('estado', 'anulado').order('created_at')
+    const { data, error } = await supabase.rpc('pedidos_pendientes_mesa', {
+      p_restaurante_id: rid,
+      p_mesa_id: mesaId,
+    })
     return { data, error: error?.message ?? null }
   },
   async getPedidoItems(ids) {
@@ -1232,9 +1154,11 @@ const realApi: DataApi = {
     return { data: restaurante, error: null }
   },
   async actualizarRestaurante(rid, cambios) {
+    const preparados = prepararDatosLocal(cambios)
+    if (preparados.error || !preparados.data) return { data: null, error: preparados.error }
     const { data, error } = await supabase
       .from('restaurantes')
-      .update(cambios)
+      .update(preparados.data)
       .eq('id', rid)
       .select('*')
       .single()
@@ -1377,22 +1301,11 @@ const realApi: DataApi = {
     return { data: data as Mesa, error: null }
   },
   async eliminarMesa(rid, id) {
-    // Una mesa no se borra si tiene algo por cobrar. Ojo: `entregado` (servido y
-    // aún no cobrado) CUENTA como pendiente — borrarla perdería el platillo.
-    const { ids: cobrados, error: cobErr } = await idsPedidosCobrados(rid)
-    if (cobErr) return { data: null, error: cobErr }
-    let consulta = supabase
-      .from('pedidos')
-      .select('id', { count: 'exact', head: true })
-      .eq('restaurante_id', rid)
-      .eq('mesa_id', id)
-      .neq('estado', 'anulado')
-    if (cobrados.length > 0) consulta = consulta.not('id', 'in', `(${cobrados.join(',')})`)
-    const { count, error } = await consulta
-    if (error) return { data: null, error: error.message }
-    if (count) return { data: null, error: 'La mesa tiene comandas por cobrar. No se puede eliminar aún.' }
-    const { error: delErr } = await supabase.from('mesas').delete().eq('id', id).eq('restaurante_id', rid)
-    return { data: null, error: delErr?.message ?? null }
+    const pendientes = await realApi.getPedidosDeMesa(rid, id)
+    if (pendientes.error) return { data: null, error: pendientes.error }
+    if (pendientes.data?.length) return { data: null, error: 'La mesa tiene comandas por cobrar. No se puede eliminar a?n.' }
+    const { error } = await supabase.from('mesas').delete().eq('id', id).eq('restaurante_id', rid)
+    return { data: null, error: error?.message ?? null }
   },
   async crearCategoria(rid, nombre) {
     const { data, error } = await supabase
@@ -2659,16 +2572,9 @@ function crearApiDesde(
     await espera()
     const r = ds.restaurantes.find((x) => x.id === rid)
     if (!r) return { data: null, error: 'Restaurante no encontrado' }
-    if (cambios.nombre !== undefined) {
-      const nombre = cambios.nombre.trim()
-      if (!nombre) return { data: null, error: 'El nombre no puede quedar vacío' }
-      r.nombre = nombre
-    }
-    if (cambios.ruc !== undefined) r.ruc = cambios.ruc?.trim() || null
-    if (cambios.direccion !== undefined) r.direccion = cambios.direccion?.trim() || null
-    if (cambios.telefono !== undefined) r.telefono = cambios.telefono?.trim() || null
-    if (cambios.email_contacto !== undefined) r.email_contacto = cambios.email_contacto?.trim() || null
-    if (cambios.dominio !== undefined) r.dominio = cambios.dominio?.trim().toLowerCase() || null
+    const preparados = prepararDatosLocal(cambios)
+    if (preparados.error || !preparados.data) return { data: null, error: preparados.error }
+    Object.assign(r, preparados.data)
     persiste()
     return { data: { ...r }, error: null }
   },

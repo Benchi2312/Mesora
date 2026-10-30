@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore, suSuscripcionVencida } from '../store/auth'
 import type { Rol } from '../types/database'
-import { homeForRole } from '../lib/roles'
+import { homeForRole } from '../domain/security/roles'
 import LoadingScreen from './LoadingScreen'
 
 interface ProtectedRouteProps {

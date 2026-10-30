@@ -2,15 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getApi } from '../../lib/api'
 import type { AdminRestaurante } from '../../lib/api'
 import { fmtFecha } from '../../lib/format'
-import { diasParaVencimiento } from '../../lib/restaurantes'
+import { diasParaVencimiento } from '../../domain/restaurant/restaurantes'
 import {
   CRITERIOS_SUSCRIPCIONES_VACIOS,
   etiquetaAccion,
   filtrarSuscripciones,
   hayFiltrosSuscripciones,
   nombrePlan,
-} from '../../lib/suscripciones'
-import type { CriteriosSuscripciones } from '../../lib/suscripciones'
+} from '../../domain/restaurant/suscripciones'
+import type { CriteriosSuscripciones } from '../../domain/restaurant/suscripciones'
 import type { Plan, Restaurante, SuscripcionHistorial } from '../../types/database'
 import { useAuthStore } from '../../store/auth'
 import { Spinner } from '../../components/LoadingScreen'

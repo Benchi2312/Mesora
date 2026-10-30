@@ -4,8 +4,8 @@ import { useCurrentContext } from '../../lib/useCurrentContext'
 import { useAuthStore } from '../../store/auth'
 import { useDemoStore } from '../../demo/demoStore'
 import { Campo, IconoInfo } from '../../components/ui'
-import { PIN_MAX_DIGITOS, PIN_MIN_DIGITOS, errorAlConfigurarPin } from '../../lib/autorizacion'
-import { esDominioValido, normalizarDominio } from '../../lib/dominio'
+import { PIN_MAX_DIGITOS, PIN_MIN_DIGITOS, errorAlConfigurarPin } from '../../domain/security/autorizacion'
+import { esDominioValido, normalizarDominio } from '../../domain/security/dominio'
 import { olvidarPinCacheado } from '../../components/pin'
 
 const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -19,8 +19,6 @@ type Formulario = {
   telefono: string
   email_contacto: string
   dominio: string
-  modo_cobro: 'mesero' | 'cajero' | 'ambos'
-  permite_emitir_boleta: 'mesero' | 'cajero' | 'ambos'
 }
 
 /**
@@ -39,8 +37,6 @@ export default function ConfiguracionTab() {
     telefono: '',
     email_contacto: '',
     dominio: '',
-    modo_cobro: 'ambos',
-    permite_emitir_boleta: 'ambos',
   })
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -61,8 +57,6 @@ export default function ConfiguracionTab() {
       telefono: restaurante.telefono ?? '',
       email_contacto: restaurante.email_contacto ?? '',
       dominio: restaurante.dominio ?? '',
-      modo_cobro: (restaurante as any).modo_cobro ?? 'ambos',
-      permite_emitir_boleta: (restaurante as any).permite_emitir_boleta ?? 'ambos',
     })
   }, [restaurante])
 
@@ -104,26 +98,28 @@ export default function ConfiguracionTab() {
     if (dominio !== '' && !esDominioValido(dominio)) return setError('Ingresa un dominio válido (ej. litoral.pe).')
 
     setGuardando(true)
-    const res = await getApi().actualizarRestaurante(rid, {
-      nombre,
-      ruc: ruc || null,
-      direccion: form.direccion.trim() || null,
-      telefono: telefono || null,
-      email_contacto: email || null,
-      dominio: dominio || null,
-      modo_cobro: form.modo_cobro,
-      permite_emitir_boleta: form.permite_emitir_boleta,
-    } as any)
-    setGuardando(false)
-    if (res.error) {
-      setError(res.error)
-      return
+    try {
+      const res = await getApi().actualizarRestaurante(rid, {
+        nombre,
+        ruc: ruc || null,
+        direccion: form.direccion.trim() || null,
+        telefono: telefono || null,
+        email_contacto: email || null,
+        dominio: dominio || null,
+      })
+      if (res.error || !res.data) {
+        setError(res.error ?? 'El servidor no confirmó los datos guardados. Actualiza antes de reintentar.')
+        return
+      }
+      // La fila devuelta por el servidor actualiza el contexto de recibos y personal.
+      if (esDemo) useDemoStore.getState().actualizarRestaurante(res.data)
+      else if (useAuthStore.getState().restaurante?.id === rid) useAuthStore.setState({ restaurante: res.data })
+      setOk('Datos guardados. La próxima precuenta y boleta usarán estos datos.')
+    } catch {
+      setError('No se pudo confirmar el guardado. Revisa tu conexión y actualiza antes de reintentar.')
+    } finally {
+      setGuardando(false)
     }
-
-    // El store de sesión es la fuente de `restaurante` para el resto de la app
-    // (incluida la boleta): si no se recarga, la boleta sigue con lo viejo.
-    if (!esDemo) await useAuthStore.getState().refresh()
-    setOk('Datos guardados. La próxima boleta sale con estos datos.')
   }
 
   async function guardarPin(e: React.FormEvent) {
@@ -168,10 +164,7 @@ export default function ConfiguracionTab() {
     ['email_contacto', restaurante.email_contacto ?? ''],
     ['dominio', restaurante.dominio ?? ''],
   ]
-  const hayCambios =
-    campos.some(([campo, original]) => String(form[campo]).trim() !== original) ||
-    form.modo_cobro !== ((restaurante as any).modo_cobro ?? 'ambos') ||
-    form.permite_emitir_boleta !== ((restaurante as any).permite_emitir_boleta ?? 'ambos')
+  const hayCambios = campos.some(([campo, original]) => String(form[campo]).trim() !== original)
 
   return (
     <div>
@@ -270,33 +263,6 @@ export default function ConfiguracionTab() {
             </p>
           </Campo>
 
-          <div className="grid gap-x-4 sm:grid-cols-2">
-            <Campo etiqueta="¿Quién puede cobrar?" htmlFor="cfg-modo-cobro">
-              <select
-                id="cfg-modo-cobro"
-                value={form.modo_cobro}
-                onChange={(e) => set('modo_cobro', e.target.value as Formulario['modo_cobro'])}
-                className="input"
-              >
-                <option value="ambos">Mesero y cajero</option>
-                <option value="mesero">Solo mesero</option>
-                <option value="cajero">Solo cajero</option>
-              </select>
-            </Campo>
-            <Campo etiqueta="¿Quién puede emitir boleta?" htmlFor="cfg-emitir-boleta">
-              <select
-                id="cfg-emitir-boleta"
-                value={form.permite_emitir_boleta}
-                onChange={(e) => set('permite_emitir_boleta', e.target.value as Formulario['permite_emitir_boleta'])}
-                className="input"
-              >
-                <option value="ambos">Mesero y cajero</option>
-                <option value="mesero">Solo mesero</option>
-                <option value="cajero">Solo cajero</option>
-              </select>
-            </Campo>
-          </div>
-
           {error && (
             <div className="aviso mb-4 border-danger-500/40 bg-danger-500/10 text-danger-500">{error}</div>
           )}
@@ -304,7 +270,7 @@ export default function ConfiguracionTab() {
 
           <div className="flex flex-wrap items-center justify-end gap-2">
             {esDemo && (
-              <p className="mr-auto text-xs text-zinc-500">Modo demo: los cambios no sobreviven al refresh.</p>
+              <p className="mr-auto text-xs text-zinc-500">Modo demo: los cambios se guardan solo en este navegador.</p>
             )}
             <button type="submit" disabled={guardando || !hayCambios} className="btn btn-primary min-h-11 px-5">
               {guardando ? 'Guardando…' : 'Guardar cambios'}

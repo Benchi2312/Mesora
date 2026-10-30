@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import SectionHeading from './SectionHeading'
 import { IconArrowRight, IconCheck } from './Icons'
 import { supabase, supabaseConfigurado } from '../../lib/supabase'
-import { mostrarPrecioPlan, PRECIO_PLAN_DEFECTO } from '../../lib/configuracion'
+import { mostrarPrecioPlan, PRECIO_PLAN_DEFECTO } from '../../domain/restaurant/configuracion'
 
 const beneficios = [
   'Acceso a las 4 vistas: mesero, cocina, administración y mesas',

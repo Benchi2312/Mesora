@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getApi } from '../lib/api'
-import { PIN_MAX_DIGITOS, PIN_MIN_DIGITOS } from '../lib/autorizacion'
+import { PIN_MAX_DIGITOS, PIN_MIN_DIGITOS } from '../domain/security/autorizacion'
 import { Spinner } from './LoadingScreen'
 
 /**

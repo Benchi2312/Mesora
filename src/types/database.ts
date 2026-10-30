@@ -49,15 +49,6 @@ export type Restaurante = {
   /** Inicio del periodo de suscripción vigente. */
   fecha_inicio?: string | null
   pin_autorizacion?: string | null
-  /**
-   * Quién puede cobrar cuentas. 'cajero' = solo caja/cajero (o roles autorizados por caja),
-   * 'mesero' = solo el mesero, 'ambos' = tanto mesero como cajero.
-   */
-  modo_cobro?: 'mesero' | 'cajero' | 'ambos' | null
-  /**
-   * Quién puede emitir/sacar boleta. 'mesero' | 'cajero' | 'ambos'
-   */
-  permite_emitir_boleta?: 'mesero' | 'cajero' | 'ambos' | null
   created_at: string
 }
 
@@ -354,6 +345,18 @@ export interface Database {
     }
     Views: Record<string, never>
     Functions: {
+      registrar_error_cliente: {
+        Args: { p_tipo: string; p_ruta: string; p_contexto: string }
+        Returns: undefined
+      }
+      pedidos_pendientes_mesa: {
+        Args: { p_restaurante_id: string; p_mesa_id: string }
+        Returns: { id: string; mesa_id: string; estado: EstadoPedido; created_at: string }[]
+      }
+      mesas_por_cobrar: {
+        Args: { p_restaurante_id: string }
+        Returns: { mesa_id: string; mesa_nombre: string; total: number; pedidos: number }[]
+      }
       /** Solo super admin. Edita los datos administrativos de un restaurante (RPC de gestión del panel). */
       admin_actualizar_restaurante: {
         Args: {

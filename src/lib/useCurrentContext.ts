@@ -27,13 +27,14 @@ function esRutaDemo(pathname: string): boolean {
 export function useCurrentContext(): CurrentContext {
   const { pathname } = useLocation()
   const demoRol = useDemoStore((s) => s.demoRol)
+  const restauranteDemo = useDemoStore((s) => s.restaurante)
   const auth = useAuthStore()
 
   if (esRutaDemo(pathname)) {
     const usuario = demoRol
       ? (mockUsuarios.find((u) => u.rol === demoRol) ?? null)
       : null
-    return { usuario, restaurante: mockRestaurante, signOut: () => {} }
+    return { usuario, restaurante: restauranteDemo ?? mockRestaurante, signOut: () => {} }
   }
 
   return {

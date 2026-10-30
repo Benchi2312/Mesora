@@ -18,45 +18,186 @@
 --   - Si algo falla, los comentarios de bloque indican donde revisar.
 --   - Generado por npm run sql:install. Edita los fuentes, no este archivo.
 --
--- Contenido: 19 archivos · sha256(cuerpo) = 6f46cdc892eb
--- Orden: 00_schema_base.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → migracion_password_recovery.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql
+-- Contenido: 24 archivos · sha256(cuerpo) = 7b2a964b717b
+-- Orden: 00_schema_base.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → migracion_password_recovery.sql → ../migrations/20261029052901_datos_local_dominio.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql → ../migrations/20261030173318_seguridad_rpc_piloto.sql → ../migrations/20261030173320_consultas_pendientes_piloto.sql → ../migrations/20261030173503_diagnostico_piloto.sql → ../migrations/20261030173925_indice_mesas_zona.sql
 -- =============================================================================
 
 
 
 -- #############################################################################
--- # 1/19 · 00_schema_base.sql
+-- # 1/24 · 00_schema_base.sql
 -- #############################################################################
 
--- -- =============================================================================-- Mesora · SCHEMA BASE (ejecutar PRIMERO, en el SQL Editor de Supabase)-- =============================================================================---- QUÉ ES ESTE ARCHIVO-- Las diez tablas que la app necesita y que ningún otro archivo del repo creaba.-- Los tipos de `src/types/database.ts` son la especificación (de ahí sale cada-- columna, su nulabilidad y sus valores permitidos) y los `create table` que sí-- existaban (`caja_turnos`, `cuenta_pagos`, `restaurante_pins`) se dejaron donde-- estaban, para no duplicar objetos.---- LAS TRES RESTRICCIONES QUE NO SON NEGOCIABLES----   1. `usuarios.id` ES `auth.users.id`. No hay dos identidades: el perfil es la--      fila del usuario de Supabase Auth con datos de restaurante. Por eso el--      login del front puede hacer `select * from usuarios where id = auth.uid()`--      y con eso saber rol, restaurante y si está activo. Si `id` fuera un uuid--      aparte, `auth.uid()` no encontraría nada y la app no sabría quién es el--      usuario ni la RLS no podría aislar por restaurante.----   2. NUMÉRICOS CON DINERO SON `numeric(12,2)`. `precio`, `precio_unitario`,--      `total`, `propina`, `vuelto`, `monto_inicial`... El front los lee como--      número, y Postgres devuelve `numeric` como string en el JSON; la capa de--      tipos los declara `number`. Nunca `float`: 0.1 + 0.2 tiene que dar 0.30 en--      una boleta.----   3. NADA SE BORRA. Las anulaciones marcan estado (`anulado`, `anulada`) y--      guardan quién y cuándo; los `on delete cascade` solo existen para borrar--      datos de un restaurante entero, que es una operación de soporte. Una--      boleta emitida es un documento contable.---- ORDEN DE APLICACIÓN (el detalle completo está en SUPABASE_SETUP.md)--   1. este archivo                  ← tablas del dominio--   2. 00_seguridad_rpcs.sql         ← validar_acceso_restaurante--   3. migracion_items_anulables.sql--   4. migracion_productos_es_bebida.sql--   5. pin_autorizacion.sql          ← crea restaurante_pins + las funciones del PIN--   6. rpc_crear_pedido.sql--   7. rpc_cerrar_cuenta.sql         ← crea cuenta_pagos--   8. rpc_anular_cuenta.sql--   9. caja_turnos.sql               ← crea caja_turnos--  10. 01_rls_completo.sql           ← RLS y permisos, AL FINAL---- REQUISITOS--   * Estar en Supabase (o en un Postgres con los schemas `auth` y `extensions`).--     El SQL Editor corre como el rol `postgres`, que es el dueño de estos--     objetos y por eso está exento de RLS: de ahí funciona que los helpers--     `security definer` de `01_rls_completo.sql` puedan leer `usuarios` sin--     dispararse la policy a sí misma.--   * Correrlo como `postgres`, no como otro rol, y de a un archivo por vez.---- IDEMPOTENTE--   Se puede volver a ejecutar. Las tablas usan `create table if not exists` y--   los índices `create index if not exists`. OJO: si una tabla ya existe con--   columnas de más, este archivo NO las borra (para eso están las migraciones).----   Tampoco reescribe columnas que YA existen: `create table if not exists` es--   un no-op sobre una tabla que ya está. Por eso la sección 0.5 (enums → text)--   y el `add column if not exists email` de `usuarios` existen: son los dos--   puntos donde un esquema anterior dejó columnas que este diseño necesita en--   otro formato.---- LO QUE ESTE ARCHIVO NO HACE--   * No da permisos a nadie. Los `grant`/`revoke` viven todos en--     `01_rls_completo.sql`, que se aplica al final.--   * No crea usuarios de Supabase Auth (eso lo hace el panel o--     `99_crear_usuario_prueba.sql`).-- =============================================================================-- ------------------------------------------------------------------------------- 0. Extensiones-- ------------------------------------------------------------------------------- `pgcrypto` provee `gen_salt` y `crypt`, que usa `pin_autorizacion.sql` para-- el hash bcrypt del PIN. En Supabase ya está instalada en el schema-- `extensions`; el `if not exists` no la mueve si ya existe, y por eso las-- funciones del PIN llevan `set search_path = public, extensions`.-- (Postgres no valida el `search_path`: si `extensions` no existiera, el-- `search_path` igual funciona y solo faltaría la extensión.)create schema if not exists extensions;create extension if not exists pgcrypto with schema extensions;-- ------------------------------------------------------------------------------- 0.5 Un esquema anterior que guardaba los estados como `enum`-- ------------------------------------------------------------------------------- Este diseño guarda estados y roles en `text` + CHECK, que es lo que esperan-- `src/types/database.ts` (`Rol` es una unión de strings) y las RPC (`rol in-- ('mesero', 'admin_restaurante')`). Un esquema anterior puede tenerlos como-- tipos `enum` (p. ej. `pedidos.estado` sobre `estado_pedido`). Con enums este-- archivo se rompe en dos lugares, y los dos errores no dicen qué pasó:----   * `check (estado in (... , 'anulado'))` falla con 22P02 "invalid input--     value for enum": el literal se convierte al tipo de la columna y el--     valor nuevo no existe en el enum viejo;--   * lo mismo le pasa a `update estado = 'anulado'` (y a cualquier literal que--     el enum no tenga), pero recién cuando se usa, no al instalar.---- `create table if not exists` no reescribe columnas que ya existen, así que la-- única salida es convertir la columna a `text`. Se hace acá, ANTES de todo el-- resto del archivo, para que los `create table`/`create index`/`add constraint`-- de más abajo se creen sobre `text` desde el principio.---- Solo toca la columna si existe y es un enum: en una base recién creada este-- bloque no hace nada (los enums viejos quedan sin usar, no hace falta-- borrarlos).do $$declare  v_tabla text;  v_col text;  v_defecto text;  v_oid regclass;  v_es_enum boolean;  v_con text;begin  for v_tabla, v_col, v_defecto in    select * from (values      ('pedidos',      'estado',      'pendiente'),      ('cuentas',      'estado',      'pendiente'),      ('cuentas',      'metodo_pago', null::text),      ('mesas',        'estado',      'libre'),      ('caja_turnos',  'estado',      'abierto'),      ('cuenta_pagos', 'metodo_pago', null::text),      ('usuarios',     'rol',         null::text)    ) as t(tabla, columna, defecto)  loop    v_oid := to_regclass('public.' || v_tabla);    if v_oid is null then      continue;    end if;    select exists (      select 1        from pg_attribute a        join pg_type tp on tp.oid = a.atttypid       where a.attrelid = v_oid         and a.attname = v_col         and tp.typtype = 'e'    ) into v_es_enum;    if not v_es_enum then      continue;    end if;    raise notice 'Mesora: public.% (%) era un enum, se pasa a text', v_tabla, v_col;    -- El default está escrito como literal del enum viejo y no se puede    -- recastear solo: se quita ahora y se vuelve a poner abajo, ya como text.    execute format('alter table public.%I alter column %I drop default', v_tabla, v_col);    begin      execute format(        'alter table public.%I alter column %I type text using %I::text',        v_tabla, v_col, v_col      );    exception when others then      -- Postgres no supo recastear los CHECK que mencionan la columna: se      -- quitan, se convierte y el bloque 2 de abajo vuelve a poner los      -- canónicos de este esquema.      raise notice 'Mesora: no se pudo convertir public.% (%) directo: %; se quitan los CHECK que la mencionan',        v_tabla, v_col, sqlerrm;      for v_con in        select c.conname          from pg_constraint c         where c.conrelid = v_oid           and c.contype = 'c'           and pg_get_constraintdef(c.oid) ilike '%' || v_col || '%'      loop        execute format('alter table public.%I drop constraint %I', v_tabla, v_con);        raise notice 'Mesora: se quitó public.%.%', v_tabla, v_con;      end loop;      execute format(        'alter table public.%I alter column %I type text using %I::text',        v_tabla, v_col, v_col      );    end;    if v_defecto is not null then      execute format(        'alter table public.%I alter column %I set default %L::text',        v_tabla, v_col, v_defecto      );    end if;  end loop;end;$$;-- Los CHECK que el bloque anterior pudo haber tenido que soltar. Solo se agregan-- los que falten (en una base recién creada ya vinieron en el `create table` o-- todavía no existe la tabla), y si los datos viejos no cumplen el CHECK no se-- aborta la instalación: se avisa y listo, para poder seguir leyendo el resto de-- los errores de una corrida.do $$declare  v_tabla text;  v_con text;  v_def text;  v_oid regclass;begin  for v_tabla, v_con, v_def in    select * from (values      ('usuarios', 'usuarios_rol_check',       'check (rol in (''super_admin'', ''admin_restaurante'', ''mesero'', ''cocina'', ''cajero''))'),      ('mesas', 'mesas_estado_check',       'check (estado in (''libre'', ''ocupada''))'),      ('pedidos', 'pedidos_estado_check',       'check (estado in (''pendiente'', ''en_preparacion'', ''listo'', ''entregado'', ''anulado''))'),      ('cuentas', 'cuentas_metodo_pago_check',       'check (metodo_pago in (''efectivo'', ''tarjeta'', ''yape_plin'', ''otro''))'),      ('cuentas', 'cuentas_estado_check',       'check (estado in (''pendiente'', ''pagada'', ''anulada''))'),      ('cuentas', 'cuentas_pagada_con_fecha',       'check (estado = ''pendiente'' or pagado_at is not null)'),      ('cuenta_pagos', 'cuenta_pagos_metodo_pago_check',       'check (metodo_pago in (''efectivo'', ''tarjeta'', ''yape_plin'', ''otro''))'),      ('caja_turnos', 'caja_turno_cierre_completo',       'check ((estado = ''abierto'' and fecha_cierre is null and usuario_cierre_id is null and monto_declarado is null and monto_esperado is null and diferencia is null) or (estado = ''cerrado'' and fecha_cierre is not null and usuario_cierre_id is not null and monto_declarado is not null and monto_esperado is not null and diferencia is not null))')    ) as t(tabla, nombre, definicion)  loop    v_oid := to_regclass('public.' || v_tabla);    if v_oid is null then      continue;    end if;    if exists (      select 1 from pg_constraint c       where c.conrelid = v_oid and c.conname = v_con    ) then      continue;    end if;    begin      execute format('alter table public.%I add constraint %I %s', v_tabla, v_con, v_def);      raise notice 'Mesora: (re)creado el CHECK public.%.%', v_tabla, v_con;    exception when others then      raise warning 'Mesora: no se pudo crear public.% (%): %. Revisa los valores ya guardados en esa columna y vuelve a ejecutar.',        v_tabla, v_con, sqlerrm;    end;  end loop;end;$$;-- ------------------------------------------------------------------------------- 1. restaurantes-- -----------------------------------------------------------------------------create table if not exists public.restaurantes (  id uuid primary key default gen_random_uuid(),  nombre text not null,  ruc text,  telefono text,  direccion text,  email_contacto text,  -- Dominio de correo del local (ej. litoral.pe). El admin lo define desde su  -- panel y su personal entra como usuario@dominio (carlos@litoral.pe). Es solo  -- una convención de identidad: no cambia el login, que sigue por Auth.  dominio text,  -- El bloqueo de cobro: `suscripcion_activa` y `fecha_vencimiento` los leen la  -- UI (SuscripcionVencida), `validar_acceso_restaurante` en cada RPC que  -- escribe y `suscripcion_vigente` en cada policy de escritura.  -- `fecha_vencimiento = null` significa suscripción indefinida.  suscripcion_activa boolean not null default true,  fecha_vencimiento timestamptz,  created_at timestamptz not null default now());comment on table public.restaurantes is  'Locales. La suscripción vigente (suscripcion_activa + fecha_vencimiento) es lo que bloquea vender.';comment on column public.restaurantes.fecha_vencimiento is  'NULL = suscripción indefinida (plan vitalicio).';-- Igual que `usuarios.email`: si la tabla ya existía de una corrida anterior, el-- `create table if not exists` no agrega la columna. Acá se suma si falta.alter table public.restaurantes  add column if not exists dominio text;comment on column public.restaurantes.dominio is  'Dominio de correo del personal (ej. litoral.pe). Lo define el admin del local; el correo del personal queda usuario@dominio.';create index if not exists idx_restaurantes_nombre on public.restaurantes (nombre);-- ------------------------------------------------------------------------------- 2. usuarios  (perfiles; id = auth.users.id)-- -----------------------------------------------------------------------------create table if not exists public.usuarios (  id uuid primary key references auth.users (id) on delete cascade,  restaurante_id uuid references public.restaurantes (id) on delete cascade,  -- `text` + CHECK en vez de enum: es lo que espera `src/types/database.ts`  -- (`Rol` es una unión de strings) y lo que leen los RPC (`rol in ('mesero',  -- 'admin_restaurante')`). Un enum obligaría a castear en cada consulta.  rol text not null check (rol in (    'super_admin', 'admin_restaurante', 'mesero', 'cocina', 'cajero'  )),  nombre text not null,  email text,  -- Desactivar es la forma de "dar de baja": el usuario conserva su historia  -- (sus comandas, sus boletas, sus arqueos) pero pierde el acceso, tanto en la  -- app como en cada RPC y en cada policy. Por eso `activo` NO se borra y las  -- policies lo exigen.  activo boolean not null default true,  created_at timestamptz not null default now());-- Si la tabla ya existe de una corrida anterior, `create table if not exists` no-- hace nada y puede quedar sin `email`: el índice de abajo fallaría con-- "column email does not exist". Acá se agrega si falta.alter table public.usuarios  add column if not exists email text;comment on table public.usuarios is  'Perfil del usuario. El id es el de Supabase Auth: sin esa correspondencia, auth.uid() no encuentra nada y no hay aislamiento por restaurante.';comment on column public.usuarios.activo is  'false = desactivado. Pierde el acceso en la app, en las RPC y en las policies (es el mismo flag que usan las tres capas).';comment on column public.usuarios.restaurante_id is  'NULL solo para super_admin, que administra los locales desde fuera y no opera dentro de ninguno.';create index if not exists idx_usuarios_restaurante on public.usuarios (restaurante_id);-- No es unique a propósito: `crearPersonal` (src/lib/api.ts) inserta el perfil sin-- crear todavía el usuario de Auth —el alta real de meseros es en dos pasos— y un-- índice único haría fallar el alta con un error de Postgres en vez de un mensaje-- en la UI.create index if not exists idx_usuarios_email on public.usuarios (lower(email));create index if not exists idx_usuarios_rol on public.usuarios (restaurante_id, rol);-- ------------------------------------------------------------------------------- 3. zonas  y  4. mesas-- -----------------------------------------------------------------------------create table if not exists public.zonas (  id uuid primary key default gen_random_uuid(),  restaurante_id uuid not null references public.restaurantes (id) on delete cascade,  nombre text not null,  created_at timestamptz not null default now());comment on table public.zonas is  'Zonas del local (salón, terraza, barra). Se borran a mano desde la app, que avisa si quedan mesas.';create index if not exists idx_zonas_restaurante on public.zonas (restaurante_id, nombre);create table if not exists public.mesas (  id uuid primary key default gen_random_uuid(),  restaurante_id uuid not null references public.restaurantes (id) on delete cascade,  zona_id uuid not null references public.zonas (id) on delete cascade,  nombre text not null,  -- `libre`/`ocupada` no es solo cosmético: `cerrar_cuenta` la pone en 'libre' al  -- cobrar y `crear_pedido` la pone en 'ocupada'. Es el estado que el mesero ve  -- para elegir mesa.  estado text not null default 'libre' check (estado in ('libre', 'ocupada')),  created_at timestamptz not null default now());comment on table public.mesas is  'Mesas del local. El estado lo mueve el mesero/cajero para liberar y las RPC al cobrar y al pedir.';create index if not exists idx_mesas_restaurante on public.mesas (restaurante_id, nombre);create index if not exists idx_mesas_zona on public.mesas (zona_id);-- Índice único sobre `lower(nombre)`: no puede haber dos mesas que se llamen-- igual en el mismo restaurante ("Mesa 1" y "mesa 1" cuentan como la misma). Es-- el mismo criterio que usa el índice de un solo turno abierto en-- `caja_turnos.sql`: la garantía la pone la base, no el formulario.create unique index if not exists mesas_un_nombre_por_restaurante  on public.mesas (restaurante_id, lower(nombre));-- Una mesa tiene que ser de una zona del MISMO restaurante. Sin esto se podría-- colgar la mesa de una zona ajena y la fila aparecería en el filtro equivocado.---- Ojo con cómo se expresa: NO puede ser un `check (... in (select ...))` porque-- Postgres prohíbe subconsultas en un CHECK (error "cannot use subquery in check-- constraint"). La forma correcta es una FK compuesta sobre (id, restaurante_id)-- de la zona, que para eso necesita ser única en `zonas`.---- Esto se agrega con `alter` y no dentro del `create table` para que también-- funcione sobre una base donde las tablas ya existieran sin la garantía.do $$begin  if not exists (    select 1 from pg_constraint where conname = 'zonas_id_restaurante_unico'  ) then    alter table public.zonas      add constraint zonas_id_restaurante_unico unique (id, restaurante_id);  end if;  if not exists (    select 1 from pg_constraint where conname = 'mesas_zona_del_mismo_restaurante_fk'  ) then    alter table public.mesas      add constraint mesas_zona_del_mismo_restaurante_fk      foreign key (zona_id, restaurante_id)      references public.zonas (id, restaurante_id);  end if;end;$$;-- ------------------------------------------------------------------------------- 5. categorias_productos  y  6. productos-- -----------------------------------------------------------------------------create table if not exists public.categorias_productos (  id uuid primary key default gen_random_uuid(),  restaurante_id uuid not null references public.restaurantes (id) on delete cascade,  nombre text not null,  created_at timestamptz not null default now());comment on table public.categorias_productos is  'Categorías del menú. Se borran a mano desde la app, que avisa si quedan productos.';create index if not exists idx_categorias_restaurante  on public.categorias_productos (restaurante_id, nombre);create table if not exists public.productos (  id uuid primary key default gen_random_uuid(),  restaurante_id uuid not null references public.restaurantes (id) on delete cascade,  -- NULL = producto suelto sin categoría (la app lo permite). `on delete set  -- null` para que borrar una categoría no borre el historial de las boletas.  categoria_id uuid references public.categorias_productos (id) on delete set null,  nombre text not null,  descripcion text,  imagen_url text,  precio numeric(12, 2) not null check (precio >= 0),  -- `disponible = false` lo esconde del menú del mesero, pero NO de la base: el  -- filtro es del navegador (getProductos sin incluirAgotados). Ver §9.14 de  -- ESTADO_Y_CAMBIOS.md.  disponible boolean not null default true,  es_promocion boolean not null default false,  precio_promocion numeric(12, 2) check (precio_promocion >= 0),  -- Lo define el admin: lo prepara la barra, no la cocina. La migración  -- `migracion_productos_es_bebida.sql` hace un backfill desde el nombre de la  -- categoría; la columna ya está aquí, así que ese `add column if not exists`  -- no hace nada.  es_bebida boolean not null default false,  created_at timestamptz not null default now(),  -- Una promoción sin precio de promoción no es una promoción: el precio que se  -- cobra lo decide `crear_pedido`, y si `precio_promocion` fuera NULL cobraría  -- el precio normal sin avisar.  constraint productos_promocion_coherente check (    es_promocion = false or (precio_promocion is not null and precio_promocion > 0)  ));comment on table public.productos is  'Catálogo del local. El precio que se cobra lo congela `crear_pedido` en pedido_items: cambiar el precio del menú no reescribe la historia.';create index if not exists idx_productos_restaurante on public.productos (restaurante_id, nombre);create index if not exists idx_productos_disponible on public.productos (restaurante_id, disponible);create index if not exists idx_productos_categoria on public.productos (categoria_id);-- ------------------------------------------------------------------------------- 7. pedidos  y  8. pedido_items-- -----------------------------------------------------------------------------create table if not exists public.pedidos (  id uuid primary key default gen_random_uuid(),  restaurante_id uuid not null references public.restaurantes (id) on delete cascade,  -- `restrict`: la app no deja borrar una mesa con comandas por cobrar, y una  -- comanda no se borra nunca. Que la base lo diga también.  mesa_id uuid not null references public.mesas (id) on delete restrict,  -- Quién tomó la comanda. `restrict` a propósito: para dar de baja a un mesero  -- se desactiva (`activo = false`), no se borra, porque sus comandas son el  -- histórico de ventas por mesero que ve el dashboard.  mesero_id uuid not null references public.usuarios (id) on delete restrict,  -- El nombre del CHECK importa: `migracion_items_anulables.sql` borra los checks  -- que mencionen `estado` y agrega uno con los cinco valores (incluido  -- 'anulado'). Con este nombre, aplicar la migración es un no-op limpio.  estado text not null default 'pendiente',  constraint pedidos_estado_check check (    estado in ('pendiente', 'en_preparacion', 'listo', 'entregado', 'anulado')  ),  observacion text,  created_at timestamptz not null default now(),  updated_at timestamptz not null default now());comment on table public.pedidos is  'Comandas. Las crea crear_pedido (que fija los precios desde el catálogo del servidor) y de ahí en adelante solo cambian de estado: cocina, mesero y admin avanzan el estado con update directo, y la policy es lo que decide quién puede.';comment on column public.pedidos.estado is  'anulado = comanda que se quedó sin ítems vigentes: no se prepara, no se cobra y no ocupa la mesa.';-- Mismos nombres que en migracion_items_anulables.sql, para que sus-- `create index if not exists` no dupliquen nada.create index if not exists idx_pedidos_restaurante_mesa  on public.pedidos (restaurante_id, mesa_id, created_at);create index if not exists idx_pedidos_restaurante_estado  on public.pedidos (restaurante_id, estado, created_at);create index if not exists idx_pedidos_mesero on public.pedidos (mesero_id);create table if not exists public.pedido_items (  id uuid primary key default gen_random_uuid(),  pedido_id uuid not null references public.pedidos (id) on delete cascade,  -- NULL si el producto se borró del catálogo después de pedirlo: el ítem sigue  -- en la boleta con el nombre y el precio que tenía al pedirlo.  producto_id uuid references public.productos (id) on delete set null,  -- `nombre_producto` y `precio_unitario` son COPIAS congeladas al pedir. Los  -- pone el servidor (`crear_pedido`), nunca el cliente: si los aceptara del  -- navegador, cualquiera podría pedir un plato de S/ 0.01.  nombre_producto text not null,  cantidad int not null check (cantidad between 1 and 99),  precio_unitario numeric(12, 2) not null check (precio_unitario >= 0),  nota text,  -- La anulación del ítem. `not null default false` a propósito: las RPC filtran  -- con `anulado = false` (no `coalesce`), así que un NULL aquí sería un ítem  -- que ni la cocina ve ni la boleta cobra, sin que nadie lo haya pedido.  anulado boolean not null default false,  anulado_por uuid references public.usuarios (id) on delete set null,  anulado_at timestamptz,  created_at timestamptz not null default now(),  -- Si está anulado tiene que decir quién y cuándo: es el rastro de por qué la  -- cuenta sale más baja.  constraint pedido_items_anulacion_coherente check (    anulado = false    or (anulado_por is not null and anulado_at is not null)  ));comment on table public.pedido_items is  'Ítems de la comanda. El precio y el nombre los congela el servidor al pedir; anular marca `anulado`, nunca borra la fila.';create index if not exists idx_pedido_items_pedido on public.pedido_items (pedido_id);-- ------------------------------------------------------------------------------- 9. cuentas  y  10. cuenta_pedidos-- -----------------------------------------------------------------------------
--- ---------------------------------------------------------------------------
--- Correlativo de boleta por restaurante
--- ---------------------------------------------------------------------------
+-- -- Mesora: schema base para instalaciones NUEVAS.
+-- En bases existentes se aplican ?nicamente migraciones revisadas.
+-- Estados y roles son text + CHECK; importes numeric(12,2).
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
+
+create table if not exists public.restaurantes (
+  id uuid primary key default gen_random_uuid(),
+  nombre text not null check (length(btrim(nombre)) > 0),
+  ruc text,
+  telefono text,
+  direccion text,
+  email_contacto text,
+  suscripcion_activa boolean not null default true,
+  fecha_vencimiento timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.usuarios (
+  id uuid primary key references auth.users(id) on delete cascade,
+  restaurante_id uuid references public.restaurantes(id) on delete cascade,
+  rol text not null check (rol in ('super_admin','admin_restaurante','mesero','cocina','cajero')),
+  nombre text not null check (length(btrim(nombre)) > 0),
+  email text,
+  activo boolean not null default true,
+  created_at timestamptz not null default now(),
+  constraint usuarios_restaurante_requerido check (rol = 'super_admin' or restaurante_id is not null)
+);
+create index if not exists idx_usuarios_restaurante on public.usuarios(restaurante_id);
+
+create table if not exists public.zonas (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  nombre text not null check (length(btrim(nombre)) > 0),
+  created_at timestamptz not null default now()
+);
+create unique index if not exists zonas_un_nombre_por_restaurante on public.zonas(restaurante_id, lower(nombre));
+create unique index if not exists zonas_id_restaurante_unique on public.zonas(id, restaurante_id);
+
+create table if not exists public.mesas (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  zona_id uuid not null references public.zonas(id) on delete restrict,
+  nombre text not null check (length(btrim(nombre)) > 0),
+  estado text not null default 'libre' check (estado in ('libre','ocupada')),
+  created_at timestamptz not null default now(),
+  constraint mesas_zona_del_mismo_restaurante_fk foreign key(zona_id, restaurante_id)
+    references public.zonas(id, restaurante_id)
+);
+create index if not exists idx_mesas_restaurante on public.mesas(restaurante_id, nombre);
+create index if not exists idx_mesas_zona on public.mesas(zona_id);
+create unique index if not exists mesas_un_nombre_por_restaurante on public.mesas(restaurante_id, lower(nombre));
+
+create table if not exists public.categorias_productos (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  nombre text not null check (length(btrim(nombre)) > 0),
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_categorias_restaurante on public.categorias_productos(restaurante_id);
+
+create table if not exists public.productos (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  categoria_id uuid references public.categorias_productos(id) on delete set null,
+  nombre text not null check (length(btrim(nombre)) > 0),
+  descripcion text,
+  imagen_url text,
+  precio numeric(12,2) not null check (precio >= 0),
+  disponible boolean not null default true,
+  es_promocion boolean not null default false,
+  precio_promocion numeric(12,2) check (precio_promocion >= 0),
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_productos_restaurante on public.productos(restaurante_id);
+create index if not exists idx_productos_categoria on public.productos(categoria_id);
+
+create table if not exists public.pedidos (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  mesa_id uuid not null references public.mesas(id) on delete restrict,
+  mesero_id uuid not null references public.usuarios(id) on delete restrict,
+  estado text not null default 'pendiente',
+  constraint pedidos_estado_check check (estado in ('pendiente','en_preparacion','listo','entregado','anulado')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_pedidos_restaurante_estado on public.pedidos(restaurante_id, estado, created_at);
+create index if not exists idx_pedidos_restaurante_mesa on public.pedidos(restaurante_id, mesa_id, created_at);
+create index if not exists idx_pedidos_mesero on public.pedidos(mesero_id);
+
+create table if not exists public.pedido_items (
+  id uuid primary key default gen_random_uuid(),
+  pedido_id uuid not null references public.pedidos(id) on delete cascade,
+  producto_id uuid references public.productos(id) on delete set null,
+  nombre_producto text not null,
+  cantidad integer not null check (cantidad between 1 and 99),
+  precio_unitario numeric(12,2) not null check (precio_unitario >= 0),
+  nota text,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_pedido_items_pedido on public.pedido_items(pedido_id);
+
+create table if not exists public.cuentas (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  mesa_id uuid not null references public.mesas(id) on delete restrict,
+  total numeric(12,2) not null check (total >= 0),
+  metodo_pago text not null,
+  constraint cuentas_metodo_pago_check check (metodo_pago in ('efectivo','tarjeta','yape_plin','otro')),
+  estado text not null default 'pendiente',
+  constraint cuentas_estado_check check (estado in ('pendiente','pagada','anulada')),
+  pagado_at timestamptz,
+  numero text,
+  propina numeric(12,2) not null default 0 check (propina >= 0),
+  vuelto numeric(12,2) not null default 0 check (vuelto >= 0),
+  anulada_at timestamptz,
+  anulada_por uuid references public.usuarios(id) on delete set null,
+  motivo_anulacion text,
+  monto_reembolsado numeric(12,2) check (monto_reembolsado >= 0),
+  created_at timestamptz not null default now(),
+  constraint cuentas_pagada_con_fecha check (estado = 'pendiente' or pagado_at is not null)
+);
+create index if not exists idx_cuentas_restaurante on public.cuentas(restaurante_id, estado);
+create index if not exists idx_cuentas_pagadas on public.cuentas(restaurante_id, pagado_at desc) where estado = 'pagada';
+create unique index if not exists cuentas_numero_por_restaurante on public.cuentas(restaurante_id, numero) where numero is not null;
+
+create table if not exists public.cuenta_pedidos (
+  id uuid primary key default gen_random_uuid(),
+  cuenta_id uuid not null references public.cuentas(id) on delete cascade,
+  pedido_id uuid not null references public.pedidos(id) on delete restrict,
+  subtotal numeric(12,2) not null check (subtotal >= 0)
+);
+create index if not exists idx_cuenta_pedidos_cuenta on public.cuenta_pedidos(cuenta_id);
+create index if not exists idx_cuenta_pedidos_pedido on public.cuenta_pedidos(pedido_id);
+
 create table if not exists public.correlativos (
-  restaurante_id uuid not null references public.restaurantes (id) on delete cascade,
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
   tipo text not null,
   ultimo integer not null default 0,
   primary key (restaurante_id, tipo)
 );
 
-comment on table public.correlativos is 'Contadores por restaurante (p. ej. boletas). Solo lo escribe cerrar_cuenta().';
+create or replace function public.tocar_updated_at()
+returns trigger language plpgsql set search_path = pg_catalog, public, pg_temp
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+drop trigger if exists trg_pedidos_updated_at on public.pedidos;
+create trigger trg_pedidos_updated_at before update on public.pedidos
+for each row execute function public.tocar_updated_at();
+revoke all on function public.tocar_updated_at() from public, anon, authenticated;
 
-alter table public.correlativos enable row level security;
-
--- Numero correlativo de boleta en cuentas
-alter table public.cuentas add column if not exists numero text;
-
-comment on column public.cuentas.numero is 'Numero correlativo de la boleta (B001-000123), unico por restaurante.';
-
-create unique index if not exists cuentas_numero_por_restaurante
-  on public.cuentas (restaurante_id, numero)
-  where numero is not null;
-
-create table if not exists public.cuentas (  id uuid primary key default gen_random_uuid(),  restaurante_id uuid not null references public.restaurantes (id) on delete cascade,  mesa_id uuid not null references public.mesas (id) on delete restrict,  -- El total es la SUMA DE LOS ÍTEMS, calculada por `cerrar_cuenta`. Nunca lo  -- manda el navegador. La app lo relee después del cobro para armar la boleta.  total numeric(12, 2) not null check (total >= 0),  -- Solo el método PRINCIPAL. El detalle real del pago dividido está en  -- `cuenta_pagos` (que crea rpc_cerrar_cuenta.sql): con pago dividido, esta  -- columna se quedaría corta y el dashboard atribuiría todo a un método.  metodo_pago text not null,  constraint cuentas_metodo_pago_check check (    metodo_pago in ('efectivo', 'tarjeta', 'yape_plin', 'otro')  ),  -- El nombre importa: `rpc_anular_cuenta.sql` hace  -- `drop constraint if exists cuentas_estado_check` para reemplazar el CHECK  -- de dos estados por el de tres. Con otro nombre quedarían los dos vivos y la  -- boleta anulada nunca se podría guardar.  estado text not null default 'pendiente',  constraint cuentas_estado_check check (estado in ('pendiente', 'pagada', 'anulada')),  pagado_at timestamptz,  -- Número correlativo de la boleta (B001-000123), único por restaurante. Lo  -- asigna `cerrar_cuenta` (rpc_cerrar_cuenta.sql). NULL en datos anteriores.  numero text,  -- La propina va APARTE del total a propósito: el reporte de ventas no cuenta  -- propina como venta de comida.  propina numeric(12, 2) not null default 0 check (propina >= 0),  vuelto numeric(12, 2) not null default 0 check (vuelto >= 0),  -- Rastro de la anulación. Los rellena `anular_cuenta` (admin o cajero, con  -- motivo y PIN). Este archivo no agrega el CHECK de coherencia: lo crea  -- `rpc_anular_cuenta.sql` con el nombre `cuentas_anulacion_coherente`, que  -- además de exigir los tres datos cuando está anulada, obliga a que estén en  -- NULL cuando no lo está (una boleta pagada no puede quedar con motivo puesto).  anulada_at timestamptz,  anulada_por uuid references public.usuarios (id) on delete set null,  motivo_anulacion text,  -- Total devuelto (todos los métodos). El arqueo de caja solo descuenta la  -- parte en efectivo, que es la única que puede salir de la gaveta.  monto_reembolsado numeric(12, 2) check (monto_reembolsado >= 0),  created_at timestamptz not null default now(),  -- Una cuenta pagada tiene fecha de pago; una pendiente, no. Sin esto, el  -- arqueo podría sumar una cuenta que nadie cobró.  constraint cuentas_pagada_con_fecha check (    estado = 'pendiente' or pagado_at is not null  ));comment on table public.cuentas is  'Cobros. La crea `cerrar_cuenta` con el total desde los ítems; anularla la deja en anulada con motivo, autor y monto devuelto. Nunca se borra.';create index if not exists idx_cuentas_restaurante on public.cuentas (restaurante_id, estado);-- El dashboard y la pantalla de cobros ordenan por fecha de pago; el índice-- parcial los evita un sort sobre toda la historia.create index if not exists idx_cuentas_pagadas on public.cuentas (restaurante_id, pagado_at desc)  where estado = 'pagada';create table if not exists public.cuenta_pedidos (  id uuid primary key default gen_random_uuid(),  cuenta_id uuid not null references public.cuentas (id) on delete cascade,  pedido_id uuid not null references public.pedidos (id) on delete restrict,  -- Subtotal de ESA comanda (sin ítems anulados). Es lo que permite reimprimir  -- el detalle y lo que usa `cerrar_cuenta` para el desglose.  subtotal numeric(12, 2) not null default 0 check (subtotal >= 0),  created_at timestamptz not null default now());comment on table public.cuenta_pedidos is  'Qué comandas se cobraron en qué boleta. Lo escribe `cerrar_cuenta` en la misma transacción que la cuenta: es lo que impide cobrar dos veces la misma comanda.';create index if not exists idx_cuenta_pedidos_cuenta on public.cuenta_pedidos (cuenta_id);create index if not exists idx_cuenta_pedidos_pedido on public.cuenta_pedidos (pedido_id);-- NO es único a propósito, y es una decisión consciente: `cerrar_cuenta` solo-- bloquea los pedidos que están en una cuenta EN ESTADO 'pagada', así que anular-- una boleta devuelve la comanda al circuito y se puede volver a cobrar. Un-- índice único sobre `pedido_id` lo rompería ese flujo (la segunda cuenta fallaría-- por constraint en vez de explicar que la comanda ya se cobró y se anuló).-- La doble protección real es el `for update` sobre la mesa en `cerrar_cuenta`.-- ------------------------------------------------------------------------------- 11. updated_at de pedidos-- ------------------------------------------------------------------------------- `avanzarPedido` y `cerrar_cuenta` escriben `updated_at` a mano, pero el-- trigger evita que la próxima RPC que olvide hacerlo deje una comanda con la-- fecha de su creación, como si nadie la hubiera tocado.create or replace function public.tocar_updated_at()returns triggerlanguage plpgsqlas $$begin  new.updated_at := now();  return new;end;$$;comment on function public.tocar_updated_at() is  'Trigger: mantiene pedidos.updated_at al día. No se ejecuta desde el cliente.';drop trigger if exists trg_pedidos_updated_at on public.pedidos;create trigger trg_pedidos_updated_at  before update on public.pedidos  for each row execute function public.tocar_updated_at();-- Un trigger no se "llama" desde el cliente, pero tampoco tiene por qué quedar-- ejecutable por cualquiera.revoke all on function public.tocar_updated_at() from public;-- ------------------------------------------------------------------------------- 12. Comprobación-- ------------------------------------------------------------------------------- Debe listar las 10 tablas de este archivo. Las otras tres (cuenta_pagos,-- caja_turnos, restaurante_pins) las crean rpc_cerrar_cuenta.sql, caja_turnos.sql-- y pin_autorizacion.sql.select c.relname as tabla_creada,       (select count(*) from pg_attribute a         where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped) as columnas  from pg_class c  join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public'   and c.relkind = 'r'   and c.relname in (     'restaurantes', 'usuarios', 'zonas', 'mesas', 'categorias_productos',     'productos', 'pedidos', 'pedido_items', 'cuentas', 'cuenta_pedidos'   ) order by c.relname;
+-- Cerradas desde su creaci?n; 01_rls_completo agrega las policies y grants.
+do $$
+declare t text;
+begin
+  foreach t in array array['restaurantes','usuarios','zonas','mesas','categorias_productos',
+    'productos','pedidos','pedido_items','cuentas','cuenta_pedidos','correlativos'] loop
+    execute format('alter table public.%I enable row level security', t);
+  end loop;
+end;
+$$;
 
 
 -- #############################################################################
--- # 2/19 · 00_seguridad_rpcs.sql
+-- # 2/24 · 00_seguridad_rpcs.sql
 -- #############################################################################
 
 -- -- Mesora · Control de acceso en el SERVIDOR (ejecutar tras 00_schema_base.sql).
@@ -167,7 +308,7 @@ grant execute on function public.validar_acceso_restaurante(uuid) to authenticat
 
 
 -- #############################################################################
--- # 3/19 · migracion_items_anulables.sql
+-- # 3/24 · migracion_items_anulables.sql
 -- #############################################################################
 
 -- -- Mesora · Edición y anulación de ítems de una comanda.
@@ -514,7 +655,7 @@ $$;
 
 
 -- #############################################################################
--- # 4/19 · migracion_productos_es_bebida.sql
+-- # 4/24 · migracion_productos_es_bebida.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -553,7 +694,7 @@ select r.nombre as restaurante,
 
 
 -- #############################################################################
--- # 5/19 · migracion_password_recovery.sql
+-- # 5/24 · migracion_password_recovery.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -632,7 +773,43 @@ grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
--- # 6/19 · pin_autorizacion.sql
+-- # 6/24 · ../migrations/20261029052901_datos_local_dominio.sql
+-- #############################################################################
+
+-- -- Datos del local: dominio opcional para identificar al personal.
+-- No modifica usuarios, contraseñas, suscripciones ni documentos existentes.
+alter table public.restaurantes
+  add column if not exists dominio text;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_catalog.pg_constraint
+    where conrelid = 'public.restaurantes'::regclass
+      and conname = 'restaurantes_dominio_valido'
+  ) then
+    alter table public.restaurantes
+      add constraint restaurantes_dominio_valido check (
+        dominio is null or (
+          char_length(dominio) <= 253
+          and dominio = lower(btrim(dominio))
+          and dominio ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?([.][a-z0-9]([a-z0-9-]*[a-z0-9])?)*[.][a-z]{2,}$'
+        )
+      );
+  end if;
+end;
+$$;
+
+comment on column public.restaurantes.dominio is
+  'Dominio opcional de login del personal. Cambiarlo no renombra usuarios existentes.';
+
+-- Se conserva la policy existente: solo el admin de su propio local activo
+-- puede actualizar. El grant es columnario; no habilita modificar suscripciones.
+grant update (dominio) on public.restaurantes to authenticated;
+
+
+-- #############################################################################
+-- # 7/24 · pin_autorizacion.sql
 -- #############################################################################
 
 -- -- Mesora · PIN de autorización + anulación de cobros.
@@ -892,7 +1069,7 @@ $$;
 
 
 -- #############################################################################
--- # 7/19 · rpc_crear_pedido.sql
+-- # 8/24 · rpc_crear_pedido.sql
 -- #############################################################################
 
 -- -- Mesora · RPC: crear pedido (comanda) de forma atómica.
@@ -1022,7 +1199,7 @@ $$;
 
 
 -- #############################################################################
--- # 8/19 · rpc_cerrar_cuenta.sql
+-- # 9/24 · rpc_cerrar_cuenta.sql
 -- #############################################################################
 
 -- -- Mesora · RPC: cerrar cuenta y registrar el pago en una sola transacción.
@@ -1345,7 +1522,7 @@ $$;
 
 
 -- #############################################################################
--- # 9/19 · rpc_anular_cuenta.sql
+-- # 10/24 · rpc_anular_cuenta.sql
 -- #############################################################################
 
 -- -- Mesora · Anulación de cobros (void de una boleta ya emitida).
@@ -1561,7 +1738,7 @@ comment on function public.anular_cuenta(uuid, uuid, text, text) is
 
 
 -- #############################################################################
--- # 10/19 · caja_turnos.sql
+-- # 11/24 · caja_turnos.sql
 -- #############################################################################
 
 -- -- Mesora · Caja por turnos: tabla `caja_turnos` + RPC de apertura y cierre.
@@ -1857,7 +2034,7 @@ $$;
 
 
 -- #############################################################################
--- # 11/19 · 01_rls_completo.sql
+-- # 12/24 · 01_rls_completo.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -2724,7 +2901,7 @@ select c.relname as tabla,
 
 
 -- #############################################################################
--- # 12/19 · admin_super_restaurante.sql
+-- # 13/24 · admin_super_restaurante.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -2931,7 +3108,7 @@ select a.attname as columna,
 
 
 -- #############################################################################
--- # 13/19 · usuarios_super_admin.sql
+-- # 14/24 · usuarios_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3158,7 +3335,7 @@ select c.relname as tabla,
 
 
 -- #############################################################################
--- # 14/19 · estadisticas_super_admin.sql
+-- # 15/24 · estadisticas_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3376,7 +3553,7 @@ select p.proname,
 
 
 -- #############################################################################
--- # 15/19 · soporte.sql
+-- # 16/24 · soporte.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3510,7 +3687,7 @@ select
 
 
 -- #############################################################################
--- # 16/19 · suscripciones_super_admin.sql
+-- # 17/24 · suscripciones_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3925,7 +4102,7 @@ select
 
 
 -- #############################################################################
--- # 17/19 · auditoria.sql
+-- # 18/24 · auditoria.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4282,7 +4459,7 @@ select
 
 
 -- #############################################################################
--- # 18/19 · configuracion_global.sql
+-- # 19/24 · configuracion_global.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4566,7 +4743,7 @@ select
 
 
 -- #############################################################################
--- # 19/19 · seguridad_piloto.sql
+-- # 20/24 · seguridad_piloto.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4700,3 +4877,172 @@ $$;
 revoke all on function public.confirmar_cambio_password() from public;
 revoke all on function public.confirmar_cambio_password() from anon;
 grant execute on function public.confirmar_cambio_password() to authenticated;
+
+
+-- #############################################################################
+-- # 21/24 · ../migrations/20261030173318_seguridad_rpc_piloto.sql
+-- #############################################################################
+
+-- -- Cierra la API de funciones a anónimos y preserva el acceso autenticado real.
+-- No cambia cuerpos de RPC ni permisos de tablas; no toca funciones de extensiones.
+do $$
+declare
+  f record;
+  v_firma text;
+  v_auth boolean;
+  v_servicio boolean;
+begin
+  for f in
+    select p.oid, p.proname, p.prorettype, pg_get_function_identity_arguments(p.oid) as args
+    from pg_catalog.pg_proc p
+    join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.prokind = 'f'
+      and not exists (
+        select 1 from pg_catalog.pg_depend d
+        where d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e'
+      )
+  loop
+    v_firma := format('public.%I(%s)', f.proname, f.args);
+    v_auth := has_function_privilege('authenticated', f.oid, 'execute');
+    v_servicio := has_function_privilege('service_role', f.oid, 'execute');
+    execute format('revoke execute on function %s from public, anon', v_firma);
+    execute format('alter function %s set search_path = pg_catalog, public, extensions, pg_temp', v_firma);
+
+    if f.prorettype = 'trigger'::regtype or f.proname in ('validar_pin_autorizacion', 'registrar_auditoria') then
+      execute format('revoke execute on function %s from authenticated', v_firma);
+    elsif v_auth then
+      execute format('grant execute on function %s to authenticated', v_firma);
+    end if;
+    if v_servicio then execute format('grant execute on function %s to service_role', v_firma); end if;
+  end loop;
+end;
+$$;
+
+-- Las funciones nuevas deben declarar explícitamente su API pública.
+alter default privileges in schema public revoke execute on functions from public, anon;
+
+
+-- #############################################################################
+-- # 22/24 · ../migrations/20261030173320_consultas_pendientes_piloto.sql
+-- #############################################################################
+
+-- -- Consultas acotadas a lo pendiente. JSON evita truncar el agregado por el
+-- límite de filas de PostgREST. SECURITY INVOKER mantiene RLS por restaurante.
+create or replace function public.pedidos_pendientes_mesa(p_restaurante_id uuid, p_mesa_id uuid)
+returns jsonb language plpgsql stable security invoker
+set search_path = pg_catalog, public, pg_temp
+as $$
+begin
+  perform public.validar_acceso_restaurante(p_restaurante_id);
+  if not public.soy_del_restaurante(p_restaurante_id) then
+    raise exception 'Sin permiso para consultar este restaurante';
+  end if;
+  return (
+    select coalesce(jsonb_agg(to_jsonb(p) order by p.created_at, p.id), '[]'::jsonb)
+    from (
+      select p.id, p.mesa_id, p.estado::text as estado, p.created_at
+      from public.pedidos p
+      where p.restaurante_id = p_restaurante_id and p.mesa_id = p_mesa_id
+        and p.estado::text <> 'anulado'
+        and not exists (
+          select 1 from public.cuenta_pedidos cp
+          join public.cuentas c on c.id = cp.cuenta_id
+          where cp.pedido_id = p.id and c.estado::text = 'pagada'
+        )
+    ) p
+  );
+end;
+$$;
+
+create or replace function public.mesas_por_cobrar(p_restaurante_id uuid)
+returns jsonb language plpgsql stable security invoker
+set search_path = pg_catalog, public, pg_temp
+as $$
+begin
+  perform public.validar_acceso_restaurante(p_restaurante_id);
+  if not public.soy_del_restaurante(p_restaurante_id) then
+    raise exception 'Sin permiso para consultar este restaurante';
+  end if;
+  return (
+    select coalesce(jsonb_agg(to_jsonb(m) order by m.mesa_nombre, m.mesa_id), '[]'::jsonb)
+    from (
+      select m.id as mesa_id, m.nombre as mesa_nombre,
+        round(sum(pi.cantidad * pi.precio_unitario), 2) as total,
+        count(distinct p.id) as pedidos
+      from public.mesas m
+      join public.pedidos p on p.mesa_id = m.id and p.restaurante_id = m.restaurante_id
+      join public.pedido_items pi on pi.pedido_id = p.id and coalesce(pi.anulado, false) = false
+      where m.restaurante_id = p_restaurante_id and p.estado::text <> 'anulado'
+        and not exists (
+          select 1 from public.cuenta_pedidos cp
+          join public.cuentas c on c.id = cp.cuenta_id
+          where cp.pedido_id = p.id and c.estado::text = 'pagada'
+        )
+      group by m.id, m.nombre
+      having sum(pi.cantidad * pi.precio_unitario) > 0.004
+    ) m
+  );
+end;
+$$;
+revoke all on function public.pedidos_pendientes_mesa(uuid, uuid) from public, anon;
+revoke all on function public.mesas_por_cobrar(uuid) from public, anon;
+grant execute on function public.pedidos_pendientes_mesa(uuid, uuid) to authenticated;
+grant execute on function public.mesas_por_cobrar(uuid) to authenticated;
+
+-- Índices de FK de una columna que aún no cuentan con cobertura por prefijo.
+-- No se eliminan índices: se preservan los existentes y se omiten extensiones.
+do $$
+declare f record;
+begin
+  for f in
+    select c.conrelid, t.relname, a.attname, c.conkey[1] as attnum
+    from pg_catalog.pg_constraint c
+    join pg_catalog.pg_class t on t.oid = c.conrelid
+    join pg_catalog.pg_namespace n on n.oid = t.relnamespace
+    join pg_catalog.pg_attribute a on a.attrelid = t.oid and a.attnum = c.conkey[1]
+    where n.nspname = 'public' and c.contype = 'f' and cardinality(c.conkey) = 1
+      and not exists (
+        select 1 from pg_catalog.pg_index i
+        where i.indrelid = c.conrelid and i.indisvalid and i.indpred is null
+          and i.indkey[0] = c.conkey[1]
+      )
+  loop
+    execute format('create index if not exists %I on public.%I (%I)',
+      left('idx_' || f.relname || '_' || f.attname || '_fk', 63), f.relname, f.attname);
+  end loop;
+end;
+$$;
+
+
+-- #############################################################################
+-- # 23/24 · ../migrations/20261030173503_diagnostico_piloto.sql
+-- #############################################################################
+
+-- -- Diagnóstico mínimo: únicamente categorías y rutas normalizadas, sin mensajes,
+-- PIN, correos, tokens, pedidos ni datos del cliente.
+create or replace function public.registrar_error_cliente(p_tipo text, p_ruta text, p_contexto text)
+returns void language plpgsql security invoker
+set search_path = pg_catalog, public, pg_temp
+as $$
+begin
+  if auth.uid() is null or not exists (
+    select 1 from public.usuarios where id=auth.uid() and coalesce(activo,true)
+  ) then raise exception 'Se requiere una sesión activa'; end if;
+  if p_tipo not in ('api','render','javascript','promise')
+     or p_ruta not in ('/admin','/mesero','/cajero','/cocina','/super-admin','/restablecer','/login','otra')
+     or p_contexto is null or p_contexto !~ '^[A-Za-z]{1,48}$' then
+    raise exception 'Metadatos de diagnóstico inválidos';
+  end if;
+  raise log 'MESORA_CLIENT_ERROR tipo=% ruta=% contexto=%', p_tipo, p_ruta, p_contexto;
+end;
+$$;
+revoke all on function public.registrar_error_cliente(text,text,text) from public, anon;
+grant execute on function public.registrar_error_cliente(text,text,text) to authenticated;
+
+
+-- #############################################################################
+-- # 24/24 · ../migrations/20261030173925_indice_mesas_zona.sql
+-- #############################################################################
+
+-- -- Cubre también la FK compuesta que garantiza zona y mesa del mismo local.
+create index if not exists idx_mesas_zona_restaurante on public.mesas(zona_id, restaurante_id);

@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { getApi } from '../../lib/api'
 import type { AuditLog, Restaurante, Rol } from '../../types/database'
 import { fmtFecha } from '../../lib/format'
-import { rolLabel } from '../../lib/roles'
+import { rolLabel } from '../../domain/security/roles'
 import {
   CATEGORIAS_AUDITORIA,
   CRITERIOS_AUDITORIA_VACIOS,
@@ -11,8 +11,8 @@ import {
   etiquetaCategoria,
   filtrarAuditoria,
   hayFiltrosAuditoria,
-} from '../../lib/auditoria'
-import type { CategoriaAuditoria, CriteriosAuditoria } from '../../lib/auditoria'
+} from '../../domain/platform/auditoria'
+import type { CategoriaAuditoria, CriteriosAuditoria } from '../../domain/platform/auditoria'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 

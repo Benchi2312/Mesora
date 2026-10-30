@@ -2,20 +2,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getApi, ROLES_PERSONAL } from '../../lib/api'
 import type { RolPersonal, UsuarioPlataforma } from '../../lib/api'
 import { fmtFecha } from '../../lib/format'
-import { rolLabel } from '../../lib/roles'
+import { rolLabel } from '../../domain/security/roles'
 import {
   CRITERIOS_USUARIOS_VACIOS,
   ORDENES_USUARIOS,
   filtrarUsuarios,
   hayFiltrosUsuarios,
   labelUltimoAcceso,
-} from '../../lib/usuarios'
+} from '../../domain/platform/usuarios'
 import type {
   CriteriosUsuarios,
   FiltroEstadoUsuarios,
   FiltroRolUsuarios,
   OrdenUsuarios,
-} from '../../lib/usuarios'
+} from '../../domain/platform/usuarios'
 import type { Restaurante } from '../../types/database'
 import { useAuthStore } from '../../store/auth'
 import { Spinner } from '../../components/LoadingScreen'

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { getApi } from '../../lib/api'
 import type { ConfiguracionGlobal } from '../../types/database'
 import { fmtFecha } from '../../lib/format'
-import type { DatosConfiguracionGlobal } from '../../lib/configuracion'
+import type { DatosConfiguracionGlobal } from '../../domain/restaurant/configuracion'
 import { Spinner } from '../../components/LoadingScreen'
 import { Campo } from '../../components/ui'
 

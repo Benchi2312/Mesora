@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Rol } from '../types/database'
+import type { Restaurante, Rol } from '../types/database'
 import type { SolicitudForm } from './guia'
 
 /**
@@ -15,6 +15,8 @@ interface SolicitudPendiente extends SolicitudForm {
 interface DemoState {
   isDemo: boolean
   demoRol: Rol | null
+  restaurante: Restaurante | null
+  actualizarRestaurante: (restaurante: Restaurante) => void
   /**
    * Recorrido guiado activo: los formularios del demo abren con valores
    * sugeridos (ver `prefillDe` en guia.ts). Nunca afecta al modo local ni real.
@@ -38,12 +40,14 @@ interface DemoState {
 export const useDemoStore = create<DemoState>()((set) => ({
   isDemo: false,
   demoRol: null,
+  restaurante: null,
+  actualizarRestaurante: (restaurante) => set({ restaurante }),
   prefillGuia: false,
   autoLlenado: false,
   solicitud: null,
   enterDemo: (rol) => set({ isDemo: true, demoRol: rol }),
   exitDemo: () =>
-    set({ isDemo: false, demoRol: null, prefillGuia: false, autoLlenado: false, solicitud: null }),
+    set({ isDemo: false, demoRol: null, restaurante: null, prefillGuia: false, autoLlenado: false, solicitud: null }),
   activarPrefillGuia: (activo) => set({ prefillGuia: activo }),
   setAutoLlenado: (activo) => set({ autoLlenado: activo }),
   solicitarFormulario: (s) =>

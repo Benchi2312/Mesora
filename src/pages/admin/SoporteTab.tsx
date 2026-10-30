@@ -8,7 +8,7 @@ import {
   etiquetaEstadoTicket,
   etiquetaPrioridadTicket,
   ticketAbierto,
-} from '../../lib/soporte'
+} from '../../domain/platform/soporte'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 import { Campo, IconoInfo, IconoMas, Modal, PieAcciones } from '../../components/ui'

@@ -16,7 +16,7 @@
 // regenerarlo no ensucia el diff.
 // =============================================================================
 import { createHash } from 'node:crypto'
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const RAIZ = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
@@ -24,6 +24,7 @@ const RAIZ = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '
 // Las piezas viven en `supabase/fuentes/`, en subcarpeta, para que la raíz de
 // `supabase/` tenga un solo archivo visible — el que se pega. Ver el orden abajo.
 const DIR = join(RAIZ, 'supabase', 'fuentes')
+const MIGRACIONES = join(RAIZ, 'supabase', 'migrations')
 const SALIDA = join(RAIZ, 'supabase', 'TODO_EN_UNO.sql')
 
 // El archivo que genera este script. No es fuente: por eso el chequeo de
@@ -54,6 +55,7 @@ const ORDEN = [
   'migracion_items_anulables.sql',
   'migracion_productos_es_bebida.sql',
   'migracion_password_recovery.sql',
+  '../migrations/20261029052901_datos_local_dominio.sql',
   'pin_autorizacion.sql',
   'rpc_crear_pedido.sql',
   'rpc_cerrar_cuenta.sql',
@@ -68,6 +70,10 @@ const ORDEN = [
   'auditoria.sql',
   'configuracion_global.sql',
   'seguridad_piloto.sql',
+  '../migrations/20261030173318_seguridad_rpc_piloto.sql',
+  '../migrations/20261030173320_consultas_pendientes_piloto.sql',
+  '../migrations/20261030173503_diagnostico_piloto.sql',
+  '../migrations/20261030173925_indice_mesas_zona.sql',
 ]
 
 const fallos = []
@@ -82,7 +88,10 @@ const check = (nombre, ok, detalle = '') => {
 // Sin este chequeo, alguien crea `supabase/migracion_nueva.sql`, se le olvida
 // agregarla acá, y la instalación "sale bien" pero sin la migración: el fallo
 // aparece semanas después, en producción, y no en el paso que lo causó.
-const enDisco = readdirSync(DIR)
+const enDisco = [
+  ...readdirSync(DIR),
+  ...(existsSync(MIGRACIONES) ? readdirSync(MIGRACIONES).map((f) => `../migrations/${f}`) : []),
+]
   .filter((f) => f.endsWith('.sql') && !GENERADOS.includes(f))
   .sort()
 const faltantes = enDisco.filter((f) => !ORDEN.includes(f))

@@ -5,6 +5,9 @@ import router from './App'
 import { useAuthStore } from './store/auth'
 import ErrorBoundary from './components/ErrorBoundary'
 import './index.css'
+import { iniciarDiagnostico } from './lib/diagnostico'
+
+iniciarDiagnostico()
 
 if (import.meta.env.DEV) {
   console.log('api antes del render:', (globalThis as any).__mesoraDebug?.())

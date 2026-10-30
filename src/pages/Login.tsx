@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/auth'
 import { esModoLocal } from '../lib/api'
 import { supabaseConfigurado } from '../lib/supabase'
 import { localUsuarios, PASSWORD_DE_PRUEBA, restablecerDatosLocal } from '../lib/localSeed'
-import { rutaDespuesDeLogin, rolLabel } from '../lib/roles'
+import { rutaDespuesDeLogin, rolLabel } from '../domain/security/roles'
 import { Spinner } from '../components/LoadingScreen'
 
 export default function Login() {

@@ -7,6 +7,7 @@ import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 import { Campo, ConfirmDialog, IconoLapiz, Modal } from '../../components/ui'
 import { CampoPin, usePinAutorizacion } from '../../components/pin'
+import Precuenta from '../../components/Precuenta'
 
 const CANTIDAD_MAXIMA = 99
 const NOTA_MAXIMA = 120
@@ -37,6 +38,7 @@ export default function MesaOcupada({
   const [items, setItems] = useState<ItemResumen[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [verPrecuenta, setVerPrecuenta] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
   const [editando, setEditando] = useState<EnEdicion | null>(null)
   const [anulando, setAnulando] = useState<EnEdicion | null>(null)
@@ -140,6 +142,10 @@ export default function MesaOcupada({
     }
   }
 
+  if (verPrecuenta) {
+    return <Precuenta mesa={mesa} onVolver={() => { setVerPrecuenta(false); void cargar(false) }} />
+  }
+
   return (
     <div>
       <button
@@ -224,13 +230,21 @@ export default function MesaOcupada({
         </div>
       )}
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <button
           type="button"
           onClick={onAgregarPedido}
           className="min-h-14 touch-manipulation rounded-xl border-2 border-brand-500/50 bg-brand-500/10 px-4 py-3.5 text-base font-semibold text-brand-400 transition hover:border-brand-500 hover:bg-brand-500/15 active:scale-[0.98]"
         >
           + Agregar otro pedido
+        </button>
+        <button
+          type="button"
+          disabled={cargando || Boolean(error) || !hayPedidos || total <= 0}
+          onClick={() => setVerPrecuenta(true)}
+          className="btn btn-outline min-h-14 px-4 py-3.5 text-base"
+        >
+          Ver precuenta
         </button>
         <button
           type="button"
