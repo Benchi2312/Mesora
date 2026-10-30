@@ -39,11 +39,16 @@ rollback. No dejaron ventas, pagos, anulaciones ni turnos de prueba persistidos.
 | Prioridad | Falta | Criterio de cierre |
 | --- | --- | --- |
 | P0 | Respaldo recuperable real | La API devolvió lista de backups vacía y PITR desactivado. Crear un respaldo, restaurarlo en otro entorno y registrar responsable, frecuencia y pérdida máxima aceptable. La restauración PGlite no certifica producción. |
-| P0 | Documento fiscal del local | Confirmar su sistema actual de facturación electrónica o completar una integración validada antes de necesitarla. El recibo interno y la precuenta no la reemplazan. |
 | P0 | Aceptación con cuentas reales y dos dispositivos | Login por rol, contraseña temporal, pedido/cocina, precuenta, cobro concurrente, anulación con PIN y arqueo en staging. Registrar resultado y tiempos. |
 | P0 | Impresora y operación | Probar papel de 80 mm, impresora real, móvil y caja. Asignar encargado, soporte y contingencia sin internet. |
 | P0 | Dominio y recuperación | URL HTTPS definitiva, Site URL y Redirect URL exacta; entrega de correo y recuperación del administrador con buzón real. |
 | P1 | Seguimiento | Asignar revisión de logs y escalamiento. Habilitar protección de claves filtradas si está disponible en el plan. |
+
+**Acuerdo del propietario (30/10/2026):** el restaurante mantendrá su sistema
+actual de facturación electrónica mientras Mesora gestiona pedidos y caja.
+Este punto queda definido; se debe conciliar ambos registros durante el turno.
+El propietario confirmó que todavía no están preparados el respaldo restaurado
+ni la validación del local. Esos requisitos continúan pendientes.
 
 Una preview puede conectar al mismo proyecto real. **Su URL no aísla los
 datos**: usar el demo para mostrar y un proyecto de staging para ensayar

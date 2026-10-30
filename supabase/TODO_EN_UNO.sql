@@ -18,7 +18,7 @@
 --   - Si algo falla, los comentarios de bloque indican donde revisar.
 --   - Generado por npm run sql:install. Edita los fuentes, no este archivo.
 --
--- Contenido: 24 archivos · sha256(cuerpo) = 7b2a964b717b
+-- Contenido: 24 archivos · sha256(cuerpo) = 369132e129cc
 -- Orden: 00_schema_base.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → migracion_password_recovery.sql → ../migrations/20261029052901_datos_local_dominio.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql → ../migrations/20261030173318_seguridad_rpc_piloto.sql → ../migrations/20261030173320_consultas_pendientes_piloto.sql → ../migrations/20261030173503_diagnostico_piloto.sql → ../migrations/20261030173925_indice_mesas_zona.sql
 -- =============================================================================
 

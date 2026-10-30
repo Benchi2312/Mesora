@@ -112,7 +112,8 @@ if (fallos.length) {
 console.log('\n2) Sanidad de cada archivo')
 const contenidos = []
 for (const archivo of ORDEN) {
-  const texto = readFileSync(join(DIR, archivo), 'utf8')
+  // Mismo instalador y hash en Windows/CRLF y Linux/LF (incluido CI).
+  const texto = readFileSync(join(DIR, archivo), 'utf8').replace(/\r\n?/g, '\n')
   contenidos.push({ archivo, texto })
 
   const delimitadores = (texto.match(/\$\$/g) ?? []).length

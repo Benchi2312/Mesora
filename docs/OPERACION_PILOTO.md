@@ -10,7 +10,7 @@ pendientes. Completar con el encargado antes del primer turno.
 | Restaurante, encargado y soporte | Pendiente |
 | Primer turno acompañado: fecha/horario | Pendiente |
 | URL final, proyecto Supabase y commit | Pendiente |
-| Sistema de comprobantes electrónicos | Pendiente |
+| Sistema de comprobantes electrónicos | Se mantiene el sistema actual del local; confirmado por el propietario el 30/10/2026. |
 | Responsable y ubicación privada del respaldo | Pendiente |
 | Frecuencia, retención y pérdida máxima aceptable | Pendiente |
 | Restauración: fecha y tiempo real de recuperación | Pendiente |
@@ -45,6 +45,8 @@ Solo valida ese entorno técnico de prueba.
 - Recuperación del administrador con buzón real y reset de personal probados.
 - Impresora de 80 mm, PDF, móvil y equipo de caja aprobados.
 - Sistema de comprobantes acordado: Mesora entrega recibo interno y precuenta.
+  El propietario confirmó que mantiene su facturación actual; conciliar ambos
+  registros durante el turno.
 - Matriz de [PILOTO.md](./PILOTO.md) ejecutada y aceptada, con cobro simultáneo
   desde dos dispositivos y corte de red incluidos.
 
