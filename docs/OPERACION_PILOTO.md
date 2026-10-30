@@ -9,7 +9,8 @@ pendientes. Completar con el encargado antes del primer turno.
 | --- | --- |
 | Restaurante, encargado y soporte | Pendiente |
 | Primer turno acompañado: fecha/horario | Pendiente |
-| URL final, proyecto Supabase y commit | Pendiente |
+| URL final | Elegida: https://mesora-piloto.vercel.app; publicación oficial pendiente. |
+| Proyecto y versión candidata | Supabase Mesora; código 8cc8a06 con CI aprobada. Registrar commit final y deployment al publicar. |
 | Sistema de comprobantes electrónicos | Se mantiene el sistema actual del local; confirmado por el propietario el 30/10/2026. |
 | Responsable y ubicación privada del respaldo | Pendiente |
 | Frecuencia, retención y pérdida máxima aceptable | Pendiente |
@@ -36,6 +37,26 @@ pendientes. Completar con el encargado antes del primer turno.
 
 La restauración de `npm run verificar:sql` utiliza una base PGlite aislada.
 Solo valida ese entorno técnico de prueba.
+
+### Preparativos concretos que faltan para el respaldo real
+
+La organización está en Free. La guía oficial recomienda exportaciones con la
+CLI y almacenamiento fuera del servicio en ese plan. Para seguir esa vía:
+
+- Preparar Docker para `supabase db dump` y un cliente PostgreSQL para restaurar;
+  Docker, pg_dump y psql no están disponibles en el PATH del equipo revisado.
+- Disponer del acceso de conexión PostgreSQL en el equipo o gestor seguro,
+  sin enviarlo por chat ni guardarlo en el repositorio.
+- Elegir una ubicación privada cifrada para las copias y una copia fuera del
+  equipo; acordar responsable y frecuencia antes del primer turno.
+- Preparar un destino aislado y ejecutar la restauración completa. Revisar las
+  particularidades de Auth y claves de cifrado de la guía vigente, además de
+  los archivos de Storage y configuración que no cubra el volcado.
+
+Referencias: [respaldos por plan](https://supabase.com/docs/guides/platform/backups)
+y [exportación/restauración con CLI](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore).
+La alternativa es un servicio administrado con respaldo recuperable, sujeto
+a la elección y condiciones del plan del propietario.
 
 ## 2. Preparación del local
 

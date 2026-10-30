@@ -3,6 +3,21 @@
 Revisión: **30 de octubre de 2026**. Estado: versión candidata para validación
 del restaurante; el inicio del turno oficial sigue pendiente de aceptación.
 
+## Cierre técnico y dirección elegida
+
+- CI de GitHub aprobada para el commit `8cc8a06`: instalación SQL reproducible,
+  suite SQL, reglas de negocio, TypeScript, precuenta, configuración y build.
+  [Ejecución verificada](https://github.com/Benchi2312/Mesora/actions/runs/41103477386).
+- El propietario eligió `https://mesora-piloto.vercel.app` para el piloto.
+  Sus cuatro variables de producción ya están preparadas en Vercel: URL/key
+  pública de Supabase, modo local desactivado y diagnóstico activado.
+- La redirección exacta `/restablecer` del dominio elegido está admitida en
+  Supabase Auth, junto con la preview. Config push/diff confirmó el cambio.
+- El despliegue público y el cambio de Site URL al dominio activo se harán al
+  final. La URL disponible para revisión sigue siendo la preview protegida.
+- La organización Supabase está en Free; se volvió a consultar backups y la
+  lista sigue vacía, con PITR desactivado. No se ha creado un respaldo real.
+
 ## Trabajo terminado
 
 | Área | Resultado y evidencia |
@@ -41,7 +56,7 @@ rollback. No dejaron ventas, pagos, anulaciones ni turnos de prueba persistidos.
 | P0 | Respaldo recuperable real | La API devolvió lista de backups vacía y PITR desactivado. Crear un respaldo, restaurarlo en otro entorno y registrar responsable, frecuencia y pérdida máxima aceptable. La restauración PGlite no certifica producción. |
 | P0 | Aceptación con cuentas reales y dos dispositivos | Login por rol, contraseña temporal, pedido/cocina, precuenta, cobro concurrente, anulación con PIN y arqueo en staging. Registrar resultado y tiempos. |
 | P0 | Impresora y operación | Probar papel de 80 mm, impresora real, móvil y caja. Asignar encargado, soporte y contingencia sin internet. |
-| P0 | Dominio y recuperación | URL HTTPS definitiva, Site URL y Redirect URL exacta; entrega de correo y recuperación del administrador con buzón real. |
+| P0 | Recuperación y activación del dominio | Dirección y Redirect URL elegidas/preparadas. Falta comprobar SMTP/buzón real y recuperar al administrador; activar Site URL al publicar. |
 | P1 | Seguimiento | Asignar revisión de logs y escalamiento. Habilitar protección de claves filtradas si está disponible en el plan. |
 
 **Acuerdo del propietario (30/10/2026):** el restaurante mantendrá su sistema
