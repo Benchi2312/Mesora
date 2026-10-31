@@ -1,6 +1,6 @@
 # Operación del piloto
 
-Procedimiento preparado el 30/10/2026; responsables y evidencias reales
+Procedimiento actualizado el 31/10/2026; responsables y evidencias reales
 pendientes. Completar con el encargado antes del primer turno.
 
 ## Registro de salida
@@ -10,7 +10,7 @@ pendientes. Completar con el encargado antes del primer turno.
 | Restaurante, encargado y soporte | Pendiente |
 | Primer turno acompañado: fecha/horario | Pendiente |
 | URL final | https://mesora-piloto.vercel.app; publicación autorizada por el propietario. |
-| Proyecto y versión candidata | Supabase Mesora; código 8cc8a06 con CI aprobada. Registrar commit final y deployment al publicar. |
+| Proyecto y versión | Supabase Mesora; rama main en GitHub. El commit desplegado y sus checks se consultan en Deployments de Vercel y Actions de GitHub. |
 | Sistema de comprobantes electrónicos | Se mantiene el sistema actual del local; confirmado por el propietario el 30/10/2026. |
 | Responsable y ubicación privada del respaldo | Pendiente |
 | Frecuencia, retención y pérdida máxima aceptable | Pendiente |

@@ -1,6 +1,6 @@
 # Preparación del primer piloto de Mesora
 
-Revisión: **30 de octubre de 2026**. Estado: versión candidata para validación
+Revisión: **31 de octubre de 2026**. Estado: entrega web para validación
 del restaurante. El propietario autorizó publicar en Vercel e integrar a
 `main`; la aceptación presencial del primer turno sigue pendiente.
 
@@ -17,8 +17,9 @@ del restaurante. El propietario autorizó publicar en Vercel e integrar a
 - GitHub y Vercel conectados; `main` es la rama de producción. Node 22 y build
   reproducible configurados. El check `build` de CI condiciona la asignación del
   dominio y una comprobación pública se ejecuta después de cada publicación.
-- El despliegue público y el cambio de Site URL se realizan al final de esta
-  entrega. Registrar su evidencia al terminar.
+- Dominio de producción: `https://mesora-piloto.vercel.app`. La versión y el
+  resultado de cada publicación quedan registrados en Deployments de Vercel
+  y en los workflows CI / Verificar despliegue de GitHub.
 - La organización Supabase está en Free; se volvió a consultar backups y la
   lista sigue vacía, con PITR desactivado. No se ha creado un respaldo real.
 
@@ -35,6 +36,7 @@ del restaurante. El propietario autorizó publicar en Vercel e integrar a
 | Recibo de pago | Vista y PDF dicen RECIBO INTERNO DE PAGO y aclaran que no sustituye el comprobante electrónico del local. Mesora no tiene integración fiscal de emisión/aceptación. |
 | Auth | Registro público desactivado y contraseña mínima de ocho caracteres. Alta de usuarios mediante funciones administrativas. |
 | Cuentas desactivadas | Pantalla de acceso bloqueado con cierre de sesión, en lugar de una vista operativa vacía. Regresión con Auth/REST simulados incluida en CI. |
+| Contraseña temporal | Evitada la lectura atrasada del perfil al recibir USER_UPDATED, que podía restaurar el flag anterior después de confirmar el cambio. Tres escenarios de acceso con Auth/REST simulados aprobados. |
 | Diagnóstico | Solo categoría, ruta canónica y contexto. Emisión de prueba encontrada en logs PostgreSQL. No hay alertas automáticas ni guardia asignada. |
 | Dependencias | Actualizaciones compatibles; npm audit completo y de producción sin vulnerabilidades conocidas al revisar. |
 
