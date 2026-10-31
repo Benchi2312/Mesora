@@ -17,6 +17,7 @@
     "verificar:sql": "node scripts/verificar-sql.mjs",
     "verificar:responsive": "node scripts/verificar-responsive.mjs",
     "verificar:despliegue": "node scripts/verificar-despliegue.mjs",
+    "verificar:acceso": "node scripts/verificar-acceso.mjs",
     "capturas:demo": "node scripts/capturas-demo.mjs",
     "sql:install": "node scripts/build-install-sql.mjs"
   },

@@ -69,6 +69,7 @@ npm run verificar:configuracion # QA del guardado de Datos del local, REST y dom
 npm run verificar:sql        # PostgreSQL aislado: instalación, permisos, flujo y restauración
 npm run verificar:responsive # 332 checks de layout en 4 viewports
 npm run verificar:despliegue -- https://mesora-piloto.vercel.app # rutas públicas, sin ventas reales
+npm run verificar:acceso      # cuentas desactivadas, salida y contraseña temporal con Auth simulado
 npm run capturas:demo        # capturas del recorrido guiado (Playwright)
 npm run sql:install          # regenera supabase/TODO_EN_UNO.sql
 ```

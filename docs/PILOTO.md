@@ -34,6 +34,7 @@ del restaurante. El propietario autorizó publicar en Vercel e integrar a
 | Instalador | Reparado el schema base comentado accidentalmente. 24 fuentes SQL instalan 19 tablas en PostgreSQL aislado con pgcrypto real; circuito y restauración aislada aprobados. |
 | Recibo de pago | Vista y PDF dicen RECIBO INTERNO DE PAGO y aclaran que no sustituye el comprobante electrónico del local. Mesora no tiene integración fiscal de emisión/aceptación. |
 | Auth | Registro público desactivado y contraseña mínima de ocho caracteres. Alta de usuarios mediante funciones administrativas. |
+| Cuentas desactivadas | Pantalla de acceso bloqueado con cierre de sesión, en lugar de una vista operativa vacía. Regresión con Auth/REST simulados incluida en CI. |
 | Diagnóstico | Solo categoría, ruta canónica y contexto. Emisión de prueba encontrada en logs PostgreSQL. No hay alertas automáticas ni guardia asignada. |
 | Dependencias | Actualizaciones compatibles; npm audit completo y de producción sin vulnerabilidades conocidas al revisar. |
 

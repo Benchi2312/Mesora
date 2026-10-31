@@ -21,6 +21,7 @@ jobs:
       - run: npm run verificar
       - run: npm run typecheck
       - run: npx playwright install --with-deps chromium
+      - run: npm run verificar:acceso
       - run: npm run verificar:precuenta
       - run: npm run verificar:configuracion
       - run: npm run build
