@@ -919,6 +919,9 @@ check('14l · el reporte detallado carga sin error', !reporteDetallado.error, re
 check('14m · el resumen coincide con la cantidad de cuentas cobradas', reporteDetallado.data?.resumen.cuentas_pagadas === pagadas.data.length)
 check('14n · cada cuenta incluye mesa, mesero, pedidos e ítems', Boolean(reporteDetallado.data?.cuentas.some((c) => c.pedidos.some((p) => p.items.length > 0))))
 check('14o · los pagos conservan el desglose por método', Boolean(reporteDetallado.data?.cuentas.every((c) => c.pagos.length > 0)))
+check('14o1 · la tendencia diaria suma el total cobrado del periodo', Math.abs((reporteDetallado.data?.ventas_por_dia.reduce((s, d) => s + d.ventas, 0) ?? 0) - (reporteDetallado.data?.resumen.ventas ?? 0)) < 0.01)
+check('14o2 · los horarios pico suman el total cobrado del periodo', Math.abs((reporteDetallado.data?.ventas_por_hora.reduce((s, h) => s + h.ventas, 0) ?? 0) - (reporteDetallado.data?.resumen.ventas ?? 0)) < 0.01)
+check('14o3 · los métodos de pago suman ventas sin propinas ni vuelto', Math.abs((reporteDetallado.data?.ventas_por_metodo.reduce((s, m) => s + m.ventas, 0) ?? 0) - (reporteDetallado.data?.resumen.ventas ?? 0)) < 0.01)
 const cuentaParaBuscar = reporteDetallado.data?.cuentas[0]
 if (cuentaParaBuscar?.numero) {
   const filtradoDetallado = await api.getReporteVentas(RID, {

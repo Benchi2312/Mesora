@@ -60,6 +60,9 @@ try {
       if (salida#>>'{resumen,ventas}')::numeric<>10 then raise exception 'El reporte no suma las cuentas pagadas'; end if;
       if (salida#>>'{productos,0,cantidad}')::int<>2 or (salida#>>'{productos,0,es_bebida}')::boolean is not true then raise exception 'El reporte no conserva cantidad/clasificación de bebida'; end if;
       if salida#>>'{cuentas,0,pedidos,0,items,0,nombre}'<>'Agua QA' then raise exception 'Falta el detalle histórico del consumo'; end if;
+      if jsonb_array_length(salida->'ventas_por_dia')<>1 or (salida#>>'{ventas_por_dia,0,ventas}')::numeric<>10 then raise exception 'La serie diaria no cuadra'; end if;
+      if (salida#>>'{ventas_por_hora,0,ventas}')::numeric<>10 or (salida#>>'{ventas_por_metodo,0,ventas}')::numeric<>10 then raise exception 'Los agregados por hora/método no cuadran'; end if;
+      if (salida#>>'{resumen,neto}')::numeric<>10 then raise exception 'El neto del periodo no cuadra'; end if;
       if has_function_privilege('anon','public.reporte_ventas_restaurante(uuid,timestamp with time zone,timestamp with time zone,text,text,integer,integer)','execute') then raise exception 'Anon puede ejecutar el reporte'; end if;
       execute format('set local role %I',inicial);
     end;

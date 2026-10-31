@@ -52,12 +52,16 @@ export type ReporteVentas = {
     cuentas_pagadas: number
     cuentas_anuladas: number
     reembolsos: number
+    neto: number
     propinas: number
     ticket_promedio: number
   }
   productos: { nombre: string; es_bebida: boolean; cantidad: number; total: number }[]
   meseros: { id: string; nombre: string; pedidos: number; unidades: number; ventas: number }[]
   mesas: { id: string; nombre: string; cuentas: number; ventas: number }[]
+  ventas_por_dia: { fecha: string; ventas: number; cuentas: number }[]
+  ventas_por_hora: { hora: string; ventas: number; cuentas: number }[]
+  ventas_por_metodo: { metodo_pago: string; ventas: number; cuentas: number }[]
   cuentas: CuentaReporteVenta[]
   total_cuentas: number
 }

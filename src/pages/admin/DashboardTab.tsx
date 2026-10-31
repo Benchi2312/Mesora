@@ -1,9 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { getApi } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
-import { fmtPEN } from '../../lib/format'
+import { fmtFecha, fmtPEN } from '../../lib/format'
 import { METODOS_PAGO_LABEL } from '../../domain/cashier/pagos'
 import type { MetricasAdmin } from '../../domain/reporting/metricas'
+import type { ReporteVentas } from '../../domain/reporting/ventas'
 import { construirReporte, descargarReporte } from '../../domain/reporting/reporte'
 import type { MetodoPago } from '../../types/database'
 import { Spinner } from '../../components/LoadingScreen'
@@ -13,72 +14,133 @@ const METODO_LABEL: Record<MetodoPago | 'desconocido', string> = {
   ...METODOS_PAGO_LABEL,
   desconocido: '—',
 }
-
 const PALETA_AVATAR = ['#f59e0b', '#6366f1', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6']
+type Periodo = 'hoy' | '7dias' | 'mes' | 'personalizado'
+
+function fechaLimaHoy() {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Lima', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date())
+  const p = Object.fromEntries(partes.map((x) => [x.type, x.value]))
+  return `${p.year}-${p.month}-${p.day}`
+}
+
+function sumarDias(fecha: string, cantidad: number) {
+  const d = new Date(`${fecha}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + cantidad)
+  return d.toISOString().slice(0, 10)
+}
+
+function primerDiaMes(fecha: string) { return `${fecha.slice(0, 7)}-01` }
+function isoInicioLima(fecha: string) { return new Date(`${fecha}T00:00:00-05:00`).toISOString() }
+function nombrePeriodo(periodo: Periodo, desde: string, hasta: string) {
+  if (periodo === 'hoy') return 'Hoy'
+  if (periodo === '7dias') return 'Últimos 7 días'
+  if (periodo === 'mes') return 'Este mes'
+  return desde === hasta ? fmtFecha(isoInicioLima(desde)) : `${desde} a ${hasta}`
+}
 
 function hashStr(s: string) {
   let h = 0
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
   return h
 }
-
-function colorDe(nombre: string) {
-  return PALETA_AVATAR[hashStr(nombre) % PALETA_AVATAR.length]
-}
-
-function letraColor(_nombre: string) {
-  return '#0a0a0a'
-}
-
+function colorDe(nombre: string) { return PALETA_AVATAR[hashStr(nombre) % PALETA_AVATAR.length] }
 function iniciales(nombre: string) {
-  return nombre
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((x) => x[0]?.toUpperCase() ?? '')
-    .join('')
+  return nombre.split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]?.toUpperCase() ?? '').join('')
 }
 
 export default function DashboardTab() {
   const { restaurante } = useCurrentContext()
-  const [metricas, setMetricas] = useState<MetricasAdmin | null>(null)
+  const rid = restaurante?.id
+  const hoy = fechaLimaHoy()
+  const [periodo, setPeriodo] = useState<Periodo>('mes')
+  const [fechaDesde, setFechaDesde] = useState(primerDiaMes(hoy))
+  const [fechaHasta, setFechaHasta] = useState(hoy)
+  const [reporte, setReporte] = useState<ReporteVentas | null>(null)
+  const [metricasCsv, setMetricasCsv] = useState<MetricasAdmin | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [errorCsv, setErrorCsv] = useState<string | null>(null)
+  const [actualizado, setActualizado] = useState<Date | null>(null)
   const [exportando, setExportando] = useState(false)
   const [avisoExport, setAvisoExport] = useState<string | null>(null)
 
+  const rango = useMemo(() => {
+    const hoyActual = fechaLimaHoy()
+    const desde = periodo === 'hoy' ? hoyActual
+      : periodo === '7dias' ? sumarDias(hoyActual, -6)
+        : periodo === 'mes' ? primerDiaMes(hoyActual) : fechaDesde
+    const hasta = periodo === 'personalizado' ? fechaHasta : hoyActual
+    return { desde, hasta, desdeIso: isoInicioLima(desde), hastaIso: isoInicioLima(sumarDias(hasta, 1)) }
+  }, [periodo, fechaDesde, fechaHasta])
+
   useEffect(() => {
-    const rid = restaurante?.id
-    if (!rid) {
-      setCargando(false)
-      return
-    }
+    if (!rid) { setCargando(false); return }
     let activo = true
     setCargando(true)
     setError(null)
-    ;(async () => {
-      const { data, error: apiErr } = await getApi().getMetricasAdmin(rid)
-      if (!activo) return
-      if (apiErr) {
-        setError(apiErr)
-      } else {
-        setMetricas(data)
-        setError(null)
-      }
+    if (rango.desde > rango.hasta) {
+      setError('La fecha final debe ser igual o posterior a la fecha inicial.')
       setCargando(false)
-    })()
-    return () => {
-      activo = false
+      return () => { activo = false }
     }
-  }, [restaurante?.id])
+    void getApi().getReporteVentas(rid, {
+      desde: rango.desdeIso, hasta: rango.hastaIso, estado: 'todas', busqueda: '', offset: 0, limite: 1,
+    }).then((res) => {
+      if (!activo) return
+      if (res.error) setError(res.error)
+      else { setReporte(res.data); setActualizado(new Date()) }
+      setCargando(false)
+    })
+    return () => { activo = false }
+  }, [rid, rango])
 
-  /**
-   * Exporta el reporte. Se piden las cuentas pagadas aparte (y no se guarda en
-   * estado) porque el CSV solo se arma en el momento de descargar: mantener
-   * la lista en memoria no aporta y duplica lo que ya vive en la API.
-   */
+  // El CSV mantiene su alcance histórico (mes actual) y se etiqueta así para
+  // que no se confunda con el periodo elegido para las tarjetas del Dashboard.
+  useEffect(() => {
+    if (!rid) return
+    let activo = true
+    void getApi().getMetricasAdmin(rid).then(({ data, error: err }) => {
+      if (!activo) return
+      setMetricasCsv(err ? null : data)
+      setErrorCsv(err)
+    })
+    return () => { activo = false }
+  }, [rid])
+
+  const diasGrafica = useMemo(() => {
+    if (!reporte) return []
+    const diasEnRango = Math.floor((Date.parse(`${rango.hasta}T12:00:00Z`) - Date.parse(`${rango.desde}T12:00:00Z`)) / 86_400_000) + 1
+    // Evita crear miles de botones en rangos históricos extensos; en ese caso
+    // mostramos los días con ventas que ya devuelve el reporte.
+    if (diasEnRango > 370) return reporte.ventas_por_dia
+    const mapa = new Map(reporte.ventas_por_dia.map((d) => [d.fecha, d]))
+    const dias: { fecha: string; ventas: number; cuentas: number }[] = []
+    let actual = rango.desde
+    while (actual <= rango.hasta) {
+      dias.push(mapa.get(actual) ?? { fecha: actual, ventas: 0, cuentas: 0 })
+      actual = sumarDias(actual, 1)
+    }
+    return dias
+  }, [reporte, rango.desde, rango.hasta])
+
+  const resumen = reporte?.resumen
+  const maxDia = Math.max(...diasGrafica.map((d) => d.ventas), 1)
+  const maxHora = Math.max(...(reporte?.ventas_por_hora ?? []).map((h) => h.ventas), 1)
+  const maxMetodo = Math.max(...(reporte?.ventas_por_metodo ?? []).map((m) => m.ventas), 1)
+
+  const elegirPeriodo = (valor: Periodo) => {
+    const hoyActual = fechaLimaHoy()
+    setPeriodo(valor)
+    if (valor === 'personalizado') {
+      setFechaDesde(primerDiaMes(hoyActual))
+      setFechaHasta(hoyActual)
+    }
+  }
+
   async function exportarCsv() {
-    if (!restaurante || !metricas) return
+    if (!restaurante || !metricasCsv) return
     setExportando(true)
     setAvisoExport(null)
     const { data: cuentas, error: apiErr } = await getApi().getCuentasPagadas(restaurante.id)
@@ -87,261 +149,136 @@ export default function DashboardTab() {
       setExportando(false)
       return
     }
-    descargarReporte(construirReporte(restaurante.nombre, cuentas ?? [], metricas))
+    descargarReporte(construirReporte(restaurante.nombre, cuentas ?? [], metricasCsv))
     setExportando(false)
-    setAvisoExport('Reporte descargado.')
+    setAvisoExport('CSV mensual descargado.')
   }
 
-  if (cargando)
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner />
-      </div>
-    )
-
-  if (error)
-    return (
-      <div className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
-        No se pudieron cargar las ventas. {error}
-      </div>
-    )
-
-  /**
-   * Imprime el panel completo. El CSS por defecto solo deja visible la boleta
-   * (todo lo demás es `visibility: hidden`), así que hay que marcar el body
-   * mientras dura la impresión y quitarlo al terminar.
-   */
   function imprimirReporte() {
     document.body.classList.add('imprimir-reporte')
     const limpiar = () => document.body.classList.remove('imprimir-reporte')
     window.addEventListener('afterprint', limpiar, { once: true })
     window.print()
-    // Safari no siempre dispara afterprint si el diálogo se cancela con Esc.
     setTimeout(limpiar, 1000)
   }
 
+  if (cargando && !reporte)
+    return <div className="flex justify-center py-16"><Spinner /></div>
+
+  if (error && !reporte)
+    return <div className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">No se pudo cargar el Dashboard. {error}</div>
+
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-zinc-500">
-          Números del mes en curso. El CSV incluye el detalle diario.
-        </p>
-        <div className="no-print flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            data-guia="exportar-csv"
-            onClick={() => void exportarCsv()}
-            disabled={exportando || !metricas}
-            className="min-h-11 touch-manipulation rounded-xl border border-surface-700 bg-surface-800 px-4 py-2.5 text-sm font-semibold text-zinc-200 transition hover:border-brand-500 hover:text-brand-400 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {exportando ? 'Generando…' : 'Exportar CSV'}
-          </button>
-          <button
-            type="button"
-            onClick={imprimirReporte}
-            className="min-h-11 touch-manipulation rounded-xl border border-surface-700 bg-surface-800 px-4 py-2.5 text-sm font-semibold text-zinc-200 transition hover:border-surface-500 hover:text-zinc-100"
-          >
-            Imprimir
-          </button>
+    <div className="space-y-6">
+      <div className="card space-y-4 p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm text-zinc-300">Resumen del periodo: <strong>{nombrePeriodo(periodo, rango.desde, rango.hasta)}</strong></p>
+            <p className="mt-1 text-xs text-zinc-500">Hora local de Lima{actualizado ? ` · Actualizado a las ${new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit' }).format(actualizado)}` : ''}{cargando ? ' · Actualizando…' : ''}</p>
+          </div>
+          <div className="no-print flex flex-wrap gap-2">
+            <button type="button" data-guia="exportar-csv" onClick={() => void exportarCsv()} disabled={exportando || !metricasCsv} title="El CSV contiene el mes en curso" className="btn btn-outline min-h-11 px-4 disabled:opacity-50">{exportando ? 'Generando…' : 'Exportar CSV del mes'}</button>
+            <button type="button" onClick={imprimirReporte} className="btn btn-outline min-h-11 px-4">Imprimir</button>
+          </div>
         </div>
+
+        <div className="no-print flex flex-wrap gap-2" role="group" aria-label="Periodo del Dashboard">
+          {([['hoy', 'Hoy'], ['7dias', 'Últimos 7 días'], ['mes', 'Este mes'], ['personalizado', 'Fechas']] as const).map(([id, texto]) => (
+            <button key={id} type="button" aria-pressed={periodo === id} onClick={() => elegirPeriodo(id)} className={`btn min-h-11 px-4 ${periodo === id ? 'btn-primary' : 'btn-outline'}`}>{texto}</button>
+          ))}
+          {periodo === 'personalizado' && <div className="flex flex-wrap items-center gap-2">
+            <label className="label mb-0 flex items-center gap-2">Desde<input className="input min-h-11 w-auto" type="date" value={fechaDesde} max={fechaHasta} onChange={(e) => setFechaDesde(e.target.value)} /></label>
+            <label className="label mb-0 flex items-center gap-2">Hasta<input className="input min-h-11 w-auto" type="date" value={fechaHasta} min={fechaDesde} max={fechaLimaHoy()} onChange={(e) => setFechaHasta(e.target.value)} /></label>
+          </div>}
+        </div>
+        {error && <p role="alert" className="text-sm text-danger-400">No se pudo actualizar este periodo: {error}</p>}
+        {errorCsv && <p className="text-xs text-zinc-500">La exportación CSV no está disponible ahora.</p>}
       </div>
 
-      {avisoExport && (
-        <p
-          role="status"
-          className={`no-print aviso ${
-            avisoExport.startsWith('No se pudo')
-              ? 'border-danger-500/40 bg-danger-500/10 text-danger-500'
-              : 'border-ok-500/40 bg-ok-500/10 text-ok-500'
-          }`}
-        >
-          {avisoExport}
-        </p>
-      )}
+      {avisoExport && <p role="status" className={`no-print aviso ${avisoExport.startsWith('No se pudo') ? 'border-danger-500/40 bg-danger-500/10 text-danger-500' : 'border-ok-500/40 bg-ok-500/10 text-ok-500'}`}>{avisoExport}</p>}
 
-      {/* Tarjetas resumen */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <TarjetaResumen
-          etiqueta="Ventas hoy"
-          valor={fmtPEN(metricas?.ventaHoy ?? 0)}
-          detalle={`${metricas?.cuentasHoy ?? 0} cuentas`}
-          acento="text-brand-400"
-          guia="panel-ventas"
-        />
-        <TarjetaResumen
-          etiqueta="Ventas del mes"
-          valor={fmtPEN(metricas?.ventaMes ?? 0)}
-          detalle={`${metricas?.cuentasMes ?? 0} cuentas`}
-          acento="text-ok-500"
-        />
-        <TarjetaResumen
-          etiqueta="Ticket promedio"
-          valor={fmtPEN(metricas?.ticketPromedio ?? 0)}
-          detalle="por cuenta (mes)"
-          acento="text-zinc-100"
-        />
-        <TarjetaResumen
-          etiqueta="Propinas del mes"
-          valor={fmtPEN(metricas?.propinasMes ?? 0)}
-          detalle={`${fmtPEN(metricas?.vueltoMes ?? 0)} de vuelto`}
-          acento="text-zinc-300"
-        />
-        <TarjetaResumen
-          etiqueta="Cuentas pagadas hoy"
-          valor={String(metricas?.cuentasHoy ?? 0)}
-          detalle={`${metricas?.cuentasMes ?? 0} en el mes`}
-          acento="text-brand-400"
-        />
-        {/* Las anulaciones no son venta (ya no están en "Ventas del mes"), pero
-            mostrarlas evita el "¿por qué el arqueo no cuadra con lo que dice el
-            dashboard?": el dinero devuelto tiene que verse en algún lado. */}
-        <TarjetaResumen
-          etiqueta="Anulaciones del mes"
-          valor={String(metricas?.anulacionesMes ?? 0)}
-          detalle={
-            (metricas?.anulacionesMes ?? 0) > 0
-              ? `${fmtPEN(metricas?.reembolsosMes ?? 0)} devueltos`
-              : 'ninguna boleta anulada'
-          }
-          acento={(metricas?.anulacionesMes ?? 0) > 0 ? 'text-danger-500' : 'text-zinc-500'}
-        />
-      </div>
+      {reporte && resumen && <>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+          <TarjetaResumen etiqueta="Cobrado en el periodo" valor={fmtPEN(resumen.ventas)} detalle={`${resumen.cuentas_pagadas} cuentas pagadas`} acento="text-ok-500" guia="panel-ventas" />
+          <TarjetaResumen etiqueta="Reembolsado en el periodo" valor={fmtPEN(resumen.reembolsos)} detalle={`${resumen.cuentas_anuladas} cuentas anuladas`} acento={resumen.reembolsos > 0 ? 'text-danger-500' : 'text-zinc-300'} />
+          <TarjetaResumen etiqueta="Neto de caja" valor={fmtPEN(resumen.neto)} detalle="Cobrado menos reembolsos del periodo" acento="text-brand-400" />
+          <TarjetaResumen etiqueta="Ticket promedio" valor={fmtPEN(resumen.ticket_promedio)} detalle="por cuenta pagada" acento="text-zinc-100" />
+          <TarjetaResumen etiqueta="Propinas" valor={fmtPEN(resumen.propinas)} detalle="separadas de las ventas" acento="text-zinc-300" />
+          <TarjetaResumen etiqueta="Cuentas pagadas" valor={String(resumen.cuentas_pagadas)} detalle={`${resumen.cuentas_anuladas} anuladas`} acento="text-brand-400" />
+        </div>
 
-      {/* Top productos y meseros */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Seccion titulo="Top productos">
-          {metricas && metricas.topProductos.length > 0 ? (
-            <ul className="space-y-2">
-              {metricas.topProductos.map((tp, i) => (
-                <li key={tp.nombre} className="flex items-center gap-3 text-sm">
-                  <span
-                    className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${
-                      i === 0 ? 'bg-brand-500 text-surface-950' : 'bg-surface-700 text-zinc-300'
-                    }`}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="flex-1 text-zinc-200">{tp.nombre}</span>
-                  <span className="text-zinc-400">{tp.cantidad} u.</span>
-                  <span className="w-20 text-right font-semibold text-brand-400">{fmtPEN(tp.total)}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EstadoVacio titulo="Aún no hay ventas para mostrar." className="py-10" />
-          )}
-        </Seccion>
+        <div className="aviso border-surface-700 bg-surface-900 text-zinc-400">
+          <strong className="text-zinc-300">Cómo leerlo:</strong> “Cobrado” suma las cuentas pagadas en las fechas elegidas. “Reembolsado” suma las cuentas anuladas en esas fechas, aunque se hubieran cobrado antes. “Neto de caja” resta ambos movimientos; las propinas y el vuelto no se consideran ventas.
+        </div>
 
-        <Seccion titulo="Ventas por mesero">
-          {metricas && metricas.porMesero.length > 0 ? (
-            <ul className="space-y-2">
-              {metricas.porMesero.map((m) => (
-                <li key={m.meseroId} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="flex min-w-0 items-center gap-2.5">
-                    <span
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-bold uppercase"
-                      style={{ backgroundColor: colorDe(m.nombre), color: letraColor(m.nombre) }}
-                      title={m.nombre}
-                    >
-                      {iniciales(m.nombre)}
+        <Seccion titulo="Ventas por día" detalle="Selecciona un día para filtrar el Dashboard a esa fecha.">
+          {diasGrafica.length > 0 && diasGrafica.some((d) => d.ventas > 0) ? <>
+            <div className="overflow-x-auto pb-2">
+              <div className="flex h-56 min-w-[680px] items-end gap-1.5 border-b border-surface-700 px-2 sm:gap-2">
+                {diasGrafica.map((dia, i) => {
+                  const alto = dia.ventas > 0 ? Math.max(5, dia.ventas / maxDia * 100) : 0
+                  const mostrarFecha = diasGrafica.length <= 10 || i === 0 || i === diasGrafica.length - 1 || i % Math.ceil(diasGrafica.length / 8) === 0
+                  return <button key={dia.fecha} type="button" title={`${dia.fecha}: ${fmtPEN(dia.ventas)} · ${dia.cuentas} cuentas`} aria-label={`Filtrar por ${dia.fecha}: ${fmtPEN(dia.ventas)}, ${dia.cuentas} cuentas`} onClick={() => { setFechaDesde(dia.fecha); setFechaHasta(dia.fecha); setPeriodo('personalizado') }} className="group flex h-full min-w-4 flex-1 flex-col items-center justify-end gap-1 rounded-t-md outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+                    <span className="flex h-44 w-full items-end justify-center rounded-t-sm bg-[linear-gradient(to_top,rgba(63,63,70,.35)_1px,transparent_1px)] bg-[length:100%_25%]">
+                      <span className={`w-[min(70%,2rem)] rounded-t-sm transition-colors ${dia.ventas > 0 ? 'bg-brand-500 group-hover:bg-brand-400' : 'bg-surface-700'}`} style={{ height: `${alto}%` }} />
                     </span>
-                    <span className="truncate text-zinc-200">{m.nombre}</span>
-                  </span>
-                  <span className="shrink-0 text-xs text-zinc-500">{m.pedidos} {m.pedidos === 1 ? 'comanda' : 'comandas'}</span>
-                  <span className="shrink-0 font-semibold text-brand-400">{fmtPEN(m.ventas)}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EstadoVacio titulo="Sin ventas registradas." className="py-10" />
-          )}
-        </Seccion>
-      </div>
-
-      {/* Métodos de pago y horarios */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Seccion titulo="Métodos de pago">
-          {metricas && metricas.porMetodo.length > 0 ? (
-            <ul className="space-y-3">
-              {metricas.porMetodo.map((m) => {
-                const totalMetodos = metricas.porMetodo.reduce((a, x) => a + x.total, 0)
-                const pct = totalMetodos > 0 ? Math.round((m.total / totalMetodos) * 100) : 0
-                return (
-                  <li key={m.metodo}>
-                    <div className="mb-1 flex items-center justify-between text-sm">
-                      <span className="text-zinc-200">{METODO_LABEL[m.metodo] ?? m.metodo}</span>
-                      <span className="text-xs text-zinc-500">{m.cuentas} cuentas</span>
-                      <span className="font-semibold text-zinc-100">{fmtPEN(m.total)} · {pct}%</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-surface-700">
-                      <div className="h-full rounded-full bg-brand-500" style={{ width: `${pct}%` }} />
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          ) : (
-            <EstadoVacio titulo="Sin pagos registrados." className="py-10" />
-          )}
+                    <span className={`h-4 text-[10px] text-zinc-500 ${mostrarFecha ? '' : 'invisible'}`}>{dia.fecha.slice(5)}</span>
+                  </button>
+                })}
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-zinc-500">Mayor venta diaria del periodo: {fmtPEN(maxDia)}. Pulsa una barra para ver ese día.</p>
+          </> : <EstadoVacio titulo="No hay ventas cobradas en este periodo." className="py-6" />}
         </Seccion>
 
-        <Seccion titulo="Horarios pico">
-          {metricas && metricas.porHora.length > 0 ? (
-            <ul className="space-y-2">
-              {metricas.porHora.map((h) => {
-                const max = Math.max(...metricas.porHora.map((x) => x.total), 1)
-                const pct = Math.round((h.total / max) * 100)
-                return (
-                  <li key={h.hora} className="text-sm">
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="text-zinc-300">{h.hora}</span>
-                      <span className="text-zinc-500">{h.cuentas} cuentas</span>
-                      <span className="font-semibold text-brand-400">{fmtPEN(h.total)}</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-surface-700">
-                      <div className="h-full rounded-full bg-ok-500" style={{ width: `${pct}%` }} />
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          ) : (
-            <EstadoVacio titulo="Sin ventas para mostrar." className="py-10" />
-          )}
-        </Seccion>
-      </div>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <Seccion titulo="Productos más vendidos" detalle="Ordenados por importe vendido en el periodo.">
+            {reporte.productos.length ? <ul className="space-y-2">{reporte.productos.slice(0, 5).map((p, i) => <li key={`${p.nombre}-${p.es_bebida}`} className="flex items-center gap-3 text-sm">
+              <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${i === 0 ? 'bg-brand-500 text-surface-950' : 'bg-surface-700 text-zinc-300'}`}>{i + 1}</span>
+              <span className="min-w-0 flex-1 truncate text-zinc-200">{p.nombre}<span className="ml-2 text-xs text-zinc-500">{p.es_bebida ? 'Bebida' : 'Comida'}</span></span>
+              <span className="text-zinc-400">{p.cantidad} u.</span><span className="w-20 text-right font-semibold text-brand-400">{fmtPEN(p.total)}</span>
+            </li>)}</ul> : <EstadoVacio titulo="Aún no hay productos cobrados." className="py-8" />}
+          </Seccion>
+
+          <Seccion titulo="Ventas por mesero" detalle="Ranking por importe vendido en el periodo.">
+            {reporte.meseros.length ? <ul className="space-y-2">{reporte.meseros.slice(0, 8).map((m) => <li key={m.id} className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex min-w-0 items-center gap-2.5"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-bold uppercase" style={{ backgroundColor: colorDe(m.nombre), color: '#0a0a0a' }}>{iniciales(m.nombre)}</span><span className="truncate text-zinc-200">{m.nombre}</span></span>
+              <span className="shrink-0 text-xs text-zinc-500">{m.pedidos} {m.pedidos === 1 ? 'comanda' : 'comandas'}</span><span className="shrink-0 font-semibold text-brand-400">{fmtPEN(m.ventas)}</span>
+            </li>)}</ul> : <EstadoVacio titulo="Sin ventas registradas en este periodo." className="py-8" />}
+          </Seccion>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          <Seccion titulo="Métodos de pago" detalle="El importe se distribuye entre los métodos usados; no incluye propinas ni vuelto.">
+            {reporte.ventas_por_metodo.length ? <ul className="space-y-3">{reporte.ventas_por_metodo.map((m) => <li key={m.metodo_pago}>
+              <div className="mb-1 flex items-center justify-between gap-3 text-sm"><span className="text-zinc-200">{METODO_LABEL[m.metodo_pago as MetodoPago] ?? m.metodo_pago}</span><span className="text-xs text-zinc-500">{m.cuentas} cuentas</span><span className="font-semibold text-zinc-100">{fmtPEN(m.ventas)} · {Math.round(m.ventas / maxMetodo * 100)}%</span></div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-surface-700"><div className="h-full rounded-full bg-brand-500" style={{ width: `${m.ventas / maxMetodo * 100}%` }} /></div>
+            </li>)}</ul> : <EstadoVacio titulo="Sin pagos en este periodo." className="py-8" />}
+          </Seccion>
+
+          <Seccion titulo="Horas con más ventas" detalle="Según la hora local de Lima en que se pagó la cuenta.">
+            {reporte.ventas_por_hora.length ? <ul className="space-y-2">{reporte.ventas_por_hora.map((h) => <li key={h.hora} className="text-sm">
+              <div className="mb-1 flex items-center justify-between gap-3"><span className="text-zinc-300">{h.hora}</span><span className="text-zinc-500">{h.cuentas} cuentas</span><span className="font-semibold text-brand-400">{fmtPEN(h.ventas)}</span></div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-surface-700"><div className="h-full rounded-full bg-ok-500" style={{ width: `${h.ventas / maxHora * 100}%` }} /></div>
+            </li>)}</ul> : <EstadoVacio titulo="Sin ventas en este periodo." className="py-8" />}
+          </Seccion>
+        </div>
+      </>}
     </div>
   )
 }
 
-function TarjetaResumen({
-  etiqueta,
-  valor,
-  detalle,
-  acento,
-  guia,
-}: {
-  etiqueta: string
-  valor: string
-  detalle: string
-  acento: string
-  /** Marca la tarjeta para el resaltado del recorrido guiado del demo. */
-  guia?: string
-}) {
-  return (
-    <div data-guia={guia} className="card card-hover p-5 transition-transform duration-150 hover:-translate-y-0.5">
-      <p className="text-xs font-medium uppercase tracking-widest text-zinc-500">{etiqueta}</p>
-      <p className={`mt-2.5 text-2xl font-extrabold tracking-tight sm:text-[1.75rem] ${acento}`}>{valor}</p>
-      <p className="mt-1.5 text-xs text-zinc-500">{detalle}</p>
-    </div>
-  )
+function TarjetaResumen({ etiqueta, valor, detalle, acento, guia }: { etiqueta: string; valor: string; detalle: string; acento: string; guia?: string }) {
+  return <div data-guia={guia} className="card card-hover p-4 transition-transform duration-150 hover:-translate-y-0.5 sm:p-5">
+    <p className="text-xs font-medium uppercase tracking-widest text-zinc-500">{etiqueta}</p>
+    <p className={`mt-2.5 text-xl font-extrabold tracking-tight sm:text-2xl ${acento}`}>{valor}</p>
+    <p className="mt-1.5 text-xs text-zinc-500">{detalle}</p>
+  </div>
 }
 
-function Seccion({ titulo, children }: { titulo: string; children: ReactNode }) {
-  return (
-    <section className="card p-5 sm:p-6">
-      <h2 className="titulo-seccion mb-4 text-xs font-semibold">{titulo}</h2>
-      {children}
-    </section>
-  )
+function Seccion({ titulo, detalle, children }: { titulo: string; detalle?: string; children: ReactNode }) {
+  return <section className="card p-4 sm:p-6">
+    <div className="mb-4"><h2 className="titulo-seccion text-xs font-semibold">{titulo}</h2>{detalle && <p className="mt-1 text-xs text-zinc-500">{detalle}</p>}</div>
+    {children}
+  </section>
 }

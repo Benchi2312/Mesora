@@ -2258,15 +2258,46 @@ function crearApiDesde(
           es_bebida: i.es_bebida ?? esBebidaEn(ds, rid, i.producto_id), anulado: i.anulado === true, nota: i.nota ?? null })) })),
     })).sort((a, b) => Date.parse(b.pagado_at ?? b.anulada_at ?? b.created_at) - Date.parse(a.pagado_at ?? a.anulada_at ?? a.created_at))
       .slice(rango.offset, rango.offset + rango.limite)
+    const porDia = new Map<string, { fecha: string; ventas: number; cuentas: number }>()
+    const porHora = new Map<string, { hora: string; ventas: number; cuentas: number }>()
+    const porMetodo = new Map<string, { metodo_pago: string; ventas: number; cuentas: number }>()
+    const partesFecha = (valor: string) => Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Lima', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23',
+    }).formatToParts(new Date(valor)).map((p) => [p.type, p.value]))
+    for (const cuenta of cuentasRango.filter((c) => c.estado === 'pagada' && c.pagado_at)) {
+      const fecha = partesFecha(cuenta.pagado_at as string)
+      const dia = `${fecha.year}-${fecha.month}-${fecha.day}`
+      const hora = `${fecha.hour}:00`
+      const filaDia = porDia.get(dia) ?? { fecha: dia, ventas: 0, cuentas: 0 }
+      filaDia.ventas += cuenta.total; filaDia.cuentas++; porDia.set(dia, filaDia)
+      const filaHora = porHora.get(hora) ?? { hora, ventas: 0, cuentas: 0 }
+      filaHora.ventas += cuenta.total; filaHora.cuentas++; porHora.set(hora, filaHora)
+      const partes = ds.pagos.filter((p) => p.cuenta_id === cuenta.id)
+      const sumaPagos = partes.reduce((s, p) => s + p.monto, 0)
+      const asignacion = partes.length && sumaPagos > 0
+        ? partes.map((p) => ({ metodo: p.metodo_pago, total: cuenta.total * p.monto / sumaPagos }))
+        : [{ metodo: cuenta.metodo_pago, total: cuenta.total }]
+      const porCuentaMetodo = new Map<string, number>()
+      for (const p of asignacion) porCuentaMetodo.set(p.metodo, (porCuentaMetodo.get(p.metodo) ?? 0) + p.total)
+      for (const [metodo, total] of porCuentaMetodo) {
+        const fila = porMetodo.get(metodo) ?? { metodo_pago: metodo, ventas: 0, cuentas: 0 }
+        fila.ventas += total; fila.cuentas++; porMetodo.set(metodo, fila)
+      }
+    }
     return { data: {
       resumen: { ventas: cuentasRango.filter((c) => c.estado === 'pagada').reduce((s, c) => s + c.total, 0),
         cuentas_pagadas: cuentasRango.filter((c) => c.estado === 'pagada').length,
         cuentas_anuladas: cuentasRango.filter((c) => c.estado === 'anulada').length,
         reembolsos: cuentasRango.filter((c) => c.estado === 'anulada').reduce((s, c) => s + (c.monto_reembolsado ?? 0), 0),
+        neto: cuentasRango.filter((c) => c.estado === 'pagada').reduce((s, c) => s + c.total, 0)
+          - cuentasRango.filter((c) => c.estado === 'anulada').reduce((s, c) => s + (c.monto_reembolsado ?? 0), 0),
         propinas: cuentasRango.filter((c) => c.estado === 'pagada').reduce((s, c) => s + (c.propina ?? 0), 0),
         ticket_promedio: cuentasRango.filter((c) => c.estado === 'pagada').length ? cuentasRango.filter((c) => c.estado === 'pagada').reduce((s, c) => s + c.total, 0) / cuentasRango.filter((c) => c.estado === 'pagada').length : 0 },
       productos: [...productos.values()].sort((a, b) => b.total - a.total),
       meseros: meseros.sort((a, b) => b.ventas - a.ventas), mesas: mesas.sort((a, b) => b.ventas - a.ventas),
+      ventas_por_dia: [...porDia.values()].sort((a, b) => a.fecha.localeCompare(b.fecha)),
+      ventas_por_hora: [...porHora.values()].sort((a, b) => a.hora.localeCompare(b.hora)),
+      ventas_por_metodo: [...porMetodo.values()].sort((a, b) => b.ventas - a.ventas),
       cuentas, total_cuentas: coincidencias.length,
     }, error: null }
   },
