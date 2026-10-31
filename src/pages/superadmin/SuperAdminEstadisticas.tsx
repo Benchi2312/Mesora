@@ -9,8 +9,8 @@ import {
   type CriterioRanking,
   type EstadisticasGlobales,
   type PuntoSerie,
-} from '../../lib/estadisticas'
-import type { PresetRango } from '../../lib/estadisticas'
+} from '../../domain/reporting/estadisticas'
+import type { PresetRango } from '../../domain/reporting/estadisticas'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 

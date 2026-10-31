@@ -9,8 +9,8 @@ import {
   filtrarRestaurantes,
   hayFiltrosActivos,
   venceEnDias,
-} from '../../lib/restaurantes'
-import type { CriteriosBusqueda } from '../../lib/restaurantes'
+} from '../../domain/restaurant/restaurantes'
+import type { CriteriosBusqueda } from '../../domain/restaurant/restaurantes'
 import type { Restaurante } from '../../types/database'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'

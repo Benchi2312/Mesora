@@ -2,8 +2,8 @@
 
 Sistema de gestión para restaurantes: mesas, comandas, cocina, caja y reportes.
 Una app web (SPA) que funciona en tres modos — **local** con datos simulados,
-**demo** y **Supabase** real — y en los tres aplica exactamente las mismas
-reglas de negocio.
+**demo** y **Supabase** real — con reglas de negocio compartidas y pruebas
+específicas para cada adaptador.
 
 ## Stack
 
@@ -63,8 +63,13 @@ npm run dev                  # vite
 npm run build                # tsc && vite build
 npm run preview              # sirve dist/
 npm run typecheck            # tsc --noEmit
-npm run verificar            # 500 checks de reglas de negocio (backend local)
+npm run verificar            # 502 checks de reglas de negocio (backend local)
+npm run verificar:precuenta  # QA de precuenta, impresión/PDF y ausencia de escrituras
+npm run verificar:configuracion # QA del guardado de Datos del local, REST y dominio
+npm run verificar:sql        # PostgreSQL aislado: instalación, permisos, flujo y restauración
 npm run verificar:responsive # 332 checks de layout en 4 viewports
+npm run verificar:despliegue -- https://mesora-piloto.vercel.app # rutas públicas, sin ventas reales
+npm run verificar:acceso      # cuentas desactivadas, salida y contraseña temporal con Auth simulado
 npm run capturas:demo        # capturas del recorrido guiado (Playwright)
 npm run sql:install          # regenera supabase/TODO_EN_UNO.sql
 ```
@@ -73,7 +78,11 @@ npm run sql:install          # regenera supabase/TODO_EN_UNO.sql
 
 ```bash
 npm run typecheck
+npm run sql:install
+npm run verificar:sql
 npm run verificar
+npm run verificar:precuenta
+npm run verificar:configuracion
 npm run verificar:responsive
 npm run build
 ```
@@ -95,6 +104,12 @@ directorio de entorno temporal para forzar el modo QA sin mover
 
 Ambas suites salen con código 1 si algún check falla.
 
+`npm run verificar:sql` instala el SQL en PostgreSQL aislado (PGlite con
+pgcrypto), verifica permisos y recorre apertura, pedido, cocina, pago dividido,
+anulación con PIN y arqueo. También comprueba 1205 pedidos sin truncamiento y
+la restauración de esa base de prueba. No conecta a Supabase; Auth se simula.
+No sustituye la aceptación de login real, correo, impresora y dos dispositivos.
+
 ## Interfaz y experiencia móvil
 
 La interfaz usa una paleta oscura con acentos naranja para conservar el mismo
@@ -106,28 +121,55 @@ las rutas y controles táctiles en los cuatro anchos indicados arriba.
 
 ## Desplegar en Vercel
 
-1. Sube el repo a GitHub (`git init`, commit, push).
-2. Importa el proyecto en https://vercel.com (el `vercel.json` ya configura el
-   rewrite SPA para que `/admin` o `/super-admin` no den 404 al recargar).
-3. **Settings → Environment Variables**: `VITE_SUPABASE_URL` y
-   `VITE_SUPABASE_ANON_KEY` en Production y Preview.
-4. Deploy. Build: `npm run build`, output: `dist`.
-5. En Supabase, **Authentication → URL Configuration**: Site URL y Redirect URLs
-   con el dominio final (`/restablecer` incluido).
-6. Tras cambiar variables de entorno, **redeploy**: Vite las incrusta en el
-   build, no las lee en tiempo de ejecución.
+El proyecto `mesora-piloto` está conectado al repositorio privado
+`Benchi2312/Mesora`, con `main` como rama de producción y dirección
+**https://mesora-piloto.vercel.app**. Node 22, `npm ci`, `npm run build` y salida
+`dist` están definidos; el rewrite SPA permite recargar las rutas internas.
+
+Flujo de cambios:
+
+1. Crear `respaldo/<tema>`, hacer los cambios, subir la rama y abrir PR hacia `main`.
+2. Esperar la CI de reglas de negocio, SQL, TypeScript, precuenta, configuración
+   y build. Las ramas de trabajo no publican automáticamente (`vercel.json`).
+3. Integrar el PR. El push a `main` dispara el despliegue nativo de Vercel.
+   El control `CI de Mesora` espera al check `build` antes de asignar el dominio
+   de producción; si falla, la versión anterior continúa publicada.
+4. El evento de despliegue exitoso ejecuta `Verificar despliegue` en GitHub:
+   12 rutas, recursos, redirección de páginas privadas e independencia del demo.
+   También se puede ejecutar manualmente desde Actions. Esta prueba detecta
+   fallos después de publicar; no revierte automáticamente el despliegue.
+5. GitHub elimina la rama del PR al integrarlo. Sincronizar `main` y limpiar las
+   ramas locales ya integradas con `git branch -d <rama>`.
+
+Variables en Production y Preview: `VITE_SUPABASE_URL`,
+`VITE_SUPABASE_ANON_KEY` (clave pública), `VITE_MESORA_MODO_LOCAL=false` y
+`VITE_MESORA_DIAGNOSTICO=true`. No usar `service_role` en el frontend. Tras
+cambiar variables, reconstruir: Vite las incrusta durante el build.
+
+En Supabase, Site URL debe coincidir con el dominio publicado y Redirect URLs
+debe incluir `https://mesora-piloto.vercel.app/restablecer`. La configuración
+del correo de recuperación queda diferida por decisión del propietario.
+Consultar [operación del piloto](./docs/OPERACION_PILOTO.md) para respaldo,
+aceptación del local y reversión. El despliegue web no certifica esas pruebas.
 
 ## Estructura
 
 ```
 src/
   components/ui.tsx        primitives compartidas (botón, modal, input, chip, tabla...)
+  domain/                   lógica de negocio agrupada por dominio
+    security/                roles, autorización, identidad y contraseñas
+    cashier/                 pagos, caja y boletas
+    restaurant/              configuración y suscripciones del restaurante
+    reporting/               métricas y reportes de ventas
+    platform/                auditoría, usuarios, notificaciones y soporte
   lib/
-    api.ts                 realApi + localApi + mockApi y todas las reglas de negocio
+    api.ts                 fachada de datos (Supabase, QA local y demo)
     localSeed.ts           dataset simulado del modo local
+    mockData.ts            dataset aislado del demo
     format.ts              formato de moneda, fechas y estados
-    pagos.ts               métodos de pago y etiquetas
-    supabase.ts            cliente de Supabase
+    supabase.ts            cliente y configuración de Supabase
+    diagnostico.ts         categorías de errores sin mensajes ni credenciales
   pages/
     landing/  Login/  mesero/  cocina/  admin/  cajero/  superadmin/
   demo/                    recorrido guiado y datos del modo demo
@@ -135,18 +177,52 @@ src/
 supabase/
   TODO_EN_UNO.sql          instalador único (generado, es el que se pega)
   fuentes/                 19 archivos fuente en orden de aplicación
+  migrations/              migraciones versionadas para actualizaciones acotadas
+  qa/                      pruebas SQL con rollback; no se instalan en producción
 scripts/
-  verificar-flujo.mjs      suite de reglas de negocio (500 checks)
+  verificar-flujo.mjs      suite de reglas de negocio (502 checks)
+  verificar-configuracion.mjs guardado, errores y dominio del local
+  verificar-precuenta.mjs  vista, PDF, impresión y consumo actualizado
+  verificar-sql.mjs        instalación y circuito SQL en PostgreSQL aislado
   verificar-responsive.mjs suite de layout responsive (332 checks)
   capturas-demo.mjs        capturas del recorrido guiado
   build-install-sql.mjs    genera TODO_EN_UNO.sql
 ```
 
+## Precuenta antes del cobro
+
+Desde una mesa abierta o la pantalla de cierre, pulsa **Ver precuenta**.
+En **Caja**, administrador y cajero pueden abrirla desde **Precuentas**.
+Incluye el consumo pendiente de todas las comandas de la mesa, excluye los
+ítems anulados y permite imprimir o descargar PDF. No registra una venta,
+no asigna número de boleta ni libera la mesa. La propina no está incluida.
+
+Usa **Actualizar precuenta** si se agregaron o corrigieron pedidos. El documento
+identifica el consumo pendiente y la fecha de emisión; no es un comprobante de
+pago. El adaptador real utiliza las RPC de pendientes de la migración
+`20261030173320_consultas_pendientes_piloto.sql`, que debe aplicarse antes de
+desplegar este frontend en otra instalación.
+
+Al cobrar, el documento de Mesora se identifica como **recibo interno de pago**.
+No integra emisión fiscal ni sustituye el comprobante electrónico del local.
+
+El análisis actualizado de bloqueos, aceptación y operación del primer piloto
+está en [docs/PILOTO.md](./docs/PILOTO.md). El procedimiento de respaldo,
+contingencia, primer turno y reversión está en
+[docs/OPERACION_PILOTO.md](./docs/OPERACION_PILOTO.md).
+
+El dominio del personal requiere la migración
+[`20261029052901_datos_local_dominio.sql`](./supabase/migrations/20261029052901_datos_local_dominio.sql).
+Esta agrega la columna opcional y su permiso de actualización, conservando RLS.
+En la base Mesora revisada ya se aplicó. Cambiar el dominio afecta la creación
+de nuevos accesos; no renombra las cuentas existentes.
+
 ## Base de datos
 
 Todo el SQL se instala de una vez: `supabase/TODO_EN_UNO.sql`. Se genera desde
-`supabase/fuentes/` con un orden fijo (schema → migraciones → RPC → RLS →
-módulos de Super Admin). Instrucciones completas en
+`supabase/fuentes/` y `supabase/migrations/` con orden fijo (schema → requisitos
+→ RPC → RLS → módulos de Super Admin → actualizaciones del piloto). Reservado
+para una base nueva. Instrucciones completas en
 [`SUPABASE_SETUP.md`](./SUPABASE_SETUP.md).
 
 RPC atómicas principales (todas `security definer` y con `EXECUTE` revocado a
@@ -171,7 +247,7 @@ Los permisos están endurecidos en `01_rls_completo.sql` y en cada módulo:
 `anon` no puede leer las tablas del dominio, `truncate` está revocado, y
 `configuracion_global` concede a `anon` solo las columnas que pinta la landing.
 
-## Reglas de negocio (idénticas en local, demo y Supabase)
+## Reglas de negocio
 
 - **Varias comandas por mesa**: una mesa ocupada puede recibir más pedidos; se
   acumulan y se cobran juntos en un solo cierre de cuenta.
@@ -208,7 +284,7 @@ indicado en SUPABASE_SETUP.md; no se vuelve a pegar el instalador completo.
 El orden de fuentes y su cobertura se verifican con npm run sql:install.
 ## Estado actual
 
-Implementado. Última verificación registrada (`npm run verificar`: 500 checks;
+Implementado. Última verificación registrada (`npm run verificar`: 502 checks;
 `npm run verificar:responsive`: 332 checks en 4 viewports):
 
 - Auth (email/password), lectura de rol desde `usuarios`, rutas protegidas por rol y bloqueo por suscripción vencida.
@@ -219,12 +295,14 @@ Implementado. Última verificación registrada (`npm run verificar`: 500 checks;
 - **Modo local** (solo desarrollo, activación explícita con VITE_MESORA_MODO_LOCAL=true): login y roles simulados sobre un dataset de prueba, persistencia en localStorage y botón de reset en /login. Sin esa variable, la app falla cerrada si Supabase no está configurado.
 - **Modo demo** (`/demo`): las 4 vistas sin login, con recorrido guiado que escribe por ti ("Hazlo por mí"), persistencia en `localStorage` y botón para vaciarlo.
 - **Rendimiento**: code-splitting por ruta; la landing y el login no descargan el panel.
-- **Base reproducible**: `supabase/TODO_EN_UNO.sql` (19 archivos, RLS y grants incluidos).
+- **Instalador generado**: `supabase/TODO_EN_UNO.sql` (24 archivos, 19 tablas con RLS y grants). Instalación vacía y restauración aislada verificadas con `npm run verificar:sql`.
+- **Seguridad del piloto**: funciones de negocio sin EXECUTE anónimo, search_path fijo, registro público desactivado y contraseña mínima de ocho caracteres en el proyecto revisado.
+- **Diagnóstico**: categorías de API/render/JavaScript/promesas en logs PostgreSQL, sin mensajes originales, PIN ni tokens. Requiere sesión; límite por pestaña de 20 intentos/10 minutos y deduplicación de 60 segundos. Desactivar con `VITE_MESORA_DIAGNOSTICO=false` y reconstruir. No incluye alertas automáticas.
 
 Todo el acceso a datos pasa por `getApi()` (capa real/local/mock), por lo que las
 vistas funcionan igual en los tres modos. Las reglas de negocio están
 centralizadas para que `localApi`, `mockApi` y las RPC de Postgres se comporten
-igual; `npm run verificar` las cubre automáticamente.
+de forma coherente; las suites locales y SQL cubren los circuitos principales.
 
 ### Pendiente para publicar
 
@@ -240,8 +318,9 @@ igual; `npm run verificar` las cubre automáticamente.
   fallos. Ver SUPABASE_SETUP.md para los pasos previos.
 ## Integración continua
 
-GitHub Actions ejecuta `npm ci`, `npm run sql:install`, `npm run verificar`,
-`npm run typecheck` y `npm run build` al abrir un pull request o actualizar
+GitHub Actions ejecuta `npm ci`, `npm run sql:install`, `npm run verificar:sql`, `npm run verificar`,
+`npm run typecheck`, `npm run verificar:precuenta`,
+`npm run verificar:configuracion` y `npm run build` al abrir un pull request o actualizar
 `main`/`master`. Para que se active, Mesora debe ser
 la raíz del repositorio GitHub.
 

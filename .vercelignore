@@ -1,0 +1,12 @@
+.git
+.env*
+!.env.example
+node_modules
+dist
+capturas
+*.log
+tmp_rest.txt
+promocional_mesora.webm
+supabase
+docs
+*.md

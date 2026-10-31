@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { registrarDiagnostico } from '../lib/diagnostico'
 
 interface Props {
   children: ReactNode
@@ -22,6 +23,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    registrarDiagnostico('render', 'ErrorBoundary')
     // Conserva diagnóstico en desarrollo; no expone detalles en pantalla o producción.
     if (import.meta.env.DEV) console.error('Error inesperado de interfaz', error, info.componentStack)
   }

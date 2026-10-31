@@ -200,6 +200,31 @@ body {
     box-shadow: none;
   }
 
+  .precuenta-print,
+  .precuenta-print * {
+    visibility: visible;
+    color: #18181b !important;
+  }
+  .precuenta-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 80mm;
+    margin: 0;
+    padding: 3mm;
+    background: white !important;
+    border: 0;
+    box-shadow: none;
+    font-size: 10pt;
+  }
+  .precuenta-print tr {
+    break-inside: avoid;
+  }
+  .precuenta-print thead {
+    display: table-header-group;
+  }
+
   /* Reporte del admin: `body.imprimir-reporte` lo pone DashboardTab antes de
      llamar a window.print(). Se usa visibility (y no display) para no romper
      los bloques flex/grid que dependen de sus hijos. */

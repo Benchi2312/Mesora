@@ -16,6 +16,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run sql:install
+      - run: git diff --exit-code -- supabase/TODO_EN_UNO.sql
+      - run: npm run verificar:sql
       - run: npm run verificar
       - run: npm run typecheck
+      - run: npx playwright install --with-deps chromium
+      - run: npm run verificar:acceso
+      - run: npm run verificar:precuenta
+      - run: npm run verificar:configuracion
       - run: npm run build

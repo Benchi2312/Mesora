@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
-import { rolLabel } from '../lib/roles'
+import { rolLabel } from '../domain/security/roles'
 import { useCurrentContext } from '../lib/useCurrentContext'
 import { useDemoStore } from '../demo/demoStore'
 
@@ -54,7 +54,7 @@ export default function AppLayout({ banner }: AppLayoutProps) {
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
+      <main className={`mx-auto w-full max-w-7xl flex-1 px-4 pt-8 ${isDemo ? 'pb-28' : 'pb-8'}`}>
         <Outlet />
       </main>
     </div>

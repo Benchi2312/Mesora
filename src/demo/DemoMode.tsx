@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import AppLayout from '../components/AppLayout'
-import { apiMode } from '../lib/api'
-import { mockUsuarios } from '../lib/mockData'
-import { ROLES, ROL_LABELS } from '../lib/roles'
+import { apiMode, getApi } from '../lib/api'
+import { mockRestaurante, mockUsuarios } from '../lib/mockData'
+import { ROLES, ROL_LABELS } from '../domain/security/roles'
 import type { Rol } from '../types/database'
 import { useDemoStore } from './demoStore'
 import GuiaDemo from './GuiaDemo'
@@ -49,8 +49,15 @@ export default function DemoMode() {
   apiMode.operadorId = mockUsuarios.find((u) => u.rol === rol)?.id ?? 'u-mesero-1'
 
   useEffect(() => {
+    let activo = true
     enterDemo(rol)
+    // Recupera también los datos editados del local al recargar o cambiar de rol.
+    void getApi().getRestaurantes().then((res) => {
+      const restaurante = res.data?.find((r) => r.id === mockRestaurante.id)
+      if (activo && restaurante) useDemoStore.getState().actualizarRestaurante(restaurante)
+    })
     return () => {
+      activo = false
       apiMode.demo = false
       exitDemo()
     }

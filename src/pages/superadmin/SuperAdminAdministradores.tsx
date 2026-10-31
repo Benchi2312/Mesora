@@ -7,8 +7,8 @@ import {
   filtrarUsuarios,
   hayFiltrosUsuarios,
   labelUltimoAcceso,
-} from '../../lib/usuarios'
-import type { CriteriosUsuarios, FiltroEstadoUsuarios } from '../../lib/usuarios'
+} from '../../domain/platform/usuarios'
+import type { CriteriosUsuarios, FiltroEstadoUsuarios } from '../../domain/platform/usuarios'
 import type { Restaurante } from '../../types/database'
 import { useAuthStore } from '../../store/auth'
 import { Spinner } from '../../components/LoadingScreen'

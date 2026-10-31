@@ -1,5 +1,5 @@
 import type { Restaurante } from '../../types/database'
-import { estadoOperativo, estadoSuscripcion } from '../../lib/restaurantes'
+import { estadoOperativo, estadoSuscripcion } from '../../domain/restaurant/restaurantes'
 
 /** "Operando" / "Detenido": si el restaurante puede entrar y trabajar hoy. */
 export function ChipOperativo({ r }: { r: Restaurante }) {

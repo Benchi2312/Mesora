@@ -12,11 +12,12 @@ import {
   resumirPago,
   vueltoRapido,
   type PagoParte,
-} from '../../lib/pagos'
-import { parseMonto, redondear } from '../../lib/caja'
-import { numeroBoletaDeCuenta } from '../../lib/boleta'
+} from '../../domain/cashier/pagos'
+import { parseMonto, redondear } from '../../domain/cashier/caja'
+import { numeroBoletaDeCuenta } from '../../domain/cashier/boleta'
 import { estadoPedidoLabel, fmtFecha, fmtPEN } from '../../lib/format'
 import { Spinner } from '../../components/LoadingScreen'
+import Precuenta from '../../components/Precuenta'
 
 const TASA_IGV = 0.18
 
@@ -37,6 +38,7 @@ export default function CerrarCuenta({ mesa, onVolver, onCuentaCerrada }: Cerrar
   const [cobrando, setCobrando] = useState(false)
   const [cuenta, setCuenta] = useState<Cuenta | null>(null)
   const [liberando, setLiberando] = useState(false)
+  const [verPrecuenta, setVerPrecuenta] = useState(false)
 
   // --- Pago dividido / propina / vuelto
   const [dividido, setDividido] = useState(false)
@@ -276,6 +278,10 @@ export default function CerrarCuenta({ mesa, onVolver, onCuentaCerrada }: Cerrar
     }
   }
 
+  if (verPrecuenta) {
+    return <Precuenta mesa={mesa} onVolver={() => { setVerPrecuenta(false); setIntentoCarga((n) => n + 1) }} />
+  }
+
   if (cuenta) {
     return (
       <Boleta
@@ -381,6 +387,15 @@ export default function CerrarCuenta({ mesa, onVolver, onCuentaCerrada }: Cerrar
                 <span className="text-sm text-zinc-400">Total a cobrar</span>
                 <span className="text-2xl font-bold text-brand-400">{fmtPEN(total)}</span>
               </div>
+
+              <button
+                type="button"
+                disabled={cobrando || Boolean(error) || total <= 0}
+                onClick={() => setVerPrecuenta(true)}
+                className="btn btn-outline mb-4 min-h-12 w-full px-4"
+              >
+                Ver precuenta
+              </button>
 
               {/* Propina: se suma a la cuenta pero NO al total de la comanda. */}
               <div className="mb-4">
@@ -643,9 +658,11 @@ function descargarBoletaPdf(params: {
   y += 4
   doc.text(texto(`RUC: ${ruc}`, 8.5), cX, y, { align: 'center' })
   y += 7
-  doc.text(texto('BOLETA DE VENTA ELECTRÓNICA', 11, 'bold'), cX, y, { align: 'center' })
+  doc.text(texto('RECIBO INTERNO DE PAGO', 11, 'bold'), cX, y, { align: 'center' })
   y += 4.5
   doc.text(texto(`N° ${numero}`, 9), cX, y, { align: 'center' })
+  y += 5
+  doc.text(texto('No sustituye al comprobante electrónico del local.', 7), cX, y, { align: 'center' })
   y += 5
   linea()
   y += 6
@@ -796,9 +813,10 @@ function Boleta({
             </p>
           )}
           <p className="mt-3 text-xs font-bold uppercase tracking-widest text-zinc-300">
-            Boleta de venta electrónica
+            Recibo interno de pago
           </p>
           <p className="mt-0.5 font-mono text-xs text-brand-400">Nº {numero}</p>
+          <p className="mt-2 text-[11px] text-zinc-500">No sustituye al comprobante electrónico del local.</p>
         </div>
 
         {/* Datos de la operación */}

@@ -345,6 +345,11 @@ if (supabaseConfigurado && !modoLocalHabilitado) {
       if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/restablecer')) {
         window.location.assign('/restablecer')
       }
+    } else if (event === 'USER_UPDATED' && session && state.usuario?.id === session.user.id) {
+      // updateUser emite este evento antes de confirmar el cambio temporal
+      // en usuarios. Releer el perfil aquí puede devolver el flag anterior y
+      // sobrescribir la confirmación, enviando al usuario otra vez al formulario.
+      useAuthStore.setState({ session })
     } else if (session) {
       useAuthStore.setState({ session })
       void state.refresh()

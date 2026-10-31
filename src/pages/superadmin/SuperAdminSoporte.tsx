@@ -12,8 +12,8 @@ import {
   hayFiltrosTickets,
   ordenarTickets,
   ticketAbierto,
-} from '../../lib/soporte'
-import type { CriteriosTickets } from '../../lib/soporte'
+} from '../../domain/platform/soporte'
+import type { CriteriosTickets } from '../../domain/platform/soporte'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 import { Campo, Modal, PieAcciones } from '../../components/ui'

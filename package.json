@@ -3,17 +3,26 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "verificar": "node scripts/verificar-flujo.mjs",
+    "verificar:precuenta": "node scripts/verificar-precuenta.mjs",
+    "verificar:configuracion": "node scripts/verificar-configuracion.mjs",
+    "verificar:sql": "node scripts/verificar-sql.mjs",
     "verificar:responsive": "node scripts/verificar-responsive.mjs",
+    "verificar:despliegue": "node scripts/verificar-despliegue.mjs",
+    "verificar:acceso": "node scripts/verificar-acceso.mjs",
     "capturas:demo": "node scripts/capturas-demo.mjs",
     "sql:install": "node scripts/build-install-sql.mjs"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.13",
     "@playwright/test": "^1.64.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.3.0",

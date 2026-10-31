@@ -35,7 +35,7 @@ import type {
   Usuario,
   Zona,
 } from '../types/database'
-import { CONFIGURACION_POR_DEFECTO } from './configuracion'
+import { CONFIGURACION_POR_DEFECTO } from '../domain/restaurant/configuracion'
 import {
   mockCategorias,
   mockCuentaPedidos,

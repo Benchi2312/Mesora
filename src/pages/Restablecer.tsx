@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
 import { esModoLocal } from '../lib/api'
-import { homeForRole } from '../lib/roles'
+import { homeForRole } from '../domain/security/roles'
 
 export default function Restablecer() {
   const { session, usuario, loading, initDone, initialize, cambiarPassword, confirmarCambioPassword, signOut } = useAuthStore()
