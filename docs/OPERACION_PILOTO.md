@@ -9,7 +9,7 @@ pendientes. Completar con el encargado antes del primer turno.
 | --- | --- |
 | Restaurante, encargado y soporte | Pendiente |
 | Primer turno acompañado: fecha/horario | Pendiente |
-| URL final | Elegida: https://mesora-piloto.vercel.app; publicación oficial pendiente. |
+| URL final | https://mesora-piloto.vercel.app; publicación autorizada por el propietario. |
 | Proyecto y versión candidata | Supabase Mesora; código 8cc8a06 con CI aprobada. Registrar commit final y deployment al publicar. |
 | Sistema de comprobantes electrónicos | Se mantiene el sistema actual del local; confirmado por el propietario el 30/10/2026. |
 | Responsable y ubicación privada del respaldo | Pendiente |
@@ -45,8 +45,9 @@ CLI y almacenamiento fuera del servicio en ese plan. Para seguir esa vía:
 
 - Preparar Docker para `supabase db dump` y un cliente PostgreSQL para restaurar;
   Docker, pg_dump y psql no están disponibles en el PATH del equipo revisado.
-- Disponer del acceso de conexión PostgreSQL en el equipo o gestor seguro,
-  sin enviarlo por chat ni guardarlo en el repositorio.
+- La CLI autenticada puede solicitar una credencial temporal al proyecto;
+  no es necesario pedir la contraseña por chat. Si la cuenta no permite esa
+  vía, configurar el acceso de conexión en el equipo o gestor seguro.
 - Elegir una ubicación privada cifrada para las copias y una copia fuera del
   equipo; acordar responsable y frecuencia antes del primer turno.
 - Preparar un destino aislado y ejecutar la restauración completa. Revisar las
@@ -55,6 +56,8 @@ CLI y almacenamiento fuera del servicio en ese plan. Para seguir esa vía:
 
 Referencias: [respaldos por plan](https://supabase.com/docs/guides/platform/backups)
 y [exportación/restauración con CLI](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore).
+El procedimiento y script preparados están en [RESPALDOS.md](./RESPALDOS.md).
+Todavía no existe evidencia de un respaldo real creado y restaurado.
 La alternativa es un servicio administrado con respaldo recuperable, sujeto
 a la elección y condiciones del plan del propietario.
 
@@ -63,7 +66,8 @@ a la elección y condiciones del plan del propietario.
 - Accesos individuales: rol, restaurante y activo comprobados.
 - PIN del encargado configurado; credenciales en un gestor privado.
 - Precios, bebidas, zonas/mesas, datos del local y suscripción revisados.
-- Recuperación del administrador con buzón real y reset de personal probados.
+- Reset de personal probado. Recuperación del administrador con buzón real
+  diferida expresamente por el propietario; conservarla como pendiente.
 - Impresora de 80 mm, PDF, móvil y equipo de caja aprobados.
 - Sistema de comprobantes acordado: Mesora entrega recibo interno y precuenta.
   El propietario confirmó que mantiene su facturación actual; conciliar ambos
@@ -117,10 +121,15 @@ Esto no elimina registros anteriores del proveedor.
    antes de actualizar la base.
 2. Probar preview; si apunta a la base real, usar demo para mostrar y staging
    aislado para ensayos persistentes. Verificar Auth en la URL exacta.
-3. Tras aceptación y cierre de P0, integrar a main y desplegar dominio oficial
-   con variables de producción/redirecciones correctas.
-4. Comprobar rutas, login, precuenta y circuito acordado; registrar commit y
-   deployment. Borrar rama solo después de confirmar integración.
+3. El propietario autorizó publicar esta entrega y diferir el correo. Integrar
+   a `main` con CI aprobada: Vercel detecta el push y publica automáticamente
+   cuando el check `build` permite asignar el dominio. Mantener visibles los
+   pendientes de respaldo/restauración y aceptación del local.
+4. Comprobar rutas públicas con `npm run verificar:despliegue --
+   https://mesora-piloto.vercel.app`; el workflow de GitHub también lo ejecuta
+   tras el despliegue. Registrar commit y deployment. Esta comprobación no
+   autentica ni crea ventas. GitHub borra la rama del PR al integrarlo; borrar
+   la local con `git branch -d` después de sincronizar `main`.
 5. Si falla la interfaz, promover el deployment anterior compatible. No borrar
    tablas/columnas ni restaurar datos automáticamente para revertir frontend.
 6. Si afecta datos, conservar evidencia, detener operaciones afectadas y seguir

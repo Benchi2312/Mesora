@@ -1,7 +1,8 @@
 # Preparación del primer piloto de Mesora
 
 Revisión: **30 de octubre de 2026**. Estado: versión candidata para validación
-del restaurante; el inicio del turno oficial sigue pendiente de aceptación.
+del restaurante. El propietario autorizó publicar en Vercel e integrar a
+`main`; la aceptación presencial del primer turno sigue pendiente.
 
 ## Cierre técnico y dirección elegida
 
@@ -13,8 +14,11 @@ del restaurante; el inicio del turno oficial sigue pendiente de aceptación.
   pública de Supabase, modo local desactivado y diagnóstico activado.
 - La redirección exacta `/restablecer` del dominio elegido está admitida en
   Supabase Auth, junto con la preview. Config push/diff confirmó el cambio.
-- El despliegue público y el cambio de Site URL al dominio activo se harán al
-  final. La URL disponible para revisión sigue siendo la preview protegida.
+- GitHub y Vercel conectados; `main` es la rama de producción. Node 22 y build
+  reproducible configurados. El check `build` de CI condiciona la asignación del
+  dominio y una comprobación pública se ejecuta después de cada publicación.
+- El despliegue público y el cambio de Site URL se realizan al final de esta
+  entrega. Registrar su evidencia al terminar.
 - La organización Supabase está en Free; se volvió a consultar backups y la
   lista sigue vacía, con PITR desactivado. No se ha creado un respaldo real.
 
@@ -56,7 +60,7 @@ rollback. No dejaron ventas, pagos, anulaciones ni turnos de prueba persistidos.
 | P0 | Respaldo recuperable real | La API devolvió lista de backups vacía y PITR desactivado. Crear un respaldo, restaurarlo en otro entorno y registrar responsable, frecuencia y pérdida máxima aceptable. La restauración PGlite no certifica producción. |
 | P0 | Aceptación con cuentas reales y dos dispositivos | Login por rol, contraseña temporal, pedido/cocina, precuenta, cobro concurrente, anulación con PIN y arqueo en staging. Registrar resultado y tiempos. |
 | P0 | Impresora y operación | Probar papel de 80 mm, impresora real, móvil y caja. Asignar encargado, soporte y contingencia sin internet. |
-| P0 | Recuperación y activación del dominio | Dirección y Redirect URL elegidas/preparadas. Falta comprobar SMTP/buzón real y recuperar al administrador; activar Site URL al publicar. |
+| Diferido por el propietario | Recuperación por correo del administrador | Configuración SMTP, buzón real y prueba de recuperación pendientes por indicación explícita. La URL del sitio se ajusta al publicar. |
 | P1 | Seguimiento | Asignar revisión de logs y escalamiento. Habilitar protección de claves filtradas si está disponible en el plan. |
 
 **Acuerdo del propietario (30/10/2026):** el restaurante mantendrá su sistema
@@ -64,6 +68,9 @@ actual de facturación electrónica mientras Mesora gestiona pedidos y caja.
 Este punto queda definido; se debe conciliar ambos registros durante el turno.
 El propietario confirmó que todavía no están preparados el respaldo restaurado
 ni la validación del local. Esos requisitos continúan pendientes.
+Posteriormente autorizó publicar la versión y automatizar `main`, dejando
+expresamente el correo para después. Publicar no cierra las pruebas presenciales
+ni acredita un respaldo restaurado.
 
 Una preview puede conectar al mismo proyecto real. **Su URL no aísla los
 datos**: usar el demo para mostrar y un proyecto de staging para ensayar
@@ -131,8 +138,9 @@ Objetivos iniciales: p95 de lectura menor a 3 s y cobro/anulación menor a
 
 Seguir [OPERACION_PILOTO.md](./OPERACION_PILOTO.md). Un restaurante, primer turno
 acompañado en baja demanda y conciliación diaria durante 3 a 7 días.
-Desplegar oficialmente al final, tras cerrar los P0.
+Publicar la versión al final de la entrega, según la autorización actual del
+propietario. Cerrar los pendientes operativos antes de confiarle un turno real.
 
 Trabajo en `respaldo/precuenta-piloto`, revisado mediante PR. Integrar a main
-y borrar la rama al aprobar CI y la aceptación correspondiente. Inventario,
+y borrar la rama al aprobar CI y verificar el despliegue autorizado. Inventario,
 reservas, delivery y material promocional pueden esperar.

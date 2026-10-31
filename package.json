@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -13,6 +16,7 @@
     "verificar:configuracion": "node scripts/verificar-configuracion.mjs",
     "verificar:sql": "node scripts/verificar-sql.mjs",
     "verificar:responsive": "node scripts/verificar-responsive.mjs",
+    "verificar:despliegue": "node scripts/verificar-despliegue.mjs",
     "capturas:demo": "node scripts/capturas-demo.mjs",
     "sql:install": "node scripts/build-install-sql.mjs"
   },

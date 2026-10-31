@@ -1,0 +1,36 @@
+name: Verificar despliegue
+
+on:
+  deployment_status:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verificar-produccion
+  cancel-in-progress: true
+
+jobs:
+  rutas-publicas:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       (github.event.deployment.production_environment == true ||
+        github.event.deployment.environment == 'Production' ||
+        github.event.deployment.environment == 'production'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Dominio fijo: el evento nunca decide a qué servidor se envían solicitudes.
+      # Solo lectura pública y demo; no usa credenciales ni crea ventas.
+      - run: npm run verificar:despliegue -- https://mesora-piloto.vercel.app

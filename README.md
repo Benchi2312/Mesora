@@ -68,6 +68,7 @@ npm run verificar:precuenta  # QA de precuenta, impresión/PDF y ausencia de esc
 npm run verificar:configuracion # QA del guardado de Datos del local, REST y dominio
 npm run verificar:sql        # PostgreSQL aislado: instalación, permisos, flujo y restauración
 npm run verificar:responsive # 332 checks de layout en 4 viewports
+npm run verificar:despliegue -- https://mesora-piloto.vercel.app # rutas públicas, sin ventas reales
 npm run capturas:demo        # capturas del recorrido guiado (Playwright)
 npm run sql:install          # regenera supabase/TODO_EN_UNO.sql
 ```
@@ -119,16 +120,36 @@ las rutas y controles táctiles en los cuatro anchos indicados arriba.
 
 ## Desplegar en Vercel
 
-1. Sube el repo a GitHub (`git init`, commit, push).
-2. Importa el proyecto en https://vercel.com (el `vercel.json` ya configura el
-   rewrite SPA para que `/admin` o `/super-admin` no den 404 al recargar).
-3. **Settings → Environment Variables**: `VITE_SUPABASE_URL` y
-   `VITE_SUPABASE_ANON_KEY` en Production y Preview.
-4. Deploy. Build: `npm run build`, output: `dist`.
-5. En Supabase, **Authentication → URL Configuration**: Site URL y Redirect URLs
-   con el dominio final (`/restablecer` incluido).
-6. Tras cambiar variables de entorno, **redeploy**: Vite las incrusta en el
-   build, no las lee en tiempo de ejecución.
+El proyecto `mesora-piloto` está conectado al repositorio privado
+`Benchi2312/Mesora`, con `main` como rama de producción y dirección
+**https://mesora-piloto.vercel.app**. Node 22, `npm ci`, `npm run build` y salida
+`dist` están definidos; el rewrite SPA permite recargar las rutas internas.
+
+Flujo de cambios:
+
+1. Crear `respaldo/<tema>`, hacer los cambios, subir la rama y abrir PR hacia `main`.
+2. Esperar la CI de reglas de negocio, SQL, TypeScript, precuenta, configuración
+   y build. Las ramas de trabajo no publican automáticamente (`vercel.json`).
+3. Integrar el PR. El push a `main` dispara el despliegue nativo de Vercel.
+   El control `CI de Mesora` espera al check `build` antes de asignar el dominio
+   de producción; si falla, la versión anterior continúa publicada.
+4. El evento de despliegue exitoso ejecuta `Verificar despliegue` en GitHub:
+   12 rutas, recursos, redirección de páginas privadas e independencia del demo.
+   También se puede ejecutar manualmente desde Actions. Esta prueba detecta
+   fallos después de publicar; no revierte automáticamente el despliegue.
+5. GitHub elimina la rama del PR al integrarlo. Sincronizar `main` y limpiar las
+   ramas locales ya integradas con `git branch -d <rama>`.
+
+Variables en Production y Preview: `VITE_SUPABASE_URL`,
+`VITE_SUPABASE_ANON_KEY` (clave pública), `VITE_MESORA_MODO_LOCAL=false` y
+`VITE_MESORA_DIAGNOSTICO=true`. No usar `service_role` en el frontend. Tras
+cambiar variables, reconstruir: Vite las incrusta durante el build.
+
+En Supabase, Site URL debe coincidir con el dominio publicado y Redirect URLs
+debe incluir `https://mesora-piloto.vercel.app/restablecer`. La configuración
+del correo de recuperación queda diferida por decisión del propietario.
+Consultar [operación del piloto](./docs/OPERACION_PILOTO.md) para respaldo,
+aceptación del local y reversión. El despliegue web no certifica esas pruebas.
 
 ## Estructura
 
