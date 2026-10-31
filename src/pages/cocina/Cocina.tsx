@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PageHeader from '../../components/PageHeader'
 import { getApi, type ItemResumen, type PedidoConItems, type UsuarioResumen } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
@@ -86,6 +86,10 @@ export default function Cocina() {
   const [mesas, setMesas] = useState<Mesa[]>([])
   const [meseros, setMeseros] = useState<UsuarioResumen[]>([])
   const [estacion, setEstacion] = useState<Estacion>('cocina')
+  const [sonidoActivo, setSonidoActivo] = useState(false)
+  const [avisoNuevo, setAvisoNuevo] = useState('')
+  const audioContext = useRef<AudioContext | null>(null)
+  const pedidosConocidos = useRef<Set<string> | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   /** Ids de comandas cuyo avance está en vuelo (evita el doble toque). */
@@ -107,18 +111,31 @@ export default function Cocina() {
         setError(pRes.error ?? mRes.error ?? uRes.error ?? 'Error al cargar comandas')
         return
       }
-      setPedidos(pRes.data ?? [])
+      const pedidosNuevos = pRes.data ?? []
+      const idsDeEstacion = new Set(pedidosNuevos.filter((p) => p.estado === 'pendiente' && p.items.some((it) => estacion === 'barra' ? it.es_bebida : !it.es_bebida)).map((p) => p.id))
+      if (pedidosConocidos.current === null) pedidosConocidos.current = idsDeEstacion
+      else {
+        const nuevos = [...idsDeEstacion].filter((id) => !pedidosConocidos.current?.has(id))
+        if (nuevos.length) {
+          const cuenta = nuevos.length
+          setAvisoNuevo(`${cuenta === 1 ? 'Nueva comanda' : `${cuenta} comandas nuevas`} en ${estacion === 'cocina' ? 'cocina' : 'barra'}.`)
+          if (sonidoActivo) void reproducirAviso()
+        }
+        pedidosConocidos.current = idsDeEstacion
+      }
+      setPedidos(pedidosNuevos)
       setMesas(mRes.data ?? [])
       setMeseros(uRes.data ?? [])
       setError(null)
     } catch {
       setError('No se pudo actualizar cocina. Comprueba tu conexión e inténtalo de nuevo.')
     }
-  }, [restaurante?.id])
+  }, [restaurante?.id, estacion, sonidoActivo])
 
   useEffect(() => {
     const rid = restaurante?.id
     if (!rid) return
+    pedidosConocidos.current = null
     let activo = true
     setCargando(true)
     ;(async () => {
@@ -162,6 +179,61 @@ export default function Cocina() {
     }
   }
 
+  async function reproducirAviso() {
+    try {
+      const ContextoAudio = window.AudioContext
+      if (!ContextoAudio) return
+      const contexto = audioContext.current ?? new ContextoAudio()
+      audioContext.current = contexto
+      if (contexto.state === 'suspended') await contexto.resume()
+      const ahora = contexto.currentTime
+      for (const [indice, frecuencia] of [880, 1175].entries()) {
+        const oscilador = contexto.createOscillator()
+        const volumen = contexto.createGain()
+        oscilador.type = 'sine'
+        oscilador.frequency.value = frecuencia
+        volumen.gain.setValueAtTime(0.0001, ahora + indice * 0.16)
+        volumen.gain.exponentialRampToValueAtTime(0.18, ahora + indice * 0.16 + 0.02)
+        volumen.gain.exponentialRampToValueAtTime(0.0001, ahora + indice * 0.16 + 0.13)
+        oscilador.connect(volumen)
+        volumen.connect(contexto.destination)
+        oscilador.start(ahora + indice * 0.16)
+        oscilador.stop(ahora + indice * 0.16 + 0.14)
+      }
+    } catch {
+      setAvisoNuevo('El navegador bloqueó el sonido. Pulsa “Activar sonido” otra vez.')
+      setSonidoActivo(false)
+    }
+  }
+
+  async function alternarSonido() {
+    if (sonidoActivo) {
+      setSonidoActivo(false)
+      setAvisoNuevo('Aviso sonoro desactivado.')
+      return
+    }
+    try {
+      const ContextoAudio = window.AudioContext
+      if (!ContextoAudio) { setAvisoNuevo('Este navegador no admite avisos sonoros.'); return }
+      const contexto = audioContext.current ?? new ContextoAudio()
+      audioContext.current = contexto
+      if (contexto.state === 'suspended') await contexto.resume()
+      setSonidoActivo(true)
+      setAvisoNuevo('Aviso sonoro activado para esta estación en este dispositivo.')
+      // Tono de confirmación: verifica el volumen y desbloquea el audio del navegador.
+      const oscilador = contexto.createOscillator()
+      const volumen = contexto.createGain()
+      oscilador.frequency.value = 660
+      volumen.gain.setValueAtTime(0.12, contexto.currentTime)
+      volumen.gain.exponentialRampToValueAtTime(0.0001, contexto.currentTime + 0.12)
+      oscilador.connect(volumen); volumen.connect(contexto.destination)
+      oscilador.start(); oscilador.stop(contexto.currentTime + 0.13)
+    } catch {
+      setSonidoActivo(false)
+      setAvisoNuevo('No se pudo activar el sonido. Revisa los permisos del navegador y vuelve a intentarlo.')
+    }
+  }
+
   const nombreMesa = new Map(mesas.map((m) => [m.id, m.nombre]))
   const nombreMesero = new Map(meseros.map((u) => [u.id, u.nombre]))
 
@@ -202,6 +274,14 @@ export default function Cocina() {
         titulo="Cocina y barra"
         descripcion="Comandas en vivo, separadas por estación y tiempo de espera."
       />
+
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-surface-700 bg-surface-900 px-4 py-3">
+        <div><p className="font-semibold text-zinc-200">Aviso de nuevas comandas</p><p className="text-sm text-zinc-500">Se activa por separado en cada dispositivo. Requiere permitir audio en el navegador.</p></div>
+        <button type="button" aria-pressed={sonidoActivo} onClick={() => void alternarSonido()} className={`btn min-h-11 px-4 ${sonidoActivo ? 'btn-primary' : 'btn-outline'}`}>
+          {sonidoActivo ? '♪ Sonido activado' : 'Activar sonido'}
+        </button>
+      </div>
+      <p role="status" aria-live="polite" className="sr-only">{avisoNuevo}</p>
 
       {error && (
         <div className="aviso mb-6 border-danger-500/40 bg-danger-500/10 text-danger-500">

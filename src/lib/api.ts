@@ -62,6 +62,7 @@ import type { LocalSeedData } from './localSeed'
 import { formatearNumeroBoleta } from '../domain/cashier/boleta'
 import { prepararDatosLocal, type CambiosDatosLocal } from '../domain/restaurant/datosLocal'
 import { registrarDiagnostico } from './diagnostico'
+import type { RangoReporteVentas, ReporteVentas } from '../domain/reporting/ventas'
 
 // -------------------------------------------------------------- Tipos comunes
 export interface Res<T> {
@@ -402,6 +403,7 @@ export interface DataApi {
   ): Promise<Res<Cuenta>>
   liberarMesa(rid: string, mesaId: string): Promise<Res<null>>
   getMetricasAdmin(rid: string): Promise<Res<MetricasAdmin>>
+  getReporteVentas(rid: string, rango: RangoReporteVentas): Promise<Res<ReporteVentas>>
   /**
    * Cuentas pagadas del restaurante (para el reporte CSV). Se expone aparte y
    * no se mete en `getMetricasAdmin` porque el dashboard no necesita el detalle
@@ -920,6 +922,18 @@ const realApi: DataApi = {
     if (uErr) return { data: null, error: uErr.message }
 
     return { data: computeMetricas(cList, pedidos, items, usuarios ?? [], pagos), error: null }
+  },
+  async getReporteVentas(rid, rango) {
+    const { data, error } = await supabase.rpc('reporte_ventas_restaurante', {
+      p_restaurante_id: rid,
+      p_desde: rango.desde,
+      p_hasta: rango.hasta,
+      p_estado: rango.estado,
+      p_busqueda: rango.busqueda,
+      p_offset: rango.offset,
+      p_limite: rango.limite,
+    })
+    return { data: data as ReporteVentas | null, error: error?.message ?? null }
   },
   async getCuentasPagadas(rid) {
     const { data, error } = await supabase
@@ -2171,6 +2185,90 @@ function crearApiDesde(
     const items = ds.items.filter((it) => pedidoIds.includes(it.pedido_id) && it.anulado !== true)
     const pagos = ds.pagos.filter((p) => cuentaIds.includes(p.cuenta_id))
     return { data: computeMetricas(cuentas, pedidos, items, ds.usuarios, pagos), error: null }
+  },
+  async getReporteVentas(rid, rango) {
+    await espera(180)
+    const desde = Date.parse(rango.desde)
+    const hasta = Date.parse(rango.hasta)
+    const cuentasRango = ds.cuentas.filter((c) => {
+      if (c.restaurante_id !== rid || !['pagada', 'anulada'].includes(c.estado)) return false
+      const fecha = Date.parse(c.estado === 'anulada' ? (c.anulada_at ?? c.pagado_at ?? c.created_at) : (c.pagado_at ?? c.created_at))
+      return fecha >= desde && fecha < hasta && (rango.estado === 'todas' || c.estado === rango.estado)
+    })
+    const vinculos = ds.cuentaPedidos
+    const detalles = cuentasRango.map((cuenta) => {
+      const pedidos = vinculos.filter((cp) => cp.cuenta_id === cuenta.id).flatMap((cp) => {
+        const pedido = ds.pedidos.find((p) => p.id === cp.pedido_id)
+        if (!pedido) return []
+        const mesa = ds.mesas.find((m) => m.id === pedido.mesa_id)
+        const mesero = ds.usuarios.find((u) => u.id === pedido.mesero_id)
+        const items = ds.items.filter((i) => i.pedido_id === pedido.id)
+        return [{ pedido, mesa, mesero, items }]
+      })
+      const nombres = [...new Set(pedidos.map((p) => p.mesa?.nombre).filter(Boolean))].join(', ') || 'Sin mesa'
+      const meseros = [...new Set(pedidos.map((p) => p.mesero?.nombre).filter(Boolean))].join(', ') || '—'
+      const texto = [cuenta.numero, nombres, meseros, ...pedidos.flatMap((p) => p.items.map((i) => i.nombre_producto))].join(' ').toLocaleLowerCase()
+      return { cuenta, pedidos, nombres, meseros, texto }
+    })
+    const coincidencias = detalles.filter((x) => !rango.busqueda || x.texto.includes(rango.busqueda.toLocaleLowerCase()))
+    const validos = detalles.filter((d) => d.cuenta.estado === 'pagada')
+    const articulos = validos.flatMap((d) => d.pedidos.flatMap((p) => p.items.filter((i) => !i.anulado).map((item) => ({
+      ...item,
+      bebida: item.es_bebida ?? esBebidaEn(ds, rid, item.producto_id),
+      meseroId: p.pedido.mesero_id,
+      mesero: p.mesero?.nombre ?? '—',
+      mesaId: p.pedido.mesa_id,
+      mesa: p.mesa?.nombre ?? '—',
+      pedidoId: p.pedido.id,
+      fecha: p.pedido.created_at,
+      cuentaId: d.cuenta.id,
+    }))))
+    const productos = new Map<string, ReporteVentas['productos'][number]>()
+    for (const i of articulos) {
+      const key = `${i.nombre_producto}|${i.bebida}`
+      const x = productos.get(key) ?? { nombre: i.nombre_producto, es_bebida: i.bebida, cantidad: 0, total: 0 }
+      x.cantidad += i.cantidad
+      x.total += i.cantidad * i.precio_unitario
+      productos.set(key, x)
+    }
+    const mapaMeseros = new Map<string, ReporteVentas['meseros'][number]>()
+    const mapaMesas = new Map<string, ReporteVentas['mesas'][number]>()
+    for (const i of articulos) {
+      const mesero = mapaMeseros.get(i.meseroId) ?? { id: i.meseroId, nombre: i.mesero, pedidos: 0, unidades: 0, ventas: 0 }
+      mesero.unidades += i.cantidad
+      mesero.ventas += i.cantidad * i.precio_unitario
+      mapaMeseros.set(i.meseroId, mesero)
+      const mesa = mapaMesas.get(i.mesaId) ?? { id: i.mesaId, nombre: i.mesa, cuentas: 0, ventas: 0 }
+      mesa.ventas += i.cantidad * i.precio_unitario
+      mapaMesas.set(i.mesaId, mesa)
+    }
+    const meseros = [...mapaMeseros.values()]
+    for (const m of meseros) m.pedidos = new Set(articulos.filter((i) => i.meseroId === m.id).map((i) => i.pedidoId)).size
+    const mesas = [...mapaMesas.values()]
+    for (const m of mesas) m.cuentas = new Set(articulos.filter((i) => i.mesaId === m.id).map((i) => i.cuentaId)).size
+    const cuentas = coincidencias.map(({ cuenta: c, pedidos, nombres, meseros: nombresMeseros }) => ({
+      id: c.id, numero: c.numero ?? null, estado: c.estado as 'pagada' | 'anulada', total: c.total,
+      propina: c.propina ?? null, vuelto: c.vuelto ?? null, metodo_pago: c.metodo_pago,
+      pagado_at: c.pagado_at, anulada_at: c.anulada_at ?? null, motivo_anulacion: c.motivo_anulacion ?? null,
+      monto_reembolsado: c.monto_reembolsado ?? null, created_at: c.created_at, mesas: nombres, meseros: nombresMeseros,
+      pagos: ds.pagos.filter((p) => p.cuenta_id === c.id).map((p) => ({ metodo_pago: p.metodo_pago, monto: p.monto })),
+      pedidos: pedidos.map(({ pedido, mesa, mesero, items }) => ({ pedido_id: pedido.id, created_at: pedido.created_at,
+        mesa: mesa?.nombre ?? '—', mesero: mesero?.nombre ?? '—', items: items.map((i) => ({ nombre: i.nombre_producto,
+          cantidad: i.cantidad, precio_unitario: i.precio_unitario, total: i.cantidad * i.precio_unitario,
+          es_bebida: i.es_bebida ?? esBebidaEn(ds, rid, i.producto_id), anulado: i.anulado === true, nota: i.nota ?? null })) })),
+    })).sort((a, b) => Date.parse(b.pagado_at ?? b.anulada_at ?? b.created_at) - Date.parse(a.pagado_at ?? a.anulada_at ?? a.created_at))
+      .slice(rango.offset, rango.offset + rango.limite)
+    return { data: {
+      resumen: { ventas: cuentasRango.filter((c) => c.estado === 'pagada').reduce((s, c) => s + c.total, 0),
+        cuentas_pagadas: cuentasRango.filter((c) => c.estado === 'pagada').length,
+        cuentas_anuladas: cuentasRango.filter((c) => c.estado === 'anulada').length,
+        reembolsos: cuentasRango.filter((c) => c.estado === 'anulada').reduce((s, c) => s + (c.monto_reembolsado ?? 0), 0),
+        propinas: cuentasRango.filter((c) => c.estado === 'pagada').reduce((s, c) => s + (c.propina ?? 0), 0),
+        ticket_promedio: cuentasRango.filter((c) => c.estado === 'pagada').length ? cuentasRango.filter((c) => c.estado === 'pagada').reduce((s, c) => s + c.total, 0) / cuentasRango.filter((c) => c.estado === 'pagada').length : 0 },
+      productos: [...productos.values()].sort((a, b) => b.total - a.total),
+      meseros: meseros.sort((a, b) => b.ventas - a.ventas), mesas: mesas.sort((a, b) => b.ventas - a.ventas),
+      cuentas, total_cuentas: coincidencias.length,
+    }, error: null }
   },
   async getCuentasPagadas(rid) {
     await espera(250)

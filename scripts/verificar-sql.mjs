@@ -38,6 +38,39 @@ try {
     begin;
     do $$
     declare r uuid:=gen_random_uuid(); u uuid:=gen_random_uuid(); z uuid:=gen_random_uuid();
+      m uuid:=gen_random_uuid(); pr uuid:=gen_random_uuid(); ped uuid:=gen_random_uuid();
+      c uuid:=gen_random_uuid(); salida jsonb; inicial text:=current_user;
+    begin
+      insert into auth.users(id) values(u);
+      insert into public.restaurantes(id,nombre,suscripcion_activa) values(r,'QA reporte',true);
+      insert into public.usuarios(id,restaurante_id,rol,nombre) values(u,r,'admin_restaurante','Admin QA');
+      insert into public.zonas(id,restaurante_id,nombre) values(z,r,'QA');
+      insert into public.mesas(id,restaurante_id,zona_id,nombre) values(m,r,z,'Mesa QA');
+      insert into public.productos(id,restaurante_id,nombre,precio,es_bebida) values(pr,r,'Agua QA',5,true);
+      insert into public.pedidos(id,restaurante_id,mesa_id,mesero_id) values(ped,r,m,u);
+      insert into public.pedido_items(pedido_id,producto_id,nombre_producto,cantidad,precio_unitario,es_bebida)
+        values(ped,pr,'Agua QA',2,5,true);
+      insert into public.cuentas(id,restaurante_id,mesa_id,total,metodo_pago,estado,pagado_at,numero)
+        values(c,r,m,10,'efectivo','pagada',now(),'BQA-0001');
+      insert into public.cuenta_pedidos(cuenta_id,pedido_id,subtotal) values(c,ped,10);
+      insert into public.cuenta_pagos(cuenta_id,restaurante_id,metodo_pago,monto) values(c,r,'efectivo',10);
+      perform set_config('request.jwt.claim.sub',u::text,true);
+      execute 'set local role authenticated';
+      salida:=public.reporte_ventas_restaurante(r,now()-interval '1 day',now()+interval '1 day','todas','',0,25);
+      if (salida#>>'{resumen,ventas}')::numeric<>10 then raise exception 'El reporte no suma las cuentas pagadas'; end if;
+      if (salida#>>'{productos,0,cantidad}')::int<>2 or (salida#>>'{productos,0,es_bebida}')::boolean is not true then raise exception 'El reporte no conserva cantidad/clasificación de bebida'; end if;
+      if salida#>>'{cuentas,0,pedidos,0,items,0,nombre}'<>'Agua QA' then raise exception 'Falta el detalle histórico del consumo'; end if;
+      if has_function_privilege('anon','public.reporte_ventas_restaurante(uuid,timestamp with time zone,timestamp with time zone,text,text,integer,integer)','execute') then raise exception 'Anon puede ejecutar el reporte'; end if;
+      execute format('set local role %I',inicial);
+    end;
+    $$;
+    rollback;
+  `)
+  console.log('SQL QA: reporte ventas, consumo, bebidas y permisos de administrador aprobados')
+  await pg.exec(`
+    begin;
+    do $$
+    declare r uuid:=gen_random_uuid(); u uuid:=gen_random_uuid(); z uuid:=gen_random_uuid();
       m uuid:=gen_random_uuid(); pr uuid:=gen_random_uuid(); inicial text:=current_user;
     begin
       insert into auth.users(id) values(u);

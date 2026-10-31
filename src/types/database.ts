@@ -172,6 +172,8 @@ export type PedidoItem = {
   anulado?: boolean | null
   anulado_por?: string | null
   anulado_at?: string | null
+  /** Clasificación histórica para reportes, congelada al crear la comanda. */
+  es_bebida?: boolean | null
   created_at: string
 }
 
@@ -356,6 +358,18 @@ export interface Database {
       mesas_por_cobrar: {
         Args: { p_restaurante_id: string }
         Returns: { mesa_id: string; mesa_nombre: string; total: number; pedidos: number }[]
+      }
+      reporte_ventas_restaurante: {
+        Args: {
+          p_restaurante_id: string
+          p_desde: string
+          p_hasta: string
+          p_estado?: string
+          p_busqueda?: string
+          p_offset?: number
+          p_limite?: number
+        }
+        Returns: Record<string, unknown>
       }
       /** Solo super admin. Edita los datos administrativos de un restaurante (RPC de gestión del panel). */
       admin_actualizar_restaurante: {

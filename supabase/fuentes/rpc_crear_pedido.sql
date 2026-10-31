@@ -106,14 +106,15 @@ begin
       raise exception 'El producto % no tiene precio válido', v_producto.nombre;
     end if;
 
-    insert into public.pedido_items (pedido_id, producto_id, nombre_producto, cantidad, precio_unitario, nota)
+    insert into public.pedido_items (pedido_id, producto_id, nombre_producto, cantidad, precio_unitario, nota, es_bebida)
     values (
       v_pedido_id,
       v_producto.id,
       v_producto.nombre,
       v_cantidad,
       v_precio,
-      nullif(btrim(coalesce(v_item->>'nota', '')), '')
+      nullif(btrim(coalesce(v_item->>'nota', '')), ''),
+      coalesce(v_producto.es_bebida, false)
     );
   end loop;
 

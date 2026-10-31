@@ -54,6 +54,7 @@ const ORDEN = [
   '00_seguridad_rpcs.sql',
   'migracion_items_anulables.sql',
   'migracion_productos_es_bebida.sql',
+  '../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql',
   'migracion_password_recovery.sql',
   '../migrations/20261029052901_datos_local_dominio.sql',
   'pin_autorizacion.sql',

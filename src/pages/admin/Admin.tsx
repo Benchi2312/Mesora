@@ -9,11 +9,13 @@ import ConfiguracionTab from './ConfiguracionTab'
 import SoporteTab from './SoporteTab'
 import CajaTab from './CajaTab'
 import CobrosTab from './CobrosTab'
+import VentasTab from './VentasTab'
 
-type SeccionTab = 'dashboard' | 'caja' | 'cobros' | 'mesas' | 'menu' | 'personal' | 'configuracion' | 'soporte'
+type SeccionTab = 'dashboard' | 'ventas' | 'caja' | 'cobros' | 'mesas' | 'menu' | 'personal' | 'configuracion' | 'soporte'
 
 const SECCIONES: { id: SeccionTab; label: string }[] = [
   { id: 'dashboard', label: 'Dashboard' },
+  { id: 'ventas', label: 'Ventas' },
   { id: 'caja', label: 'Caja' },
   { id: 'cobros', label: 'Cobros' },
   { id: 'mesas', label: 'Mesas y zonas' },
@@ -63,6 +65,7 @@ export default function Admin() {
       </nav>
 
       {seccion === 'dashboard' && <DashboardTab />}
+      {seccion === 'ventas' && <VentasTab />}
       {seccion === 'caja' && <CajaTab />}
       {seccion === 'cobros' && <CobrosTab />}
       {seccion === 'mesas' && <MesasZonasTab />}

@@ -911,6 +911,22 @@ const csvComillas = reporteACsv(
 )
 check('14j · un nombre con coma y comillas se escapa correctamente', csvComillas.includes('"Local, ""El Coco"""'))
 check('14k · los montos se escriben con 2 decimales', csvComillas.includes('12.50'))
+const reporteDetallado = await api.getReporteVentas(RID, {
+  desde: '2000-01-01T00:00:00.000Z', hasta: '2101-01-01T00:00:00.000Z',
+  estado: 'todas', busqueda: '', offset: 0, limite: 25,
+})
+check('14l · el reporte detallado carga sin error', !reporteDetallado.error, reporteDetallado.error ?? '')
+check('14m · el resumen coincide con la cantidad de cuentas cobradas', reporteDetallado.data?.resumen.cuentas_pagadas === pagadas.data.length)
+check('14n · cada cuenta incluye mesa, mesero, pedidos e ítems', Boolean(reporteDetallado.data?.cuentas.some((c) => c.pedidos.some((p) => p.items.length > 0))))
+check('14o · los pagos conservan el desglose por método', Boolean(reporteDetallado.data?.cuentas.every((c) => c.pagos.length > 0)))
+const cuentaParaBuscar = reporteDetallado.data?.cuentas[0]
+if (cuentaParaBuscar?.numero) {
+  const filtradoDetallado = await api.getReporteVentas(RID, {
+    desde: '2000-01-01T00:00:00.000Z', hasta: '2101-01-01T00:00:00.000Z',
+    estado: 'todas', busqueda: cuentaParaBuscar.numero, offset: 0, limite: 25,
+  })
+  check('14p · la búsqueda por boleta devuelve la coincidencia', filtradoDetallado.data?.cuentas.length === 1 && filtradoDetallado.data.cuentas[0].id === cuentaParaBuscar.id)
+}
 
 // ---------------------------------------------------------------------------
 titulo('15 · Caja por turnos (apertura y arqueo)')
