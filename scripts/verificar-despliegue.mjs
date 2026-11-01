@@ -85,8 +85,10 @@ try {
       assert.equal(new URL(page.url()).origin, origen, `${caso.ruta}: redirección fuera del despliegue; revisa su protección de acceso.`)
 
       if (caso.tipo === 'landing') {
-        await expect(page.getByRole('heading', { level: 1, name: /Tu restaurante/ })).toBeVisible()
-        await expect(page.getByRole('link', { name: 'Probar el demo', exact: true })).toBeVisible()
+        await expect(page.getByRole('heading', { level: 1, name: /Del pedido al cierre/ })).toBeVisible()
+        await expect(page.getByRole('link', { name: 'Explorar demo', exact: true }).first()).toBeVisible()
+        await expect(page.getByRole('heading', { name: 'Conversemos sobre tu operación', exact: true })).toBeVisible()
+        await expect(page.getByRole('heading', { name: 'Lo importante antes de probar Mesora', exact: true })).toBeVisible()
       } else if (caso.tipo === 'login' || caso.tipo === 'privada') {
         await expect(page).toHaveURL(`${origen}/login`)
         await expect(page.getByRole('heading', { name: 'Iniciar sesión', exact: true })).toBeVisible()
