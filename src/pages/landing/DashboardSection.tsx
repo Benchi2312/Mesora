@@ -2,30 +2,11 @@ import SectionHeading from './SectionHeading'
 import { IconChartBar, IconTrendingUp, IconUsers, IconWallet } from './Icons'
 
 const puntos = [
-  {
-    icon: IconTrendingUp,
-    titulo: 'Ventas que se ven de un vistazo',
-    desc: 'Compara el día con el mes y detecta tendencias al instante.',
-  },
-  {
-    icon: IconChartBar,
-    titulo: 'Tu plato estrella claro',
-    desc: 'El producto más vendido deja de ser una intuición.',
-  },
-  {
-    icon: IconUsers,
-    titulo: 'Rendimiento por mesero',
-    desc: 'Reconoce a tu mejor equipo y mejora el servicio.',
-  },
-  {
-    icon: IconWallet,
-    titulo: 'Control total del cierre',
-    desc: 'Cuentas cerradas y métodos de pago siempre al día.',
-  },
+  { icon: IconTrendingUp, titulo: 'Ventas y cierres', desc: 'Consulta las cuentas pagadas y anuladas en un periodo.' },
+  { icon: IconChartBar, titulo: 'Productos y bebidas', desc: 'Revisa qué artículos generan más ventas.' },
+  { icon: IconUsers, titulo: 'Desempeño del equipo', desc: 'Compara las ventas registradas por mesero.' },
+  { icon: IconWallet, titulo: 'Detalle por cuenta', desc: 'Inspecciona consumos, pagos y anulaciones.' },
 ]
-
-const barras = [42, 68, 55, 84, 60, 96, 74]
-const dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 
 export default function DashboardSection() {
   return (
@@ -34,9 +15,9 @@ export default function DashboardSection() {
         <div className="flex flex-col items-start gap-3">
           <SectionHeading
             align="left"
-            eyebrow="Dashboard"
-            title="Convierte la información en mejores decisiones"
-            subtitle="Tu operación produce datos todos los días. Mesora los ordena para que ganes tiempo y pierdas menos."
+            eyebrow="Administración"
+            title="Entiende qué se vendió y cómo cerró el día"
+            subtitle="Consulta el detalle de las cuentas y resume la actividad del local con filtros por periodo."
           />
           <ul className="mt-4 flex flex-col gap-4">
             {puntos.map((p) => (
@@ -53,58 +34,30 @@ export default function DashboardSection() {
           </ul>
         </div>
 
-        <div className="rounded-3xl border border-surface-700 bg-surface-900 p-6 shadow-2xl shadow-black/40">
-          <div className="mb-6 flex items-center justify-between">
+        <div className="rounded-3xl border border-surface-700 bg-surface-900 p-5 shadow-2xl shadow-black/40 sm:p-6">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-medium uppercase tracking-widest text-zinc-500">
-                Dashboard
-              </p>
-              <p className="text-lg font-bold text-white">Resumen del día</p>
+              <p className="text-xs font-medium uppercase tracking-widest text-zinc-500">Panel de administración</p>
+              <p className="mt-1 text-lg font-bold text-white">Ventas del local</p>
             </div>
-            <span className="rounded-full bg-ok-500/15 px-3 py-1 text-xs font-semibold text-ok-500">
-              Actualizado hace 2 min
-            </span>
+            <span className="rounded-full bg-surface-800 px-3 py-1 text-xs font-medium text-zinc-300">Filtra por fecha</span>
           </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-2xl border border-surface-800 bg-surface-950/60 p-4">
-              <p className="text-xs text-zinc-500">Ventas hoy</p>
-              <p className="mt-1 text-xl font-bold text-white">S/ 1,286</p>
-              <p className="mt-1 text-xs font-semibold text-ok-500">+12% vs ayer</p>
-            </div>
-            <div className="rounded-2xl border border-surface-800 bg-surface-950/60 p-4">
-              <p className="text-xs text-zinc-500">Ventas mes</p>
-              <p className="mt-1 text-xl font-bold text-white">S/ 24,350</p>
-              <p className="mt-1 text-xs font-semibold text-brand-500">On track</p>
-            </div>
-            <div className="rounded-2xl border border-surface-800 bg-surface-950/60 p-4">
-              <p className="text-xs text-zinc-500">Ticket promedio</p>
-              <p className="mt-1 text-xl font-bold text-white">S/ 58</p>
-              <p className="mt-1 text-xs font-semibold text-zinc-500">+3.2%</p>
-            </div>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              ['Resumen', 'Cobros, devoluciones y propinas'],
+              ['Productos', 'Platos y bebidas más vendidos'],
+              ['Equipo', 'Ventas por mesero'],
+              ['Cuentas', 'Consumos y métodos de pago'],
+            ].map(([title, description]) => (
+              <div key={title} className="min-h-28 rounded-2xl border border-surface-800 bg-surface-950/70 p-4">
+                <p className="font-semibold text-white">{title}</p>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-400">{description}</p>
+              </div>
+            ))}
           </div>
-
-          <div className="mt-6 rounded-2xl border border-surface-800 bg-surface-950/60 p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">Ventas de la semana</p>
-              <p className="text-sm font-bold text-brand-500">S/ 7,940</p>
-            </div>
-            <div className="flex h-32 items-end gap-2.5">
-              {barras.map((h, i) => (
-                <div key={`${dias[i]}-${h}`} className="flex flex-1 flex-col items-center gap-2">
-                  <div
-                    className={`w-full rounded-md ${
-                      i === 5
-                        ? 'bg-gradient-to-t from-brand-600 to-brand-400'
-                        : 'bg-gradient-to-t from-surface-700 to-surface-600'
-                    }`}
-                    style={{ height: `${h}%` }}
-                  />
-                  <span className="text-xs text-zinc-500">{dias[i]}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <p className="mt-4 text-center text-xs text-zinc-500">
+            Funciones mostradas; los valores dependen de los registros del restaurante.
+          </p>
         </div>
       </div>
     </section>

@@ -12,32 +12,32 @@ const features = [
   {
     icon: IconClipboard,
     title: 'Toma de pedidos',
-    desc: 'Registra las comandas desde la mesa en tablet o celular, con productos por categoría y precios en promoción.',
+    desc: 'Registra pedidos desde las mesas con productos, categorías y precios configurados para el local.',
   },
   {
     icon: IconPot,
     title: 'Cocina sincronizada',
-    desc: 'La cocina recibe cada comanda en tiempo real y actualiza el estado de preparación sin papeles.',
+    desc: 'La cocina consulta las comandas y actualiza su estado de preparación durante el servicio.',
   },
   {
     icon: IconCard,
     title: 'Cierre de cuenta',
-    desc: 'Cobra al instante en efectivo, Yape, Plin, tarjeta o link de pago, con vuelto y propina.',
+    desc: 'Registra el pago con el método utilizado y consulta el detalle de la cuenta y su cierre.',
   },
   {
     icon: IconChartBar,
     title: 'Dashboard de ventas',
-    desc: 'Ventas por mesero, plato más vendido y ticket promedio para entender tu operación.',
+    desc: 'Consulta cobros, anulaciones, productos más vendidos y ventas por mesero.',
   },
   {
     icon: IconGrid,
-    title: '100% configurable',
-    desc: 'Zonas, mesas, categorías, productos y meseros. Tu restaurante, a tu manera.',
+    title: 'Configuración del local',
+    desc: 'Organiza zonas, mesas, categorías, productos y personal desde administración.',
   },
   {
     icon: IconRocket,
     title: 'Hecho para MYPEs',
-    desc: 'Simple de usar, rápido de poner en marcha y con precios pensados para negocios que crecen.',
+    desc: 'Acceso desde navegador con vistas diferenciadas para cada rol del restaurante.',
   },
 ]
 

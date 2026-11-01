@@ -5,6 +5,8 @@ import Flujo from './Flujo'
 import DashboardSection from './DashboardSection'
 import ControlSection from './ControlSection'
 import Planes from './Planes'
+import PreguntasFrecuentes from './PreguntasFrecuentes'
+import Piloto from './Piloto'
 import Footer from './Footer'
 
 export default function Landing() {
@@ -18,6 +20,8 @@ export default function Landing() {
         <DashboardSection />
         <ControlSection />
         <Planes />
+        <PreguntasFrecuentes />
+        <Piloto />
       </main>
       <Footer />
     </div>

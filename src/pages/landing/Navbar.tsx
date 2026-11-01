@@ -6,7 +6,7 @@ const links = [
   { href: '#soluciones', label: 'Soluciones' },
   { href: '#como-funciona', label: 'Cómo funciona' },
   { href: '#planes', label: 'Planes' },
-  { href: '#contacto', label: 'Contacto' },
+  { href: '#preguntas', label: 'FAQ' },
 ]
 
 export function Logo() {
@@ -51,9 +51,15 @@ export default function Navbar() {
             to="/demo"
             className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2 text-sm font-bold text-surface-950 shadow-lg shadow-brand-500/25 transition hover:bg-brand-400"
           >
-            Solicitar demo
+            Explorar demo
             <IconArrowRight className="h-4 w-4" />
           </Link>
+          <a
+            href="#piloto"
+            className="hidden rounded-lg border border-brand-500/40 px-3 py-2 text-sm font-semibold text-brand-300 transition hover:bg-brand-500/10 sm:inline-flex"
+          >
+            Solicitar piloto
+          </a>
         </div>
       </nav>
     </header>
