@@ -867,11 +867,15 @@ check(
   pagadas.data.every((c) => typeof c.total === 'number' && c.metodo_pago && c.pagado_at),
 )
 check(
-  '14c · el listado coincide con las cuentas pagadas del dashboard',
-  pagadas.data.length === metricasReporte.porMetodo.reduce((a, m) => a + m.cuentas, 0),
+  '14c · las cuentas mensuales coinciden con el total pagado del dashboard',
+  pagadas.data.filter((c) => c.pagado_at && new Date(c.pagado_at).getMonth() === new Date().getMonth() && new Date(c.pagado_at).getFullYear() === new Date().getFullYear()).length === metricasReporte.cuentasMes,
 )
 
-const reporte = construirReporte('La Esquina', pagadas.data, metricasReporte)
+const ahoraReporte = new Date()
+const inicioMesReporte = new Date(ahoraReporte.getFullYear(), ahoraReporte.getMonth(), 1).getTime()
+const inicioMesSiguienteReporte = new Date(ahoraReporte.getFullYear(), ahoraReporte.getMonth() + 1, 1).getTime()
+const pagadasMesReporte = pagadas.data.filter((c) => c.pagado_at && Date.parse(c.pagado_at) >= inicioMesReporte && Date.parse(c.pagado_at) < inicioMesSiguienteReporte)
+const reporte = construirReporte('La Esquina', pagadasMesReporte, metricasReporte)
 const csv = reporteACsv(reporte)
 const lineas = csv.split('\r\n')
 

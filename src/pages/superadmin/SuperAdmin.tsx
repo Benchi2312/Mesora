@@ -8,6 +8,13 @@ import { suSuscripcionVencida } from '../../store/auth'
 import type { Restaurante } from '../../types/database'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
+import {
+  PRESETS_RANGO,
+  etiquetaDia,
+  rangoDePreset,
+  type EstadisticasGlobales,
+  type PresetRango,
+} from '../../domain/reporting/estadisticas'
 
 /** Ventana de "próximos a vencer" que mira el dashboard. */
 const DIAS_PARA_VENCER = 30
@@ -44,6 +51,10 @@ export default function SuperAdmin() {
   const [restaurantes, setRestaurantes] = useState<Restaurante[]>([])
   const [admins, setAdmins] = useState<AdminRestaurante[]>([])
   const [usuarios, setUsuarios] = useState<UsuarioPlataforma[]>([])
+  const [preset, setPreset] = useState<PresetRango>('7d')
+  const [estadisticas, setEstadisticas] = useState<EstadisticasGlobales | null>(null)
+  const [errorEstadisticas, setErrorEstadisticas] = useState<string | null>(null)
+  const [actualizado, setActualizado] = useState<Date | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -68,6 +79,23 @@ export default function SuperAdmin() {
     setCargando(true)
     void cargar().finally(() => setCargando(false))
   }, [cargar])
+
+  useEffect(() => {
+    let vigente = true
+    const { desde, hasta } = rangoDePreset(preset)
+    void getApi().getEstadisticasGlobales(desde, hasta).then((res) => {
+      if (!vigente) return
+      if (res.error) {
+        setErrorEstadisticas(res.error)
+        setEstadisticas(null)
+      } else {
+        setErrorEstadisticas(null)
+        setEstadisticas(res.data)
+        setActualizado(new Date())
+      }
+    })
+    return () => { vigente = false }
+  }, [preset])
 
   if (cargando)
     return (
@@ -119,6 +147,70 @@ export default function SuperAdmin() {
 
   return (
     <div>
+      <section className="card mb-6 space-y-4 p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Pulso de la plataforma</h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              Actividad de los restaurantes clientes; estas ventas no representan ingresos de Mesora.
+              {actualizado && ` · Actualizado ${new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit' }).format(actualizado)} (Lima)`}
+            </p>
+          </div>
+          <Link to="/super-admin/estadisticas" className="btn btn-outline min-h-10 px-3 py-2 text-sm">Ver estadísticas</Link>
+        </div>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Periodo del pulso de la plataforma">
+          {PRESETS_RANGO.filter((p) => p.clave !== 'hoy').map((p) => (
+            <button key={p.clave} type="button" aria-pressed={preset === p.clave} onClick={() => setPreset(p.clave)} className={`btn min-h-10 px-3 py-2 text-sm ${preset === p.clave ? 'btn-primary' : 'btn-outline'}`}>
+              {p.etiqueta}
+            </button>
+          ))}
+          {estadisticas && <span className="self-center text-xs text-zinc-500">
+            {etiquetaDia(estadisticas.desde.slice(0, 10))} – {etiquetaDia(estadisticas.hasta.slice(0, 10))}
+          </span>}
+        </div>
+        {errorEstadisticas && <p role="alert" className="text-sm text-danger-400">No se pudieron cargar las métricas del periodo. {errorEstadisticas}</p>}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Tarjeta etiqueta="Restaurantes activos" valor={estadisticas ? estadisticas.resumen.restaurantesActivos : '—'} clase="text-ok-500" nota="Con suscripción vigente hoy" />
+          <Tarjeta etiqueta="Ventas de clientes" valor={estadisticas ? `S/ ${estadisticas.resumen.ventas.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'} clase="text-brand-400" nota="Cuentas pagadas en el periodo" />
+          <Tarjeta etiqueta="Pedidos de clientes" valor={estadisticas ? estadisticas.resumen.pedidos.toLocaleString('es-PE') : '—'} clase="text-zinc-100" nota="Comandas creadas en el periodo" />
+          <Tarjeta etiqueta="Restaurantes nuevos" valor={estadisticas ? estadisticas.resumen.restaurantesNuevos : '—'} clase="text-brand-400" nota="Altas dentro del periodo" />
+        </div>
+        {estadisticas && <div className="grid gap-4 lg:grid-cols-2">
+          <section className="rounded-xl border border-surface-700 bg-surface-900/60 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Ventas procesadas por clientes</h3>
+              <span className="text-sm font-semibold text-zinc-200">S/ {estadisticas.resumen.ventas.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            {estadisticas.evolucion.ventas.some((p) => p.valor > 0) ? <div className="flex h-28 items-end gap-1" role="img" aria-label="Tendencia diaria de ventas procesadas por restaurantes clientes">
+              {estadisticas.evolucion.ventas.map((p) => {
+                const max = Math.max(...estadisticas.evolucion.ventas.map((x) => x.valor), 1)
+                return <div key={p.fecha} className="flex h-full flex-1 items-end" title={`${etiquetaDia(p.fecha)} · S/ ${p.valor.toFixed(2)}`}>
+                  <div className={`w-full rounded-t-sm ${p.valor ? 'bg-brand-500' : 'bg-surface-700'}`} style={{ height: p.valor ? `${Math.max(4, p.valor / max * 100)}%` : '2px' }} />
+                </div>
+              })}
+            </div> : <p className="py-6 text-center text-sm text-zinc-500">Sin ventas de clientes en este periodo.</p>}
+            <div className="mt-2 flex justify-between text-[10px] text-zinc-500">
+              <span>{estadisticas.evolucion.ventas[0] ? etiquetaDia(estadisticas.evolucion.ventas[0].fecha) : ''}</span>
+              <span>{estadisticas.evolucion.ventas.at(-1) ? etiquetaDia(estadisticas.evolucion.ventas.at(-1)!.fecha) : ''}</span>
+            </div>
+          </section>
+          <section className="rounded-xl border border-surface-700 bg-surface-900/60 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Clientes con más actividad</h3>
+              <Link to="/super-admin/estadisticas" className="text-xs font-semibold text-brand-400 hover:text-brand-300">Ranking completo</Link>
+            </div>
+            {estadisticas.ranking.length ? <ol className="space-y-2">
+              {estadisticas.ranking.slice(0, 5).map((r, i) => <li key={r.restauranteId} className="flex items-center gap-3 text-sm">
+                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${i === 0 ? 'bg-brand-500 text-surface-950' : 'bg-surface-700 text-zinc-300'}`}>{i + 1}</span>
+                <span className="min-w-0 flex-1 truncate text-zinc-200">{r.nombre}</span>
+                <span className="text-xs text-zinc-500">{r.pedidos} pedidos</span>
+                <span className="shrink-0 font-semibold text-brand-400">S/ {r.ventas.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </li>)}
+            </ol> : <EstadoVacio titulo="Sin actividad de clientes en el periodo." className="py-5" />}
+          </section>
+        </div>}
+      </section>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Tarjeta
           etiqueta="Restaurantes registrados"

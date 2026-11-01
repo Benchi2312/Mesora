@@ -149,7 +149,15 @@ export default function DashboardTab() {
       setExportando(false)
       return
     }
-    descargarReporte(construirReporte(restaurante.nombre, cuentas ?? [], metricasCsv))
+    const ahora = new Date()
+    const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1).getTime()
+    const inicioMesSiguiente = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 1).getTime()
+    const cuentasDelMes = (cuentas ?? []).filter((cuenta) => {
+      if (!cuenta.pagado_at) return false
+      const pago = Date.parse(cuenta.pagado_at)
+      return pago >= inicioMes && pago < inicioMesSiguiente
+    })
+    descargarReporte(construirReporte(restaurante.nombre, cuentasDelMes, metricasCsv))
     setExportando(false)
     setAvisoExport('CSV mensual descargado.')
   }

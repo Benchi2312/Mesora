@@ -160,27 +160,32 @@ export function computeMetricas(
     pagosPorCuenta.set(p.cuenta_id, arr)
   }
   const porMetodoMap = new Map<string, VentaMetodo>()
-  for (const c of pagadas) {
+  // Este desglose acompaña al resumen mensual del CSV; mantenerlo en el mismo
+  // periodo evita mezclar cuentas históricas con `ventaMes` al cambiar de mes.
+  for (const c of delMes) {
     const partes = pagosPorCuenta.get(c.id)
     if (partes && partes.length > 0) {
-      // Cuenta dividida: cada método se lleva lo suyo. El vuelto se descuenta
-      // del efectivo (es el único del que puede salir) para que la suma de
-      // "ventas por método" siga cuadrando con `ventaMes`.
+      // Los pagos pueden incluir propina y el efectivo puede incluir vuelto.
+      // Reparte solo el valor de la cuenta entre métodos, proporcionalmente.
+      const recibidoPorMetodo = new Map<string, number>()
       for (const parte of partes) {
-        const neto = Math.max(
-          0,
-          parte.metodo_pago === 'efectivo' ? parte.monto - (c.vuelto ?? 0) : parte.monto,
-        )
-        if (neto <= 0) continue
-        const cur = porMetodoMap.get(parte.metodo_pago) ?? {
-          metodo: parte.metodo_pago,
-          total: 0,
-          cuentas: 0,
-        }
-        cur.total += neto
-        cur.cuentas += 1
-        porMetodoMap.set(parte.metodo_pago, cur)
+        const recibido = Math.max(0, parte.monto - (parte.metodo_pago === 'efectivo' ? (c.vuelto ?? 0) : 0))
+        recibidoPorMetodo.set(parte.metodo_pago, (recibidoPorMetodo.get(parte.metodo_pago) ?? 0) + recibido)
       }
+      const recibidoTotal = [...recibidoPorMetodo.values()].reduce((s, n) => s + n, 0)
+      if (recibidoTotal <= 0) continue
+      const repartos = [...recibidoPorMetodo.entries()].sort((a, b) => b[1] - a[1])
+      let asignado = 0
+      repartos.forEach(([metodo, recibido], indice) => {
+        const venta = indice === repartos.length - 1
+          ? c2(c.total - asignado)
+          : c2(c.total * recibido / recibidoTotal)
+        asignado += venta
+        const cur = porMetodoMap.get(metodo) ?? { metodo: metodo as MetodoPago, total: 0, cuentas: 0 }
+        cur.total = c2(cur.total + venta)
+        cur.cuentas += 1
+        porMetodoMap.set(metodo, cur)
+      })
       continue
     }
     const cur = porMetodoMap.get(c.metodo_pago) ?? { metodo: c.metodo_pago, total: 0, cuentas: 0 }
@@ -192,7 +197,7 @@ export function computeMetricas(
 
   // Horarios pico
   const porHoraMap = new Map<string, VentaHora>()
-  for (const c of pagadas) {
+  for (const c of delMes) {
     const h = new Date(c.pagado_at as string).getHours()
     const key = `${String(h).padStart(2, '0')}:00`
     const cur = porHoraMap.get(key) ?? { hora: key, total: 0, cuentas: 0 }
