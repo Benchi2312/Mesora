@@ -103,6 +103,7 @@ administrador necesita un mecanismo de recuperación acordado y probado.
 | `npm run verificar:precuenta` | 24 escenarios a 390/1280 px: PDF/impresión, error de lectura, cambio entre lecturas, roles y cobro posterior. |
 | `npm run verificar:configuracion` | Validación, payload REST simulado, RPC pendientes, metadatos de diagnóstico y persistencia demo aprobados. |
 | `npm run verificar:responsive` | 344 checks en 360, 390, 768 y 1280 px aprobados. |
+| `npm run verificar:despliegue -- https://mesora-piloto.vercel.app` | Smoke público de 12 rutas; sin login ni escrituras en Supabase. |
 | `npm run verificar:sql` | Instalación vacía, permisos, migración RLS sobre policies previas, flujo SQL, 1205 pedidos y restauración aislada aprobados. Simula Auth; no prueba correo ni dos terminales concurrentes. |
 | `npm run build` | TypeScript y build de producción aprobados. |
 | `supabase/qa/seguridad_rpc_rollback.sql` | Anónimo rechazado, helpers privados, servicio autorizado y precio público comprobados. |
@@ -174,8 +175,7 @@ Objetivos iniciales: p95 de lectura menor a 3 s y cobro/anulación menor a
 
 Seguir [OPERACION_PILOTO.md](./OPERACION_PILOTO.md). Un restaurante, primer turno
 acompañado en baja demanda y conciliación diaria durante 3 a 7 días.
-Publicar la versión al final de la entrega, según la autorización actual del
-propietario. Cerrar los pendientes operativos antes de confiarle un turno real.
+El commit de código `5b4898b` se integró en `main` y se publicó automáticamente en https://mesora-piloto.vercel.app. El smoke público pasó 12 rutas el 2/11/2026. Cerrar los pendientes operativos antes de confiarle un turno real.
 
 ### Pendientes después del primer piloto
 
@@ -194,4 +194,4 @@ terminado. El repositorio permanece privado hasta que se complete la revisión
 de seguridad indicada en esta tabla. No publicar datos de acceso, copias de
 respaldo ni información del restaurante en el material promocional o Git.
 
-La migración RLS ya está aplicada a Supabase. El código de esta entrega queda integrado en `main` y el despliegue automático se verifica con el smoke público de diez rutas. Hacer público GitHub sigue aplazado hasta el cierre del piloto y la revisión de los materiales promocionales.
+La migración RLS ya está aplicada a Supabase. El código de esta entrega queda integrado en `main` y el despliegue automático se verifica con el smoke público de 12 rutas. Hacer público GitHub sigue aplazado hasta el cierre del piloto y la revisión de los materiales promocionales.

@@ -3,7 +3,7 @@
 Fecha de corte: **2 de noviembre de 2026**. Esta revisión se hizo sobre los
 metadatos del proyecto Supabase Mesora, sus asesores, las fuentes SQL locales y
 los refs Git disponibles. Tras probarla en PostgreSQL aislado, se aplicó una
-migración de policies/grants a producción; no modificó filas. El código de esta revisión se integra a main en esta entrega; el repositorio permanece privado.
+migración de policies/grants a producción; no modificó filas. El código de esta revisión quedó integrado en `main`; Vercel publicó el commit de producción y el smoke público pasó 12 rutas. El repositorio permanece privado.
 
 ## Hallazgos de Supabase
 
