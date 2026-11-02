@@ -32,6 +32,13 @@ const SALIDA = join(RAIZ, 'supabase', 'TODO_EN_UNO.sql')
 // ORDEN, que es solo para los archivos que hay que mantener).
 const GENERADOS = ['TODO_EN_UNO.sql']
 
+// La migración ya aplicada 20261022120000 tiene una copia versionada para que
+// Supabase CLI pueda conciliar el historial. El instalador la toma una sola vez
+// desde migrations/; esta fuente debe mantenerse idéntica.
+const FUENTES_VERSIONADAS = {
+  'migracion_password_recovery.sql': '../migrations/20261022120000_password_recovery.sql',
+}
+
 // -----------------------------------------------------------------------------
 // EL ORDEN. Es el único lugar del proyecto donde está la secuencia completa.
 // -----------------------------------------------------------------------------
@@ -51,12 +58,12 @@ const GENERADOS = ['TODO_EN_UNO.sql']
 // -----------------------------------------------------------------------------
 const ORDEN = [
   '00_schema_base.sql',
+  '../migrations/20261022120000_password_recovery.sql',
   '00_seguridad_rpcs.sql',
   'migracion_items_anulables.sql',
   'migracion_productos_es_bebida.sql',
   '../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql',
   '../migrations/20261031075708_reporte_ventas_dashboard.sql',
-  'migracion_password_recovery.sql',
   '../migrations/20261029052901_datos_local_dominio.sql',
   'pin_autorizacion.sql',
   'rpc_crear_pedido.sql',
@@ -76,6 +83,7 @@ const ORDEN = [
   '../migrations/20261030173320_consultas_pendientes_piloto.sql',
   '../migrations/20261030173503_diagnostico_piloto.sql',
   '../migrations/20261030173925_indice_mesas_zona.sql',
+  '../migrations/20261102081247_acotar_politicas_rls_piloto.sql',
 ]
 
 const fallos = []
@@ -96,12 +104,23 @@ const enDisco = [
 ]
   .filter((f) => f.endsWith('.sql') && !GENERADOS.includes(f))
   .sort()
-const faltantes = enDisco.filter((f) => !ORDEN.includes(f))
+const fuentesVersionadas = Object.keys(FUENTES_VERSIONADAS)
+const faltantes = enDisco.filter((f) => !ORDEN.includes(f) && !fuentesVersionadas.includes(f))
 const sobrantes = ORDEN.filter((f) => !enDisco.includes(f))
 
 console.log('\n1) Cobertura de la lista de orden')
 check('todo supabase/*.sql está en ORDEN', faltantes.length === 0, faltantes.join(', '))
 check('todo ORDEN existe en disco', sobrantes.length === 0, sobrantes.join(', '))
+
+console.log('\n1.1) Fuentes vinculadas a migraciones versionadas')
+for (const [fuente, migracion] of Object.entries(FUENTES_VERSIONADAS)) {
+  const fuentePath = join(DIR, fuente)
+  const migracionPath = join(DIR, migracion)
+  const iguales = existsSync(fuentePath) && existsSync(migracionPath)
+    && readFileSync(fuentePath, 'utf8').replace(/\r\n?/g, '\n').trim()
+      === readFileSync(migracionPath, 'utf8').replace(/\r\n?/g, '\n').trim()
+  check(`${fuente} coincide con ${migracion}`, iguales)
+}
 
 if (fallos.length) {
   console.log('\nNo se genera INSTALL.sql hasta que la lista esté completa.\n')

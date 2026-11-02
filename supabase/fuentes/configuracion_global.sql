@@ -55,7 +55,7 @@ alter table public.configuracion_global enable row level security;
 -- Lectura pública: la landing muestra estos datos sin sesión.
 drop policy if exists configuracion_global_select_public on public.configuracion_global;
 create policy configuracion_global_select_public on public.configuracion_global
-  for select using (true);
+  for select to anon using (true);
 
 drop policy if exists configuracion_global_select_super on public.configuracion_global;
 create policy configuracion_global_select_super on public.configuracion_global
@@ -68,12 +68,13 @@ create policy configuracion_global_update_super on public.configuracion_global
   with check (public.soy_super_admin());
 -- Sin INSERT/DELETE desde el cliente: la fila se siembra aquí.
 
--- La landing es anónima y solo necesita el precio y el nombre. Se otorga
+-- La landing es anónima y necesita precio y datos de contacto. Se otorga
 -- SELECT por COLUMNA (no sobre la tabla): así la anon key no puede leer
--- correo_soporte, telefono_soporte, informacion ni updated_by. RLS ya limita
--- las filas (id = 1), pero una policy no filtra columnas.
+-- nombre interno, logo, información ni auditoría. RLS limita las filas (id=1),
+-- pero una policy no filtra columnas.
 revoke all on public.configuracion_global from anon;
-grant select (nombre_app, precio_plan_mensual) on public.configuracion_global to anon;
+grant select (precio_plan_mensual, correo_soporte, telefono_soporte)
+  on public.configuracion_global to anon;
 grant select, update on public.configuracion_global to authenticated;
 
 -- El super admin es el único que edita, y solo estas columnas. Sin esto el
@@ -271,8 +272,11 @@ select
      where not tgisinternal and tgrelid = 'public.configuracion_global'::regclass) as trigger_ok,
   (select has_column_privilege('anon', 'public.configuracion_global', 'precio_plan_mensual', 'select')) as anon_precio_ok,
   (select has_column_privilege('anon', 'public.configuracion_global', 'correo_soporte', 'select')) as anon_correo_ok,
+  (select has_column_privilege('anon', 'public.configuracion_global', 'telefono_soporte', 'select')) as anon_telefono_ok,
+  (select has_column_privilege('anon', 'public.configuracion_global', 'informacion', 'select')) as anon_informacion_ok,
   (select has_function_privilege('anon', 'public.admin_alertas()', 'execute')) as anon_alerta,
   (select has_function_privilege('authenticated', 'public.admin_alertas()', 'execute')) as auth_alerta;
 -- Esperado: rls_ok=true, fila_unica_ok=true, precio_plan=120, policies_ok=true,
--- trigger_ok=true, anon_precio_ok=true, anon_correo_ok=false, anon_alerta=false,
+-- trigger_ok=true, anon_precio_ok=true, anon_correo_ok=true,
+-- anon_telefono_ok=true, anon_informacion_ok=false, anon_alerta=false,
 -- auth_alerta=true.

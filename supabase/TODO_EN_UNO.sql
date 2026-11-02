@@ -18,14 +18,14 @@
 --   - Si algo falla, los comentarios de bloque indican donde revisar.
 --   - Generado por npm run sql:install. Edita los fuentes, no este archivo.
 --
--- Contenido: 26 archivos · sha256(cuerpo) = 6c75b7f698ec
--- Orden: 00_schema_base.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql → ../migrations/20261031075708_reporte_ventas_dashboard.sql → migracion_password_recovery.sql → ../migrations/20261029052901_datos_local_dominio.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql → ../migrations/20261030173318_seguridad_rpc_piloto.sql → ../migrations/20261030173320_consultas_pendientes_piloto.sql → ../migrations/20261030173503_diagnostico_piloto.sql → ../migrations/20261030173925_indice_mesas_zona.sql
+-- Contenido: 27 archivos · sha256(cuerpo) = bae90eb55092
+-- Orden: 00_schema_base.sql → ../migrations/20261022120000_password_recovery.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql → ../migrations/20261031075708_reporte_ventas_dashboard.sql → ../migrations/20261029052901_datos_local_dominio.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql → ../migrations/20261030173318_seguridad_rpc_piloto.sql → ../migrations/20261030173320_consultas_pendientes_piloto.sql → ../migrations/20261030173503_diagnostico_piloto.sql → ../migrations/20261030173925_indice_mesas_zona.sql → ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
 -- =============================================================================
 
 
 
 -- #############################################################################
--- # 1/26 · 00_schema_base.sql
+-- # 1/27 · 00_schema_base.sql
 -- #############################################################################
 
 -- -- Mesora: schema base para instalaciones NUEVAS.
@@ -197,7 +197,86 @@ $$;
 
 
 -- #############################################################################
--- # 2/26 · 00_seguridad_rpcs.sql
+-- # 2/27 · ../migrations/20261022120000_password_recovery.sql
+-- #############################################################################
+
+-- -- =============================================================================
+-- Mesora · Recuperación de contraseñas por rol
+-- =============================================================================
+--
+-- QUÉ AGREGA
+--   · correo_recuperacion            — correo REAL de recuperación del admin del
+--                                      restaurante. Puede ser distinto del
+--                                      identificador de login (usuario@dominio).
+--   · correo_recuperacion_verificado — marca que el admin ya confirmó ese correo.
+--                                      Solo con true se ofrece la recuperación por
+--                                      correo; si no está verificado, no se ofrece.
+--   · debe_cambiar_password          — si está en true, el login obliga a setear
+--                                      una nueva contraseña antes de entrar. Lo
+--                                      enciende el reset administrativo de
+--                                      trabajadores (mesero/cocina/cajero).
+--
+-- POR QUÉ
+--   · El admin puede tener un correo de login que no recibe correo (ej. un
+--     usuario@dominio interno). Para recuperarse necesita un correo real, que
+--     verifica por su cuenta y se guarda aparte.
+--   · Los trabajadores NO tienen correo real: el admin de su restaurante les
+--     restablece la contraseña desde Personal y ellos la cambian al entrar.
+--
+-- SEGURIDAD
+--   · El correo de recuperación es un DATO, no una credencial: no da acceso por sí
+--     solo. La verificación y el uso se hacen siempre desde una Edge Function con
+--     service_role, nunca desde el navegador.
+--   · El índice único evita que dos cuentas compartan correo de recuperación
+--     (esquiva el "recupero la de otro"). Es parcial: NULL repetidos son válidos.
+--
+-- REQUISITOS: corre después del schema base (tabla `usuarios`).
+-- =============================================================================
+
+alter table public.usuarios
+  add column if not exists correo_recuperacion text;
+
+alter table public.usuarios
+  add column if not exists correo_recuperacion_verificado boolean not null default false;
+
+alter table public.usuarios
+  add column if not exists debe_cambiar_password boolean not null default false;
+
+create unique index if not exists usuarios_correo_recuperacion_unique
+  on public.usuarios (correo_recuperacion)
+  where correo_recuperacion is not null;
+
+-- Confirma el cambio de una contraseña temporal en el mismo perfil que usa
+-- ProtectedRoute. Se incluye aquí para poder actualizar instalaciones que ya
+-- añadieron debe_cambiar_password pero aún no tienen la RPC.
+create or replace function public.confirmar_cambio_password()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Se requiere una sesión válida';
+  end if;
+
+  update public.usuarios
+     set debe_cambiar_password = false
+   where id = auth.uid();
+
+  if not found then
+    raise exception 'No se encontró el perfil del usuario';
+  end if;
+end;
+$$;
+
+revoke all on function public.confirmar_cambio_password() from public;
+revoke all on function public.confirmar_cambio_password() from anon;
+grant execute on function public.confirmar_cambio_password() to authenticated;
+
+
+-- #############################################################################
+-- # 3/27 · 00_seguridad_rpcs.sql
 -- #############################################################################
 
 -- -- Mesora · Control de acceso en el SERVIDOR (ejecutar tras 00_schema_base.sql).
@@ -308,7 +387,7 @@ grant execute on function public.validar_acceso_restaurante(uuid) to authenticat
 
 
 -- #############################################################################
--- # 3/26 · migracion_items_anulables.sql
+-- # 4/27 · migracion_items_anulables.sql
 -- #############################################################################
 
 -- -- Mesora · Edición y anulación de ítems de una comanda.
@@ -655,7 +734,7 @@ $$;
 
 
 -- #############################################################################
--- # 4/26 · migracion_productos_es_bebida.sql
+-- # 5/27 · migracion_productos_es_bebida.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -694,7 +773,7 @@ select r.nombre as restaurante,
 
 
 -- #############################################################################
--- # 5/26 · ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql
+-- # 6/27 · ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql
 -- #############################################################################
 
 -- -- Conserva la clasificación de cocina/barra al momento de vender y entrega
@@ -850,7 +929,7 @@ grant execute on function public.reporte_ventas_restaurante(uuid, timestamptz, t
 
 
 -- #############################################################################
--- # 6/26 · ../migrations/20261031075708_reporte_ventas_dashboard.sql
+-- # 7/27 · ../migrations/20261031075708_reporte_ventas_dashboard.sql
 -- #############################################################################
 
 -- -- Conserva la clasificación de cocina/barra al momento de vender y entrega
@@ -1037,86 +1116,7 @@ grant execute on function public.reporte_ventas_restaurante(uuid, timestamptz, t
 
 
 -- #############################################################################
--- # 7/26 · migracion_password_recovery.sql
--- #############################################################################
-
--- -- =============================================================================
--- Mesora · Recuperación de contraseñas por rol
--- =============================================================================
---
--- QUÉ AGREGA
---   · correo_recuperacion            — correo REAL de recuperación del admin del
---                                      restaurante. Puede ser distinto del
---                                      identificador de login (usuario@dominio).
---   · correo_recuperacion_verificado — marca que el admin ya confirmó ese correo.
---                                      Solo con true se ofrece la recuperación por
---                                      correo; si no está verificado, no se ofrece.
---   · debe_cambiar_password          — si está en true, el login obliga a setear
---                                      una nueva contraseña antes de entrar. Lo
---                                      enciende el reset administrativo de
---                                      trabajadores (mesero/cocina/cajero).
---
--- POR QUÉ
---   · El admin puede tener un correo de login que no recibe correo (ej. un
---     usuario@dominio interno). Para recuperarse necesita un correo real, que
---     verifica por su cuenta y se guarda aparte.
---   · Los trabajadores NO tienen correo real: el admin de su restaurante les
---     restablece la contraseña desde Personal y ellos la cambian al entrar.
---
--- SEGURIDAD
---   · El correo de recuperación es un DATO, no una credencial: no da acceso por sí
---     solo. La verificación y el uso se hacen siempre desde una Edge Function con
---     service_role, nunca desde el navegador.
---   · El índice único evita que dos cuentas compartan correo de recuperación
---     (esquiva el "recupero la de otro"). Es parcial: NULL repetidos son válidos.
---
--- REQUISITOS: corre después del schema base (tabla `usuarios`).
--- =============================================================================
-
-alter table public.usuarios
-  add column if not exists correo_recuperacion text;
-
-alter table public.usuarios
-  add column if not exists correo_recuperacion_verificado boolean not null default false;
-
-alter table public.usuarios
-  add column if not exists debe_cambiar_password boolean not null default false;
-
-create unique index if not exists usuarios_correo_recuperacion_unique
-  on public.usuarios (correo_recuperacion)
-  where correo_recuperacion is not null;
-
--- Confirma el cambio de una contraseña temporal en el mismo perfil que usa
--- ProtectedRoute. Se incluye aquí para poder actualizar instalaciones que ya
--- añadieron debe_cambiar_password pero aún no tienen la RPC.
-create or replace function public.confirmar_cambio_password()
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if auth.uid() is null then
-    raise exception 'Se requiere una sesión válida';
-  end if;
-
-  update public.usuarios
-     set debe_cambiar_password = false
-   where id = auth.uid();
-
-  if not found then
-    raise exception 'No se encontró el perfil del usuario';
-  end if;
-end;
-$$;
-
-revoke all on function public.confirmar_cambio_password() from public;
-revoke all on function public.confirmar_cambio_password() from anon;
-grant execute on function public.confirmar_cambio_password() to authenticated;
-
-
--- #############################################################################
--- # 8/26 · ../migrations/20261029052901_datos_local_dominio.sql
+-- # 8/27 · ../migrations/20261029052901_datos_local_dominio.sql
 -- #############################################################################
 
 -- -- Datos del local: dominio opcional para identificar al personal.
@@ -1152,7 +1152,7 @@ grant update (dominio) on public.restaurantes to authenticated;
 
 
 -- #############################################################################
--- # 9/26 · pin_autorizacion.sql
+-- # 9/27 · pin_autorizacion.sql
 -- #############################################################################
 
 -- -- Mesora · PIN de autorización + anulación de cobros.
@@ -1412,7 +1412,7 @@ $$;
 
 
 -- #############################################################################
--- # 10/26 · rpc_crear_pedido.sql
+-- # 10/27 · rpc_crear_pedido.sql
 -- #############################################################################
 
 -- -- Mesora · RPC: crear pedido (comanda) de forma atómica.
@@ -1543,7 +1543,7 @@ $$;
 
 
 -- #############################################################################
--- # 11/26 · rpc_cerrar_cuenta.sql
+-- # 11/27 · rpc_cerrar_cuenta.sql
 -- #############################################################################
 
 -- -- Mesora · RPC: cerrar cuenta y registrar el pago en una sola transacción.
@@ -1866,7 +1866,7 @@ $$;
 
 
 -- #############################################################################
--- # 12/26 · rpc_anular_cuenta.sql
+-- # 12/27 · rpc_anular_cuenta.sql
 -- #############################################################################
 
 -- -- Mesora · Anulación de cobros (void de una boleta ya emitida).
@@ -2082,7 +2082,7 @@ comment on function public.anular_cuenta(uuid, uuid, text, text) is
 
 
 -- #############################################################################
--- # 13/26 · caja_turnos.sql
+-- # 13/27 · caja_turnos.sql
 -- #############################################################################
 
 -- -- Mesora · Caja por turnos: tabla `caja_turnos` + RPC de apertura y cierre.
@@ -2378,7 +2378,7 @@ $$;
 
 
 -- #############################################################################
--- # 14/26 · 01_rls_completo.sql
+-- # 14/27 · 01_rls_completo.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -2770,14 +2770,23 @@ alter table public.zonas enable row level security;
 
 drop policy if exists zonas_select on public.zonas;
 create policy zonas_select on public.zonas
-  for select
+  for select to authenticated
   using ((select public.soy_del_restaurante(restaurante_id)));
 
 drop policy if exists zonas_write_admin on public.zonas;
-create policy zonas_write_admin on public.zonas
-  for all
+drop policy if exists zonas_insert_admin on public.zonas;
+drop policy if exists zonas_update_admin on public.zonas;
+drop policy if exists zonas_delete_admin on public.zonas;
+create policy zonas_insert_admin on public.zonas
+  for insert to authenticated
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy zonas_update_admin on public.zonas
+  for update to authenticated
   using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])))
   with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy zonas_delete_admin on public.zonas
+  for delete to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
 
 -- =============================================================================
 -- 4 · mesas
@@ -2798,22 +2807,29 @@ alter table public.mesas enable row level security;
 
 drop policy if exists mesas_select on public.mesas;
 create policy mesas_select on public.mesas
-  for select
+  for select to authenticated
   using ((select public.soy_del_restaurante(restaurante_id)));
 
 drop policy if exists mesas_write_admin on public.mesas;
-create policy mesas_write_admin on public.mesas
-  for all
-  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])))
+drop policy if exists mesas_insert_admin on public.mesas;
+drop policy if exists mesas_update_operacion on public.mesas;
+drop policy if exists mesas_delete_admin on public.mesas;
+create policy mesas_insert_admin on public.mesas
+  for insert to authenticated
   with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy mesas_update_operacion on public.mesas
+  for update to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante', 'mesero', 'cajero'])))
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante', 'mesero', 'cajero'])));
+create policy mesas_delete_admin on public.mesas
+  for delete to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
 
--- El estado de la mesa también lo mueven el mesero (liberar) y el cajero, sin
--- ser admins: policy aparte, con la misma regla de suscripción.
+-- La policy única de UPDATE permite al admin administrar la mesa y al mesero o
+-- cajero cambiar su estado. Se conserva el límite conocido de columnas descrito
+-- arriba; la API directa aún no restringe el UPDATE únicamente a `estado`.
 drop policy if exists mesas_update_estado on public.mesas;
-create policy mesas_update_estado on public.mesas
-  for update
-  using ((select public.puedo_escribir_en(restaurante_id, array['mesero', 'cajero'])))
-  with check ((select public.puedo_escribir_en(restaurante_id, array['mesero', 'cajero'])));
+-- La policy mesas_update_operacion anterior cubre esos tres roles.
 
 -- =============================================================================
 -- 5 · categorias_productos
@@ -2825,14 +2841,23 @@ alter table public.categorias_productos enable row level security;
 
 drop policy if exists categorias_productos_select on public.categorias_productos;
 create policy categorias_productos_select on public.categorias_productos
-  for select
+  for select to authenticated
   using ((select public.soy_del_restaurante(restaurante_id)));
 
 drop policy if exists categorias_productos_write_admin on public.categorias_productos;
-create policy categorias_productos_write_admin on public.categorias_productos
-  for all
+drop policy if exists categorias_productos_insert_admin on public.categorias_productos;
+drop policy if exists categorias_productos_update_admin on public.categorias_productos;
+drop policy if exists categorias_productos_delete_admin on public.categorias_productos;
+create policy categorias_productos_insert_admin on public.categorias_productos
+  for insert to authenticated
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy categorias_productos_update_admin on public.categorias_productos
+  for update to authenticated
   using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])))
   with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy categorias_productos_delete_admin on public.categorias_productos
+  for delete to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
 
 -- =============================================================================
 -- 6 · productos
@@ -2849,14 +2874,23 @@ alter table public.productos enable row level security;
 
 drop policy if exists productos_select on public.productos;
 create policy productos_select on public.productos
-  for select
+  for select to authenticated
   using ((select public.soy_del_restaurante(restaurante_id)));
 
 drop policy if exists productos_write_admin on public.productos;
-create policy productos_write_admin on public.productos
-  for all
+drop policy if exists productos_insert_admin on public.productos;
+drop policy if exists productos_update_admin on public.productos;
+drop policy if exists productos_delete_admin on public.productos;
+create policy productos_insert_admin on public.productos
+  for insert to authenticated
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy productos_update_admin on public.productos
+  for update to authenticated
   using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])))
   with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy productos_delete_admin on public.productos
+  for delete to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
 
 -- =============================================================================
 -- 7 · pedidos
@@ -3245,7 +3279,7 @@ select c.relname as tabla,
 
 
 -- #############################################################################
--- # 15/26 · admin_super_restaurante.sql
+-- # 15/27 · admin_super_restaurante.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3452,7 +3486,7 @@ select a.attname as columna,
 
 
 -- #############################################################################
--- # 16/26 · usuarios_super_admin.sql
+-- # 16/27 · usuarios_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3679,7 +3713,7 @@ select c.relname as tabla,
 
 
 -- #############################################################################
--- # 17/26 · estadisticas_super_admin.sql
+-- # 17/27 · estadisticas_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3897,7 +3931,7 @@ select p.proname,
 
 
 -- #############################################################################
--- # 18/26 · soporte.sql
+-- # 18/27 · soporte.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4031,7 +4065,7 @@ select
 
 
 -- #############################################################################
--- # 19/26 · suscripciones_super_admin.sql
+-- # 19/27 · suscripciones_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4446,7 +4480,7 @@ select
 
 
 -- #############################################################################
--- # 20/26 · auditoria.sql
+-- # 20/27 · auditoria.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4803,7 +4837,7 @@ select
 
 
 -- #############################################################################
--- # 21/26 · configuracion_global.sql
+-- # 21/27 · configuracion_global.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4863,7 +4897,7 @@ alter table public.configuracion_global enable row level security;
 -- Lectura pública: la landing muestra estos datos sin sesión.
 drop policy if exists configuracion_global_select_public on public.configuracion_global;
 create policy configuracion_global_select_public on public.configuracion_global
-  for select using (true);
+  for select to anon using (true);
 
 drop policy if exists configuracion_global_select_super on public.configuracion_global;
 create policy configuracion_global_select_super on public.configuracion_global
@@ -4876,12 +4910,13 @@ create policy configuracion_global_update_super on public.configuracion_global
   with check (public.soy_super_admin());
 -- Sin INSERT/DELETE desde el cliente: la fila se siembra aquí.
 
--- La landing es anónima y solo necesita el precio y el nombre. Se otorga
+-- La landing es anónima y necesita precio y datos de contacto. Se otorga
 -- SELECT por COLUMNA (no sobre la tabla): así la anon key no puede leer
--- correo_soporte, telefono_soporte, informacion ni updated_by. RLS ya limita
--- las filas (id = 1), pero una policy no filtra columnas.
+-- nombre interno, logo, información ni auditoría. RLS limita las filas (id=1),
+-- pero una policy no filtra columnas.
 revoke all on public.configuracion_global from anon;
-grant select (nombre_app, precio_plan_mensual) on public.configuracion_global to anon;
+grant select (precio_plan_mensual, correo_soporte, telefono_soporte)
+  on public.configuracion_global to anon;
 grant select, update on public.configuracion_global to authenticated;
 
 -- El super admin es el único que edita, y solo estas columnas. Sin esto el
@@ -5079,15 +5114,18 @@ select
      where not tgisinternal and tgrelid = 'public.configuracion_global'::regclass) as trigger_ok,
   (select has_column_privilege('anon', 'public.configuracion_global', 'precio_plan_mensual', 'select')) as anon_precio_ok,
   (select has_column_privilege('anon', 'public.configuracion_global', 'correo_soporte', 'select')) as anon_correo_ok,
+  (select has_column_privilege('anon', 'public.configuracion_global', 'telefono_soporte', 'select')) as anon_telefono_ok,
+  (select has_column_privilege('anon', 'public.configuracion_global', 'informacion', 'select')) as anon_informacion_ok,
   (select has_function_privilege('anon', 'public.admin_alertas()', 'execute')) as anon_alerta,
   (select has_function_privilege('authenticated', 'public.admin_alertas()', 'execute')) as auth_alerta;
 -- Esperado: rls_ok=true, fila_unica_ok=true, precio_plan=120, policies_ok=true,
--- trigger_ok=true, anon_precio_ok=true, anon_correo_ok=false, anon_alerta=false,
+-- trigger_ok=true, anon_precio_ok=true, anon_correo_ok=true,
+-- anon_telefono_ok=true, anon_informacion_ok=false, anon_alerta=false,
 -- auth_alerta=true.
 
 
 -- #############################################################################
--- # 22/26 · seguridad_piloto.sql
+-- # 22/27 · seguridad_piloto.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -5224,7 +5262,7 @@ grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
--- # 23/26 · ../migrations/20261030173318_seguridad_rpc_piloto.sql
+-- # 23/27 · ../migrations/20261030173318_seguridad_rpc_piloto.sql
 -- #############################################################################
 
 -- -- Cierra la API de funciones a anónimos y preserva el acceso autenticado real.
@@ -5267,7 +5305,7 @@ alter default privileges in schema public revoke execute on functions from publi
 
 
 -- #############################################################################
--- # 24/26 · ../migrations/20261030173320_consultas_pendientes_piloto.sql
+-- # 24/27 · ../migrations/20261030173320_consultas_pendientes_piloto.sql
 -- #############################################################################
 
 -- -- Consultas acotadas a lo pendiente. JSON evita truncar el agregado por el
@@ -5359,7 +5397,7 @@ $$;
 
 
 -- #############################################################################
--- # 25/26 · ../migrations/20261030173503_diagnostico_piloto.sql
+-- # 25/27 · ../migrations/20261030173503_diagnostico_piloto.sql
 -- #############################################################################
 
 -- -- Diagnóstico mínimo: únicamente categorías y rutas normalizadas, sin mensajes,
@@ -5385,8 +5423,122 @@ grant execute on function public.registrar_error_cliente(text,text,text) to auth
 
 
 -- #############################################################################
--- # 26/26 · ../migrations/20261030173925_indice_mesas_zona.sql
+-- # 26/27 · ../migrations/20261030173925_indice_mesas_zona.sql
 -- #############################################################################
 
 -- -- Cubre también la FK compuesta que garantiza zona y mesa del mismo local.
 create index if not exists idx_mesas_zona_restaurante on public.mesas(zona_id, restaurante_id);
+
+
+-- #############################################################################
+-- # 27/27 · ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
+-- #############################################################################
+
+-- -- Acota las políticas de catálogo/mesas a usuarios autenticados y separa
+-- INSERT/UPDATE/DELETE para evitar que FOR ALL también conceda SELECT.
+-- En configuracion_global limita la lectura pública a anon y solo a los campos
+-- que muestra la landing (precio y contacto); el resto queda para super_admin.
+
+begin;
+
+-- Mesas: lectura para usuarios autenticados del restaurante. Admin puede
+-- insertar/borrar; admin, mesero y cajero mantienen UPDATE según su rol.
+drop policy if exists mesas_select on public.mesas;
+create policy mesas_select on public.mesas
+  for select to authenticated
+  using ((select public.soy_del_restaurante(restaurante_id)));
+
+drop policy if exists mesas_write_admin on public.mesas;
+drop policy if exists mesas_insert_admin on public.mesas;
+drop policy if exists mesas_update_operacion on public.mesas;
+drop policy if exists mesas_delete_admin on public.mesas;
+drop policy if exists mesas_update_estado on public.mesas;
+create policy mesas_insert_admin on public.mesas
+  for insert to authenticated
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy mesas_update_operacion on public.mesas
+  for update to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante', 'mesero', 'cajero'])))
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante', 'mesero', 'cajero'])));
+create policy mesas_delete_admin on public.mesas
+  for delete to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+
+-- Categorías: el antiguo FOR ALL solapaba SELECT para administradores.
+drop policy if exists categorias_productos_select on public.categorias_productos;
+create policy categorias_productos_select on public.categorias_productos
+  for select to authenticated
+  using ((select public.soy_del_restaurante(restaurante_id)));
+
+drop policy if exists categorias_productos_write_admin on public.categorias_productos;
+drop policy if exists categorias_productos_insert_admin on public.categorias_productos;
+drop policy if exists categorias_productos_update_admin on public.categorias_productos;
+drop policy if exists categorias_productos_delete_admin on public.categorias_productos;
+create policy categorias_productos_insert_admin on public.categorias_productos
+  for insert to authenticated
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy categorias_productos_update_admin on public.categorias_productos
+  for update to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])))
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy categorias_productos_delete_admin on public.categorias_productos
+  for delete to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+
+-- Productos.
+drop policy if exists productos_select on public.productos;
+create policy productos_select on public.productos
+  for select to authenticated
+  using ((select public.soy_del_restaurante(restaurante_id)));
+
+drop policy if exists productos_write_admin on public.productos;
+drop policy if exists productos_insert_admin on public.productos;
+drop policy if exists productos_update_admin on public.productos;
+drop policy if exists productos_delete_admin on public.productos;
+create policy productos_insert_admin on public.productos
+  for insert to authenticated
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy productos_update_admin on public.productos
+  for update to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])))
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy productos_delete_admin on public.productos
+  for delete to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+
+-- Zonas.
+drop policy if exists zonas_select on public.zonas;
+create policy zonas_select on public.zonas
+  for select to authenticated
+  using ((select public.soy_del_restaurante(restaurante_id)));
+
+drop policy if exists zonas_write_admin on public.zonas;
+drop policy if exists zonas_insert_admin on public.zonas;
+drop policy if exists zonas_update_admin on public.zonas;
+drop policy if exists zonas_delete_admin on public.zonas;
+create policy zonas_insert_admin on public.zonas
+  for insert to authenticated
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy zonas_update_admin on public.zonas
+  for update to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])))
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy zonas_delete_admin on public.zonas
+  for delete to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+
+-- La landing pública requiere solo columnas concedidas a anon; la policy
+-- anterior TO PUBLIC también exponía a todo usuario autenticado con SELECT de
+-- tabla completa. Los super_admin conservan su policy propia.
+drop policy if exists configuracion_global_select_public on public.configuracion_global;
+create policy configuracion_global_select_public on public.configuracion_global
+  for select to anon
+  using (true);
+
+-- RLS limita filas, no columnas. La landing muestra precio y contacto, así que
+-- revocamos la lectura amplia previa de anon y concedemos solo esos tres campos.
+revoke all on public.configuracion_global from anon;
+grant select (precio_plan_mensual, correo_soporte, telefono_soporte)
+  on public.configuracion_global to anon;
+
+commit;

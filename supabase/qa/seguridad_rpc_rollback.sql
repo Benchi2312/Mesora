@@ -18,8 +18,8 @@ begin
   begin perform public.crear_pedido(null,null,'[]'::jsonb);
   exception when insufficient_privilege then v_denegado := true; end;
   if not v_denegado then raise exception 'anon puede invocar crear_pedido'; end if;
-  -- El precio público de la landing sigue disponible sin iniciar sesión.
-  perform nombre_app, precio_plan_mensual from public.configuracion_global;
+  -- El precio y el contacto visibles en la landing siguen disponibles sin sesión.
+  perform precio_plan_mensual, correo_soporte, telefono_soporte from public.configuracion_global;
   execute format('set local role %I',v_rol);
   execute 'set local role authenticated';
   v_denegado := false;

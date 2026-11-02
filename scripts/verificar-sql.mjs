@@ -32,6 +32,13 @@ try {
   console.log('SQL QA: tablas, RPC, RLS y pgcrypto instalados')
   await pg.exec(readFileSync(new URL('../supabase/qa/seguridad_rpc_rollback.sql', import.meta.url), 'utf8'))
   console.log('SQL QA: permisos de anónimo, autenticado y servicio correctos')
+  const pruebaPoliticas = readFileSync(new URL('../supabase/qa/politicas_catalogo_rollback.sql', import.meta.url), 'utf8')
+  const migracionPoliticas = readFileSync(new URL('../supabase/migrations/20261102081247_acotar_politicas_rls_piloto.sql', import.meta.url), 'utf8')
+    .replace(/(^|\n)begin;\s*/i, '$1')
+    .replace(/\ncommit;\s*$/i, '\n')
+  assert.ok(pruebaPoliticas.includes('/* APLICAR_MIGRACION_RLS */'), 'Falta el punto de inyección de la migración RLS')
+  await pg.exec(pruebaPoliticas.replace('/* APLICAR_MIGRACION_RLS */', migracionPoliticas))
+  console.log('SQL QA: permisos RLS de catálogo, mesas y configuración global correctos')
   await pg.exec(readFileSync(new URL('../supabase/qa/flujo_piloto_rollback.sql', import.meta.url), 'utf8'))
   console.log('SQL QA: circuito completo de restaurante y arqueo aprobado')
   await pg.exec(`

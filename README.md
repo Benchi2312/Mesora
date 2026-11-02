@@ -63,11 +63,11 @@ npm run dev                  # vite
 npm run build                # tsc && vite build
 npm run preview              # sirve dist/
 npm run typecheck            # tsc --noEmit
-npm run verificar            # 502 checks de reglas de negocio (backend local)
+npm run verificar            # 510 checks de reglas de negocio (backend local)
 npm run verificar:precuenta  # QA de precuenta, impresión/PDF y ausencia de escrituras
 npm run verificar:configuracion # QA del guardado de Datos del local, REST y dominio
 npm run verificar:sql        # PostgreSQL aislado: instalación, permisos, flujo y restauración
-npm run verificar:responsive # 332 checks de layout en 4 viewports
+npm run verificar:responsive # 344 checks de layout en 4 viewports
 npm run verificar:despliegue -- https://mesora-piloto.vercel.app # rutas públicas, sin ventas reales
 npm run verificar:acceso      # cuentas desactivadas, salida y contraseña temporal con Auth simulado
 npm run capturas:demo        # capturas del recorrido guiado (Playwright)
@@ -108,7 +108,7 @@ Ambas suites salen con código 1 si algún check falla.
 pgcrypto), verifica permisos y recorre apertura, pedido, cocina, pago dividido,
 anulación con PIN y arqueo. También comprueba 1205 pedidos sin truncamiento y
 la restauración de esa base de prueba. No conecta a Supabase; Auth se simula.
-No sustituye la aceptación de login real, correo, impresora y dos dispositivos.
+No sustituye login real, correo, impresora física ni pruebas entre dos dispositivos.
 
 ## Interfaz y experiencia móvil
 
@@ -180,11 +180,11 @@ supabase/
   migrations/              migraciones versionadas para actualizaciones acotadas
   qa/                      pruebas SQL con rollback; no se instalan en producción
 scripts/
-  verificar-flujo.mjs      suite de reglas de negocio (502 checks)
+  verificar-flujo.mjs      suite de reglas de negocio (510 checks)
   verificar-configuracion.mjs guardado, errores y dominio del local
   verificar-precuenta.mjs  vista, PDF, impresión y consumo actualizado
   verificar-sql.mjs        instalación y circuito SQL en PostgreSQL aislado
-  verificar-responsive.mjs suite de layout responsive (332 checks)
+  verificar-responsive.mjs suite de layout responsive (344 checks)
   capturas-demo.mjs        capturas del recorrido guiado
   build-install-sql.mjs    genera TODO_EN_UNO.sql
 ```
@@ -284,8 +284,8 @@ indicado en SUPABASE_SETUP.md; no se vuelve a pegar el instalador completo.
 El orden de fuentes y su cobertura se verifican con npm run sql:install.
 ## Estado actual
 
-Implementado. Última verificación registrada (`npm run verificar`: 502 checks;
-`npm run verificar:responsive`: 332 checks en 4 viewports):
+Implementado. Última verificación registrada (`npm run verificar`: 510 checks;
+`npm run verificar:responsive`: 344 checks en 4 viewports):
 
 - Auth (email/password), lectura de rol desde `usuarios`, rutas protegidas por rol y bloqueo por suscripción vencida.
 - **Vista Mesero**: grilla de mesas por zona, toma de pedido desde el menú (categorías, promociones, notas por ítem), envío de comanda atómica (`crear_pedido`), **varias comandas por mesa** con pantalla intermedia que acumula el total, y cierre de cuenta con método de pago, pago dividido, propina y boleta imprimible (`cerrar_cuenta`), con **edición y anulación de ítems** desde la comanda abierta.
@@ -295,8 +295,9 @@ Implementado. Última verificación registrada (`npm run verificar`: 502 checks;
 - **Modo local** (solo desarrollo, activación explícita con VITE_MESORA_MODO_LOCAL=true): login y roles simulados sobre un dataset de prueba, persistencia en localStorage y botón de reset en /login. Sin esa variable, la app falla cerrada si Supabase no está configurado.
 - **Modo demo** (`/demo`): las 4 vistas sin login, con recorrido guiado que escribe por ti ("Hazlo por mí"), persistencia en `localStorage` y botón para vaciarlo.
 - **Rendimiento**: code-splitting por ruta; la landing y el login no descargan el panel.
-- **Instalador generado**: `supabase/TODO_EN_UNO.sql` (24 archivos, 19 tablas con RLS y grants). Instalación vacía y restauración aislada verificadas con `npm run verificar:sql`.
+- **Instalador generado**: `supabase/TODO_EN_UNO.sql` (27 piezas SQL ordenadas, 19 tablas con RLS y grants). Instalación vacía, restauración aislada y migración de políticas verificadas con `npm run verificar:sql`.
 - **Seguridad del piloto**: funciones de negocio sin EXECUTE anónimo, search_path fijo, registro público desactivado y contraseña mínima de ocho caracteres en el proyecto revisado.
+- **Revisión RLS (2 nov 2026)**: la migración aplicada limita la configuración global al superadmin y deja públicos solo el precio y el contacto que muestra la landing; también separa políticas de catálogo/mesas. Ver [informe de seguridad](./docs/REVISION_SEGURIDAD_SUPABASE.md).
 - **Diagnóstico**: categorías de API/render/JavaScript/promesas en logs PostgreSQL, sin mensajes originales, PIN ni tokens. Requiere sesión; límite por pestaña de 20 intentos/10 minutos y deduplicación de 60 segundos. Desactivar con `VITE_MESORA_DIAGNOSTICO=false` y reconstruir. No incluye alertas automáticas.
 
 Todo el acceso a datos pasa por `getApi()` (capa real/local/mock), por lo que las
@@ -304,18 +305,14 @@ vistas funcionan igual en los tres modos. Las reglas de negocio están
 centralizadas para que `localApi`, `mockApi` y las RPC de Postgres se comporten
 de forma coherente; las suites locales y SQL cubren los circuitos principales.
 
-### Pendiente para publicar
+### Pendiente para el primer turno piloto
 
-- Respaldar la base existente y aplicar solo las migraciones pendientes en el
-  orden documentado; TODO_EN_UNO.sql es para una instalación nueva, no para
-  actualizar una base con datos.
-- Verificar el primer administrador, el restaurante piloto y sus roles en
-  Supabase; configurar variables de producción y URLs de Auth para el dominio.
-- Ejecutar y registrar la aceptación punta a punta contra un proyecto de
-  staging: login por rol, comanda, cocina, cobro, anulación con PIN y arqueo de
-  caja. Las pruebas locales no sustituyen esa aceptación.
-- Acordar respaldo y restauración, monitoreo de errores y operación manual ante
-  fallos. Ver SUPABASE_SETUP.md para los pasos previos.
+- Obtener una exportación lógica de Supabase y ensayar su restauración. El plan Free no incluye backups administrados; faltan la contraseña PostgreSQL y las herramientas locales, así que no se certificó una copia restaurable real.
+- Completar la aceptación punta a punta en el local con cuentas de prueba: cuentas por
+  rol, pedidos y cocina, cobros/anulación con PIN, arqueo, impresora y dos
+  dispositivos. La batería local no sustituye la aceptación presencial; por decisión del propietario no se creó staging de pago.
+- Acordar responsable, monitoreo y operación ante cortes de red. La recuperación
+  por correo del administrador queda aplazada por decisión del propietario.
 ## Integración continua
 
 GitHub Actions ejecuta `npm ci`, `npm run sql:install`, `npm run verificar:sql`, `npm run verificar`,

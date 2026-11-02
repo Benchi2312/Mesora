@@ -1,6 +1,6 @@
 # Instalar y actualizar Mesora en Supabase
 
-Revisión: 30/10/2026. Consultar [estado del piloto](./docs/PILOTO.md) y
+Revisión: 2/11/2026. Consultar [estado del piloto](./docs/PILOTO.md) y
 [operación del local](./docs/OPERACION_PILOTO.md).
 
 ## 1. Preparar
@@ -21,10 +21,13 @@ npm run sql:install
 npm run verificar:sql
 ```
 
-El generador combina **24 archivos** (19 fuentes y cinco migraciones), verifica
-cobertura, encoding y delimitadores. La suite instala 19 tablas en PostgreSQL
-aislado con pgcrypto real, verifica RLS/RPC, opera el circuito completo y prueba
-una restauración aislada. No necesita ni modifica Supabase.
+El generador combina **27 secciones SQL** (19 fuentes y nueve migraciones; la
+fuente de recuperación se vincula a su migración versionada y solo se incluye
+una vez), y verifica cobertura, equivalencia, encoding y delimitadores. La
+suite instala 19 tablas en PostgreSQL aislado con pgcrypto real, verifica
+RLS/RPC, prueba la nueva migración desde las policies anteriores, opera el
+circuito completo y prueba una restauración aislada. No necesita ni modifica
+Supabase.
 
 Solo para una base nueva: copiar todo `supabase/TODO_EN_UNO.sql` al **SQL
 Editor** y ejecutar. Crea tablas, funciones, RLS, permisos y configuración.
@@ -42,24 +45,38 @@ from pg_tables where schemaname = 'public' order by tablename;
 select has_column_privilege('anon', 'public.configuracion_global',
   'precio_plan_mensual', 'select') as precio_ok,
   has_column_privilege('anon', 'public.configuracion_global',
-  'correo_soporte', 'select') as correo_ok;
+  'correo_soporte', 'select') as correo_ok,
+  has_column_privilege('anon', 'public.configuracion_global',
+  'telefono_soporte', 'select') as telefono_ok,
+  has_column_privilege('anon', 'public.configuracion_global',
+  'informacion', 'select') as informacion_no_publica;
 ```
+
+Esperado: `precio_ok`, `correo_ok` y `telefono_ok` en `true`; la columna
+`informacion` no debe tener permiso de lectura anónima.
 
 ## 3. Actualizar una base existente
 
 **No volver a pegar TODO_EN_UNO.sql sobre una base con datos.** Inspeccionar el
 esquema, revisar respaldo y aplicar únicamente cambios pendientes.
 
-Estas cinco migraciones ya están aplicadas en el proyecto Mesora revisado.
-Para otro proyecto compatible, revisar y aplicar en orden:
+Estas nueve migraciones están aplicadas en el proyecto Mesora revisado. La
+migración RLS del 2/11 fue aplicada después de probarla en PostgreSQL aislado y
+verificar sus permisos en producción. Para otro proyecto compatible, verificar
+las ya aplicadas y revisar las pendientes en orden; obtener un respaldo
+recuperable antes de cualquier cambio:
 
 | Archivo en supabase/migrations | Efecto |
 | --- | --- |
+| `20261022120000_password_recovery.sql` | Columnas de recuperación/cambio temporal y RPC `confirmar_cambio_password()`. |
 | `20261029052901_datos_local_dominio.sql` | Dominio opcional, validación y permiso administrativo por columna. |
 | `20261030173318_seguridad_rpc_piloto.sql` | Revoca EXECUTE público/anónimo, protege helpers y fija search_path; conserva API autenticada necesaria. |
 | `20261030173320_consultas_pendientes_piloto.sql` | RPC JSON de pedidos/mesas pendientes e índices FK sin cobertura. |
 | `20261030173503_diagnostico_piloto.sql` | Diagnóstico mínimo bajo sesión activa en logs. |
 | `20261030173925_indice_mesas_zona.sql` | Índice de cobertura de relación compuesta mesa/zona. |
+| `20261031073322_reporte_ventas_y_snapshot_bebidas.sql` | RPC de ventas por cuenta y snapshot de clasificación de bebida. |
+| `20261031075708_reporte_ventas_dashboard.sql` | Agregados del dashboard de ventas. |
+| `20261102081247_acotar_politicas_rls_piloto.sql` | Limita la policy pública a anon; anon lee solo precio/correo/teléfono de la landing; separa permisos RLS de catálogo/mesas. Aplicada y verificada el 2/11/2026. |
 
 Aplicar **antes del frontend**: sus lecturas utilizan `pedidos_pendientes_mesa`
 y `mesas_por_cobrar`.
@@ -69,14 +86,13 @@ Para instalaciones antiguas, revisar también requisitos y diferencias:
 - Pagos/anulación/caja: `rpc_cerrar_cuenta.sql`, `rpc_anular_cuenta.sql` y
   `caja_turnos.sql`, en ese orden; añaden/usan cuenta_pagos.metodo_pago.
 - Contraseña temporal guardada sin confirmar perfil:
-  `migracion_password_recovery.sql` instala confirmar_cambio_password. Después
+  `20261022120000_password_recovery.sql` instala `confirmar_cambio_password()`.
+  Su fuente en `supabase/fuentes/` se compara automáticamente con la migración. Después
   pulsar **Reintentar confirmación**, sin cambiar nuevamente la contraseña.
-- Comprobar los demás fuentes y seguridad_piloto.sql: cinco migraciones no
+- Comprobar las demás fuentes y `seguridad_piloto.sql`: las migraciones no
   reconstruyen por sí solas una instalación incompleta.
 
-Los scripts de `supabase/qa/` usan transacción/rollback y requieren acceso de
-mantenimiento. Leerlos e identificar proyecto antes de ejecutar; preferir
-staging. No son migraciones ni forman parte del instalador.
+Los scripts de `supabase/qa/` usan transacción/rollback y requieren acceso de mantenimiento. Identificar el proyecto antes de ejecutarlos; usar pruebas locales y aisladas. El propietario eligió no crear staging de pago. No son migraciones ni forman parte del instalador.
 
 ## 4. Conectar el frontend
 
@@ -109,8 +125,7 @@ Una preview conectada al proyecto real **no es staging aislado**.
 - SMTP configurado y entrega real al administrador probada. El correo interno
   del personal puede no recibir mensajes.
 
-En Mesora se desactivó registro y se ajustó mínimo a ocho. El dominio definitivo
-y la entrega de recuperación siguen pendientes.
+En Mesora se desactivó registro y se ajustó mínimo a ocho. El dominio mesora-piloto.vercel.app está elegido; la recuperación por correo sigue pendiente por decisión del propietario.
 
 Crear el primer super administrador desde Authentication con cuenta individual,
 confirmación apropiada y contraseña privada. Insertar su perfil sustituyendo

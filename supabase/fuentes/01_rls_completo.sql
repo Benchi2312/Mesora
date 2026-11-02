@@ -387,14 +387,23 @@ alter table public.zonas enable row level security;
 
 drop policy if exists zonas_select on public.zonas;
 create policy zonas_select on public.zonas
-  for select
+  for select to authenticated
   using ((select public.soy_del_restaurante(restaurante_id)));
 
 drop policy if exists zonas_write_admin on public.zonas;
-create policy zonas_write_admin on public.zonas
-  for all
+drop policy if exists zonas_insert_admin on public.zonas;
+drop policy if exists zonas_update_admin on public.zonas;
+drop policy if exists zonas_delete_admin on public.zonas;
+create policy zonas_insert_admin on public.zonas
+  for insert to authenticated
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy zonas_update_admin on public.zonas
+  for update to authenticated
   using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])))
   with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy zonas_delete_admin on public.zonas
+  for delete to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
 
 -- =============================================================================
 -- 4 · mesas
@@ -415,22 +424,29 @@ alter table public.mesas enable row level security;
 
 drop policy if exists mesas_select on public.mesas;
 create policy mesas_select on public.mesas
-  for select
+  for select to authenticated
   using ((select public.soy_del_restaurante(restaurante_id)));
 
 drop policy if exists mesas_write_admin on public.mesas;
-create policy mesas_write_admin on public.mesas
-  for all
-  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])))
+drop policy if exists mesas_insert_admin on public.mesas;
+drop policy if exists mesas_update_operacion on public.mesas;
+drop policy if exists mesas_delete_admin on public.mesas;
+create policy mesas_insert_admin on public.mesas
+  for insert to authenticated
   with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy mesas_update_operacion on public.mesas
+  for update to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante', 'mesero', 'cajero'])))
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante', 'mesero', 'cajero'])));
+create policy mesas_delete_admin on public.mesas
+  for delete to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
 
--- El estado de la mesa también lo mueven el mesero (liberar) y el cajero, sin
--- ser admins: policy aparte, con la misma regla de suscripción.
+-- La policy única de UPDATE permite al admin administrar la mesa y al mesero o
+-- cajero cambiar su estado. Se conserva el límite conocido de columnas descrito
+-- arriba; la API directa aún no restringe el UPDATE únicamente a `estado`.
 drop policy if exists mesas_update_estado on public.mesas;
-create policy mesas_update_estado on public.mesas
-  for update
-  using ((select public.puedo_escribir_en(restaurante_id, array['mesero', 'cajero'])))
-  with check ((select public.puedo_escribir_en(restaurante_id, array['mesero', 'cajero'])));
+-- La policy mesas_update_operacion anterior cubre esos tres roles.
 
 -- =============================================================================
 -- 5 · categorias_productos
@@ -442,14 +458,23 @@ alter table public.categorias_productos enable row level security;
 
 drop policy if exists categorias_productos_select on public.categorias_productos;
 create policy categorias_productos_select on public.categorias_productos
-  for select
+  for select to authenticated
   using ((select public.soy_del_restaurante(restaurante_id)));
 
 drop policy if exists categorias_productos_write_admin on public.categorias_productos;
-create policy categorias_productos_write_admin on public.categorias_productos
-  for all
+drop policy if exists categorias_productos_insert_admin on public.categorias_productos;
+drop policy if exists categorias_productos_update_admin on public.categorias_productos;
+drop policy if exists categorias_productos_delete_admin on public.categorias_productos;
+create policy categorias_productos_insert_admin on public.categorias_productos
+  for insert to authenticated
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy categorias_productos_update_admin on public.categorias_productos
+  for update to authenticated
   using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])))
   with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy categorias_productos_delete_admin on public.categorias_productos
+  for delete to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
 
 -- =============================================================================
 -- 6 · productos
@@ -466,14 +491,23 @@ alter table public.productos enable row level security;
 
 drop policy if exists productos_select on public.productos;
 create policy productos_select on public.productos
-  for select
+  for select to authenticated
   using ((select public.soy_del_restaurante(restaurante_id)));
 
 drop policy if exists productos_write_admin on public.productos;
-create policy productos_write_admin on public.productos
-  for all
+drop policy if exists productos_insert_admin on public.productos;
+drop policy if exists productos_update_admin on public.productos;
+drop policy if exists productos_delete_admin on public.productos;
+create policy productos_insert_admin on public.productos
+  for insert to authenticated
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy productos_update_admin on public.productos
+  for update to authenticated
   using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])))
   with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+create policy productos_delete_admin on public.productos
+  for delete to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
 
 -- =============================================================================
 -- 7 · pedidos
