@@ -27,6 +27,12 @@ const VIEWPORTS = [
   { w: 1280, h: 800, nombre: '1280x800' },
 ]
 
+// Incluye los puntos en que cambia el diseño y el ancho que provocó el
+// solapamiento de la cabecera en tablet. Se revisa la landing por separado
+// para no repetir todas las sesiones operativas en cada uno de estos anchos.
+const LANDING_VIEWPORTS = [320, 360, 390, 414, 639, 640, 767, 768, 820, 1023, 1024, 1100, 1279, 1280, 1366, 1920]
+  .map((w) => ({ w, h: 800, nombre: `${w}x800` }))
+
 // Cada entrada: ruta + pestañas que hay que abrir dentro de ella (por nombre
 // accesible del botón) para revisar todas las pantallas.
 const PANTALLAS = [
@@ -160,6 +166,101 @@ async function medir(page, vp, etiqueta) {
   }
   if (datos.desbordes.length > 0) {
     await page.screenshot({ path: join(CAPTURAS, `${etiqueta}.png`), fullPage: false })
+  }
+}
+
+async function revisarCabeceraLanding(page, etiqueta) {
+  const datos = await page.locator('header').evaluate((header) => {
+    const controles = [...header.querySelectorAll('a, button')].filter((el) => {
+      const estilo = getComputedStyle(el)
+      const rect = el.getBoundingClientRect()
+      return estilo.visibility !== 'hidden' && estilo.display !== 'none' && rect.width > 0 && rect.height > 0
+    })
+    const nombre = (el) => (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g, ' ')
+    const fuera = []
+    const tapados = []
+    const solapados = []
+    for (let i = 0; i < controles.length; i++) {
+      const rect = controles[i].getBoundingClientRect()
+      if (rect.left < -1 || rect.right > innerWidth + 1) fuera.push(nombre(controles[i]))
+      const punto = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+      if (punto && !controles[i].contains(punto)) tapados.push(nombre(controles[i]))
+      for (let j = i + 1; j < controles.length; j++) {
+        const otro = controles[j].getBoundingClientRect()
+        const ancho = Math.min(rect.right, otro.right) - Math.max(rect.left, otro.left)
+        const alto = Math.min(rect.bottom, otro.bottom) - Math.max(rect.top, otro.top)
+        if (ancho > 1 && alto > 1) solapados.push(`${nombre(controles[i])} / ${nombre(controles[j])}`)
+      }
+    }
+    return { fuera, tapados, solapados }
+  })
+  check(`controles de navegación dentro de pantalla ${etiqueta}`, datos.fuera.length === 0, datos.fuera.join(' · '))
+  check(`enlaces y botones de navegación sin superponerse ${etiqueta}`, datos.solapados.length === 0, datos.solapados.join(' · '))
+  check(`controles de navegación accesibles al clic ${etiqueta}`, datos.tapados.length === 0, datos.tapados.join(' · '))
+}
+
+async function correrLandingResponsive(browser) {
+  const ctx = await browser.newContext()
+  const page = await ctx.newPage()
+  page.setDefaultTimeout(10000)
+  try {
+    for (const vp of LANDING_VIEWPORTS) {
+      try {
+        await page.setViewportSize({ width: vp.w, height: vp.h })
+        await page.goto(URL, { waitUntil: 'load', timeout: 45000 })
+        await page.getByRole('heading', { level: 1 }).waitFor()
+        await medir(page, vp, `${vp.nombre}_landing_detalle`)
+        await revisarCabeceraLanding(page, `${vp.nombre} cerrada`)
+
+        const precio = await page.locator('#planes').getByText('Plan mensual', { exact: true }).last().boundingBox()
+        const etiqueta = await page.locator('#planes').getByText('Mesora Pro', { exact: true }).boundingBox()
+        const crucePrecio = precio && etiqueta &&
+          Math.min(precio.x + precio.width, etiqueta.x + etiqueta.width) - Math.max(precio.x, etiqueta.x) > 1 &&
+          Math.min(precio.y + precio.height, etiqueta.y + etiqueta.height) - Math.max(precio.y, etiqueta.y) > 1
+        check(`precio y etiqueta sin superponerse ${vp.nombre}`, Boolean(precio && etiqueta && !crucePrecio))
+
+        const boton = page.locator('header button[aria-expanded]')
+        if (vp.w < 1280) {
+          const visible = await boton.isVisible()
+          check(`menú disponible ${vp.nombre}`, visible)
+          if (!visible) continue
+          await boton.click()
+          check(`menú abierto ${vp.nombre}`, await boton.getAttribute('aria-expanded') === 'true')
+          await revisarCabeceraLanding(page, `${vp.nombre} abierta`)
+          await page.keyboard.press('Escape')
+          check(`Escape cierra el menú y devuelve el foco ${vp.nombre}`,
+            await boton.getAttribute('aria-expanded') === 'false' && await boton.evaluate((el) => document.activeElement === el))
+          await boton.click()
+          await page.getByRole('navigation', { name: 'Menú de navegación' }).getByRole('link', { name: 'Precio', exact: true }).click()
+          check(`enlace cierra el menú y llega a precio ${vp.nombre}`,
+            await page.evaluate(() => window.location.hash) === '#planes' && await boton.getAttribute('aria-expanded') === 'false')
+          if (vp.w === 390) {
+            await boton.click()
+            await page.getByRole('navigation', { name: 'Menú de navegación' }).getByRole('link', { name: 'Ingresar', exact: true }).click()
+            await page.waitForURL('**/login')
+            check('ingresar desde el menú móvil abre el login', await page.getByRole('heading', { name: 'Iniciar sesión', exact: true }).isVisible())
+          }
+          if (vp.w === 820) {
+            await boton.click()
+            await page.mouse.click(5, vp.h - 5)
+            check('clic fuera cierra el menú', await boton.getAttribute('aria-expanded') === 'false')
+            await boton.click()
+            await page.setViewportSize({ width: 1280, height: vp.h })
+            check('al cambiar a escritorio se cierra el menú', await boton.getAttribute('aria-expanded') === 'false')
+          }
+        } else {
+          check(`navegación de escritorio visible ${vp.nombre}`,
+            await page.getByRole('navigation', { name: 'Navegación principal' }).getByRole('link', { name: 'Precio', exact: true }).isVisible() && !(await boton.isVisible()))
+        }
+      } catch (e) {
+        fallos++
+        checks++
+        console.log(`  FALLA landing ${vp.nombre} — ${String(e).split('\n')[0].slice(0, 200)}`)
+        await page.screenshot({ path: join(CAPTURAS, `${vp.nombre}_landing_error.png`) })
+      }
+    }
+  } finally {
+    await ctx.close()
   }
 }
 
@@ -405,7 +506,10 @@ async function run() {
       await correrGuiaCategoria(browser)
     } else if (process.argv.includes('--solo-guia-movil')) {
       for (const vp of VIEWPORTS.filter((vista) => vista.w <= 768)) await correrGuiaMovil(browser, vp)
+    } else if (process.argv.includes('--solo-landing')) {
+      await correrLandingResponsive(browser)
     } else {
+      await correrLandingResponsive(browser)
       for (const vp of VIEWPORTS) {
         console.log(`\nViewport ${vp.nombre}`)
         for (const pantalla of PANTALLAS) await correrPantalla(browser, vp, pantalla)
@@ -431,7 +535,9 @@ async function run() {
     ? 'recorrido guiado de categoría en 390x844'
     : process.argv.includes('--solo-guia-movil')
       ? 'guía móvil en 360x640 y 390x844'
-      : `${VIEWPORTS.length} viewports`
+      : process.argv.includes('--solo-landing')
+        ? `landing en ${LANDING_VIEWPORTS.length} anchos`
+        : `${VIEWPORTS.length} viewports del sistema y ${LANDING_VIEWPORTS.length} anchos de landing`
   if (fallos === 0) {
     console.log(`RESPONSIVE OK: ${checks} comprobaciones; cobertura: ${cobertura}.`)
     rmSync(CAPTURAS, { recursive: true, force: true })

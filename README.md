@@ -115,7 +115,7 @@ npm run verificar            # 510 checks de reglas de negocio (backend local)
 npm run verificar:precuenta  # QA de precuenta, impresión/PDF y ausencia de escrituras
 npm run verificar:configuracion # QA del guardado de Datos del local, REST y dominio
 npm run verificar:sql        # PostgreSQL aislado: instalación, permisos, flujo y restauración
-npm run verificar:responsive # 438 checks responsive, solapamientos y guía del demo
+npm run verificar:responsive # QA responsive del sistema y la landing
 npm run verificar:despliegue -- https://mesora-sistema.vercel.app # rutas públicas, sin ventas reales
 npm run verificar:acceso      # cuentas desactivadas, salida y contraseña temporal con Auth simulado
 npm run capturas:demo        # capturas del recorrido guiado (Playwright)
@@ -145,8 +145,10 @@ dashboard, la caja por turnos y el round-trip de `localStorage` simulando un F5.
 
 `npm run verificar:responsive` usa Playwright con Chromium: recorre landing,
 login, demo, las 8 pestañas del admin, mesero, cocina, cajero y las 10 secciones
-del super admin con datos, en 360, 390, 768 y 1280 px. Comprueba desbordes,
-botones superpuestos, controles táctiles y el flujo guiado de categoría/producto.
+del super admin con datos, en 360, 390, 768 y 1280 px. Además revisa la landing
+en 16 anchos de 320 a 1920 px, incluidos los cambios de diseño y 820 px.
+Comprueba desbordes, enlaces y botones superpuestos, controles táctiles, el
+menú adaptable y el flujo guiado de categoría/producto.
 Usa un directorio de entorno temporal para forzar el modo QA sin mover
 `.env.local` ni alterar servidores Vite que ya estén abiertos.
 
@@ -165,7 +167,7 @@ lenguaje visual en administración, caja, cocina y atención. Los paneles se
 adaptan a escritorio, tablet y móvil; en pantallas pequeñas, las tablas se
 desplazan dentro de su contenedor y la guía del demo limita su altura para dejar
 visible parte de la vista que explica. `npm run verificar:responsive` comprueba
-las rutas y controles táctiles en los cuatro anchos indicados arriba.
+las rutas y controles táctiles en los anchos indicados arriba.
 
 ## Desplegar en Vercel
 
@@ -246,7 +248,7 @@ scripts/
   verificar-configuracion.mjs guardado, errores y dominio del local
   verificar-precuenta.mjs  vista, PDF, impresión y consumo actualizado
   verificar-sql.mjs        instalación y circuito SQL en PostgreSQL aislado
-  verificar-responsive.mjs suite responsive, overlap y guía móvil (438 checks)
+  verificar-responsive.mjs suite responsive, navegación y guía móvil
   capturas-demo.mjs        capturas del recorrido guiado
   build-install-sql.mjs    genera TODO_EN_UNO.sql
 ```
@@ -347,7 +349,7 @@ El orden de fuentes y su cobertura se verifican con npm run sql:install.
 ## Estado actual
 
 Implementado. Última verificación registrada (`npm run verificar`: 510 checks;
-`npm run verificar:responsive`: 438 checks en 4 viewports):
+`npm run verificar:responsive`: sistema en 4 viewports y landing en 16 anchos):
 
 - Auth (email/password), lectura de rol desde `usuarios`, rutas protegidas por rol y bloqueo por suscripción vencida.
 - **Vista Mesero**: grilla de mesas por zona, toma de pedido desde el menú (categorías, promociones, notas por ítem), envío de comanda atómica (`crear_pedido`), **varias comandas por mesa** con pantalla intermedia que acumula el total, y cierre de cuenta con método de pago, pago dividido, propina y boleta imprimible (`cerrar_cuenta`), con **edición y anulación de ítems** desde la comanda abierta.

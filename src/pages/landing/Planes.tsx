@@ -25,11 +25,13 @@ export default function Planes() {
       </div>
       <div className="mx-auto mt-10 max-w-xl">
         <div className="relative overflow-hidden rounded-3xl border border-brand-500/40 bg-surface-900 p-8 shadow-2xl shadow-brand-500/5 sm:p-10">
-          <span className="absolute right-0 top-0 rounded-bl-2xl bg-brand-500 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-surface-950">
-            Mesora Pro
-          </span>
-          <p className="text-sm text-zinc-400">Plan mensual Mesora Pro</p>
-          <div className="mt-3 flex items-end gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-zinc-400">Plan mensual</p>
+            <span className="rounded-full bg-brand-500 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-surface-950">
+              Mesora Pro
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap items-end gap-2">
             <span className="text-5xl font-black tracking-tight text-white">{mostrarPrecioPlan(precio)}</span>
             <span className="pb-1.5 text-sm text-zinc-500">/mes</span>
           </div>
@@ -46,7 +48,7 @@ export default function Planes() {
           <div className="mt-7 rounded-xl border border-surface-700 bg-surface-950/60 p-4 text-sm leading-relaxed text-zinc-400">
             El restaurante conserva su proveedor actual de facturación electrónica. El alcance, soporte y puesta en marcha se detallan antes de contratar.
           </div>
-          <a href="#contacto" className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-6 py-3.5 text-base font-bold text-surface-950 shadow-lg shadow-brand-500/25 transition hover:bg-brand-400">
+          <a href="#contacto" className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3.5 text-center text-base font-bold text-surface-950 shadow-lg shadow-brand-500/25 transition hover:bg-brand-400">
             Solicitar una demostración <IconArrowRight className="h-5 w-5" />
           </a>
           <Link to="/demo" className="mt-4 block text-center text-sm font-semibold text-zinc-400 transition hover:text-white">

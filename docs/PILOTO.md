@@ -112,7 +112,7 @@ del restablecimiento que inicia el administrador desde Personal.
 | `npm run verificar` | 510 checks aprobados del backend local y su persistencia. |
 | `npm run verificar:precuenta` | 24 escenarios a 390/1280 px: PDF/impresión, error de lectura, cambio entre lecturas, roles y cobro posterior. |
 | `npm run verificar:configuracion` | Validación, payload REST simulado, RPC pendientes, metadatos de diagnóstico y persistencia demo aprobados. |
-| `npm run verificar:responsive` | 438 checks en 360, 390, 768 y 1280 px aprobados; incluye solapamientos de botones y guía móvil. |
+| `npm run verificar:responsive` | Sistema revisado en 360, 390, 768 y 1280 px; landing en 16 anchos de 320 a 1920 px. Incluye solapamientos de enlaces y botones, menú adaptable y guía móvil. |
 | `npm run verificar:despliegue -- https://mesora-sistema.vercel.app` | Smoke público de 13 rutas, incluida la pantalla de verificación; sin login ni escrituras en Supabase. |
 | `npm run verificar:sql` | Instalación vacía, permisos, migración RLS sobre policies previas, flujo SQL, 1205 pedidos y restauración aislada aprobados. Simula Auth; no prueba correo ni dos terminales concurrentes. |
 | Respaldo de producción | Dump completo restaurado en PostgreSQL 17.6 aislado; archivo privado en `backups/` y excluido de Git. Pendiente la copia cifrada fuera de este equipo y recuperación separada de Storage/configuración. |
