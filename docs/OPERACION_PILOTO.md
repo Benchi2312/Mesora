@@ -1,7 +1,7 @@
 # Operación del piloto
 
-Procedimiento actualizado el 31/10/2026; responsables y evidencias reales
-pendientes. Completar con el encargado antes del primer turno.
+Procedimiento actualizado el 02/11/2026. Completar con el encargado los datos
+del local y las pruebas presenciales antes del primer turno.
 
 ## Registro de salida
 
@@ -12,9 +12,10 @@ pendientes. Completar con el encargado antes del primer turno.
 | URL de producción | https://mesoraapp-benchi1.vercel.app; validar después del despliegue de la versión nueva. |
 | Proyecto y versión | Supabase Mesora; rama main en GitHub. El commit desplegado y sus checks se consultan en Deployments de Vercel y Actions de GitHub. |
 | Sistema de comprobantes electrónicos | Se mantiene el sistema actual del local; confirmado por el propietario el 30/10/2026. |
-| Responsable y ubicación privada del respaldo | Pendiente |
+| Respaldo y restauración local | 02/11/2026: dump completo de la base real restaurado correctamente en una base Supabase local aislada. El archivo está en `backups/mesora-production-20261102.dump`, excluido de Git. |
+| Responsable y copia fuera de esta computadora | Pendiente |
 | Frecuencia, retención y pérdida máxima aceptable | Pendiente |
-| Restauración: fecha y tiempo real de recuperación | Pendiente |
+| Restauración del servicio y tiempo real de recuperación | Pendiente; la prueba local no mide el RTO ni valida un proyecto remoto nuevo. |
 | Dispositivos e impresora aprobados | Pendiente |
 
 ## 1. Respaldo y recuperación
@@ -22,11 +23,14 @@ pendientes. Completar con el encargado antes del primer turno.
 1. Revisar cobertura y disponibilidad en Supabase. En la consulta realizada no
    había backups físicos listados y PITR estaba desactivado. Acordar mecanismo
    y coste con el propietario antes de habilitarlo.
-2. Crear el respaldo mediante el mecanismo aprobado del proveedor o una
-   exportación administrativa documentada. Guardarlo cifrado fuera de Git/Vercel
-   con acceso limitado. No copiar volcados ni credenciales al repositorio.
-3. Verificar por separado Auth, archivos de Storage, secretos de Edge Functions
-   y hosting: un dump del esquema public no respalda todo el servicio.
+2. Se generó un dump completo con `pg_dump` 17.6 y se restauró en una base
+   Supabase local temporal. El artefacto queda en `backups/`, está excluido de
+   Git y se verificó con `pg_restore --list`. Antes del turno real, copiarlo a
+   un destino cifrado fuera de esta computadora y acordar responsable,
+   frecuencia y retención.
+3. El dump cubre la base PostgreSQL; no incluye objetos binarios de Storage,
+   configuración del proveedor Auth, secretos de Edge Functions ni despliegues
+   de Vercel. Definir respaldo y recuperación por separado para esos servicios.
 4. Restaurar en un proyecto aislado, nunca sobre el restaurante operativo para
    ensayar. Desactivar correos e integraciones salientes durante la prueba.
 5. Comparar cantidades, relaciones, último cobro/correlativo, pagos y turnos.

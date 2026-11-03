@@ -110,6 +110,7 @@ del restablecimiento que inicia el administrador desde Personal.
 | `npm run verificar:responsive` | 438 checks en 360, 390, 768 y 1280 px aprobados; incluye solapamientos de botones y guía móvil. |
 | `npm run verificar:despliegue -- https://mesoraapp-benchi1.vercel.app` | Smoke público de 13 rutas, incluida la pantalla de verificación; sin login ni escrituras en Supabase. |
 | `npm run verificar:sql` | Instalación vacía, permisos, migración RLS sobre policies previas, flujo SQL, 1205 pedidos y restauración aislada aprobados. Simula Auth; no prueba correo ni dos terminales concurrentes. |
+| Respaldo de producción | Dump completo restaurado en una base Supabase local aislada; archivo privado en `backups/` y excluido de Git. Aún falta una copia cifrada fuera de esta computadora y recuperación de Storage/configuración. |
 | `npm run build` | TypeScript y build de producción aprobados. |
 | `supabase/qa/seguridad_rpc_rollback.sql` | Anónimo rechazado, helpers privados, servicio autorizado y precio público comprobados. |
 | `supabase/qa/politicas_catalogo_rollback.sql` | Reconstituye las policies previas, comprueba la exposición conocida, aplica la migración real, valida alcance por rol y rechazo de 11 RPC admin; rollback completo en PostgreSQL aislado. |
