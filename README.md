@@ -176,11 +176,10 @@ El proyecto `mesora` está conectado al repositorio de Mesora,
 **https://mesora-sistema.vercel.app**. Node 22, `npm ci`, `npm run build` y salida
 `dist` están definidos; el rewrite SPA permite recargar las rutas internas.
 
-**Seguimiento del dominio (03/11/2026):** un despliegue nuevo de `main` quedó
-listo sin actualizar automáticamente `mesora-sistema.vercel.app`. Se apuntó el
-dominio manualmente al despliegue reciente. Hasta corregir y comprobar la
-asignación automática, verificar en Vercel que el dominio señale al commit
-publicado después de cada despliegue.
+**Promoción del dominio:** Vercel mantiene el despliegue preparado mientras la
+comprobación `CI de Mesora` de GitHub está pendiente. Cuando CI aprobó el commit
+`f711384`, Vercel lo promocionó automáticamente a `mesora-sistema.vercel.app`.
+Verificar tanto la CI como la promoción antes de dar por publicado un cambio.
 
 Flujo de cambios:
 
