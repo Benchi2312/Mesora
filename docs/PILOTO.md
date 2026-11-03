@@ -12,15 +12,15 @@ aceptar la versión publicada.
   suite SQL, reglas de negocio, TypeScript, precuenta, configuración, responsive
   y build. [Ejecución verificada](https://github.com/Benchi2312/Mesora/actions/runs/41577533049).
 - El proyecto de Vercel se llama `mesora`; su URL pública es
-  `https://mesora-benchi1.vercel.app`.
+  `https://mesora-sistema.vercel.app`.
   Sus cuatro variables de producción ya están preparadas en Vercel: URL/key
   pública de Supabase, modo local desactivado y diagnóstico activado.
-- Supabase Auth usa `https://mesora-benchi1.vercel.app` como Site URL y permite la
+- Supabase Auth usa `https://mesora-sistema.vercel.app` como Site URL y permite la
   redirección exacta `/restablecer` y las rutas locales de desarrollo.
 - GitHub y Vercel conectados; `main` es la rama de producción. Node 22 y build
   reproducible configurados. CI y despliegue automático se ejecutan de forma
   independiente; el smoke público corre después de una publicación exitosa.
-- Dominio de producción: `https://mesora-benchi1.vercel.app`. La versión y el
+- Dominio de producción: `https://mesora-sistema.vercel.app`. La versión y el
   resultado de cada publicación quedan registrados en Deployments de Vercel
   y en los workflows CI / Verificar despliegue de GitHub.
 - El respaldo completo de producción se restauró correctamente en una base
@@ -113,7 +113,7 @@ del restablecimiento que inicia el administrador desde Personal.
 | `npm run verificar:precuenta` | 24 escenarios a 390/1280 px: PDF/impresión, error de lectura, cambio entre lecturas, roles y cobro posterior. |
 | `npm run verificar:configuracion` | Validación, payload REST simulado, RPC pendientes, metadatos de diagnóstico y persistencia demo aprobados. |
 | `npm run verificar:responsive` | 438 checks en 360, 390, 768 y 1280 px aprobados; incluye solapamientos de botones y guía móvil. |
-| `npm run verificar:despliegue -- https://mesora-benchi1.vercel.app` | Smoke público de 13 rutas, incluida la pantalla de verificación; sin login ni escrituras en Supabase. |
+| `npm run verificar:despliegue -- https://mesora-sistema.vercel.app` | Smoke público de 13 rutas, incluida la pantalla de verificación; sin login ni escrituras en Supabase. |
 | `npm run verificar:sql` | Instalación vacía, permisos, migración RLS sobre policies previas, flujo SQL, 1205 pedidos y restauración aislada aprobados. Simula Auth; no prueba correo ni dos terminales concurrentes. |
 | Respaldo de producción | Dump completo restaurado en PostgreSQL 17.6 aislado; archivo privado en `backups/` y excluido de Git. Pendiente la copia cifrada fuera de este equipo y recuperación separada de Storage/configuración. |
 | `npm run build` | TypeScript y build de producción aprobados. |

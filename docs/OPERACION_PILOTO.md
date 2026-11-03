@@ -9,7 +9,7 @@ del local y las pruebas presenciales antes del primer turno.
 | --- | --- |
 | Restaurante, encargado y soporte | Pendiente |
 | Primer turno acompañado: fecha/horario | Pendiente |
-| URL de producción | https://mesora-benchi1.vercel.app; validar tras cada despliegue de `main`. |
+| URL de producción | https://mesora-sistema.vercel.app; validar tras cada despliegue de `main`. |
 | Proyecto y versión | Supabase Mesora; rama main en GitHub. El commit desplegado y sus checks se consultan en Deployments de Vercel y Actions de GitHub. |
 | Sistema de comprobantes electrónicos | Se mantiene el sistema actual del local; confirmado por el propietario el 30/10/2026. |
 | Respaldo y restauración local | 02/11/2026: dump completo de la base real restaurado correctamente en una base Supabase local aislada. El archivo está en `backups/mesora-production-20261102.dump`, excluido de Git. |
@@ -124,7 +124,7 @@ Esto no elimina registros anteriores del proveedor.
    CI y despliegue son comprobaciones separadas. Mantener visibles los pendientes
    de copia externa del respaldo y aceptación del local.
 4. Comprobar rutas públicas con `npm run verificar:despliegue --
-   https://mesora-benchi1.vercel.app`; el workflow de GitHub también lo ejecuta
+   https://mesora-sistema.vercel.app`; el workflow de GitHub también lo ejecuta
    tras el despliegue. Registrar commit y deployment. Esta comprobación no
    autentica ni crea ventas. GitHub borra la rama del PR al integrarlo; borrar
    la local con `git branch -d` después de sincronizar `main`.

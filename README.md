@@ -7,7 +7,7 @@ específicas para cada adaptador.
 
 ## Demo pública
 
-Explora el [demo interactivo de Mesora](https://mesora-benchi1.vercel.app/demo).
+Explora el [demo interactivo de Mesora](https://mesora-sistema.vercel.app/demo).
 No requiere cuenta y utiliza datos de ejemplo; no registra ventas reales ni
 modifica la base de datos del restaurante.
 
@@ -74,7 +74,7 @@ npm run verificar:precuenta  # QA de precuenta, impresión/PDF y ausencia de esc
 npm run verificar:configuracion # QA del guardado de Datos del local, REST y dominio
 npm run verificar:sql        # PostgreSQL aislado: instalación, permisos, flujo y restauración
 npm run verificar:responsive # 438 checks responsive, solapamientos y guía del demo
-npm run verificar:despliegue -- https://mesora-benchi1.vercel.app # rutas públicas, sin ventas reales
+npm run verificar:despliegue -- https://mesora-sistema.vercel.app # rutas públicas, sin ventas reales
 npm run verificar:acceso      # cuentas desactivadas, salida y contraseña temporal con Auth simulado
 npm run capturas:demo        # capturas del recorrido guiado (Playwright)
 npm run sql:install          # regenera supabase/TODO_EN_UNO.sql
@@ -129,7 +129,7 @@ las rutas y controles táctiles en los cuatro anchos indicados arriba.
 
 El proyecto `mesora` está conectado al repositorio de Mesora,
 `Benchi2312/Mesora`, con `main` como rama de producción y dirección
-**https://mesora-benchi1.vercel.app**. Node 22, `npm ci`, `npm run build` y salida
+**https://mesora-sistema.vercel.app**. Node 22, `npm ci`, `npm run build` y salida
 `dist` están definidos; el rewrite SPA permite recargar las rutas internas.
 
 Flujo de cambios:
@@ -156,7 +156,7 @@ No usar `service_role` en el frontend. Tras cambiar variables, reconstruir:
 Vite las incrusta durante el build.
 
 En Supabase, Site URL debe coincidir con el dominio publicado y Redirect URLs
-debe incluir `https://mesora-benchi1.vercel.app/restablecer`.
+debe incluir `https://mesora-sistema.vercel.app/restablecer`.
 La recuperación de administradores está integrada con el correo alternativo
 verificado. La migración, la Edge Function `admin-password-recovery`, el Site URL
 y el Redirect URL oficiales ya están configurados. Falta configurar
