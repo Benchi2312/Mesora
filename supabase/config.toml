@@ -393,6 +393,9 @@ deno_version = 2
 [functions.admin-password-recovery]
 verify_jwt = false
 
+[functions.contacto-comercial]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

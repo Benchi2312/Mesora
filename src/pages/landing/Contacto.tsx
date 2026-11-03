@@ -3,28 +3,52 @@ import { Link } from 'react-router-dom'
 import { IconArrowRight, IconCheck } from './Icons'
 import SectionHeading from './SectionHeading'
 import { useLandingConfig } from './useLandingConfig'
+import { supabase } from '../../lib/supabase'
 
 const campos = 'w-full rounded-xl border border-white/10 bg-surface-950 px-4 py-3 text-white placeholder:text-zinc-600 outline-none transition focus:border-brand-500/70 focus:ring-2 focus:ring-brand-500/15'
 
 export default function Contacto() {
   const { correo, telefono } = useLandingConfig()
   const [enviado, setEnviado] = useState(false)
+  const [errorEnvio, setErrorEnvio] = useState('')
+  const [enviando, setEnviando] = useState(false)
   const correoTemporal = correo?.toLowerCase().endsWith('.invalid') ?? false
 
-  function solicitarDemo(event: FormEvent<HTMLFormElement>) {
+  async function solicitarDemo(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!correo || correoTemporal) return
-    const form = new FormData(event.currentTarget)
-    const asunto = `Demostración de Mesora — ${form.get('restaurante')}`
-    const cuerpo = [
-      `Nombre: ${form.get('nombre')}`,
-      `Restaurante: ${form.get('restaurante')}`,
-      `Correo de contacto: ${form.get('email')}`,
-      '',
-      String(form.get('mensaje') || 'Quiero conocer Mesora para mi restaurante.'),
-    ].join('\n')
-    window.location.href = `mailto:${correo}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`
-    setEnviado(true)
+    if (!correo || correoTemporal || enviando) return
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
+    setEnviando(true)
+    setEnviado(false)
+    setErrorEnvio('')
+    try {
+      const { data, error } = await supabase.functions.invoke('contacto-comercial', {
+        body: {
+          nombre: String(form.get('nombre') ?? '').trim(),
+          restaurante: String(form.get('restaurante') ?? '').trim(),
+          email: String(form.get('email') ?? '').trim(),
+          mensaje: String(form.get('mensaje') ?? '').trim(),
+          sitioWeb: String(form.get('sitio-web') ?? ''),
+        },
+      })
+      if (error || !data?.ok) throw error ?? new Error('No se pudo enviar la consulta.')
+      setEnviado(true)
+      formElement.reset()
+    } catch {
+      const asunto = `Demostración de Mesora — ${form.get('restaurante')}`
+      const cuerpo = [
+        `Nombre: ${form.get('nombre')}`,
+        `Restaurante: ${form.get('restaurante')}`,
+        `Correo de contacto: ${form.get('email')}`,
+        '',
+        String(form.get('mensaje') || 'Quiero conocer Mesora para mi restaurante.'),
+      ].join('\n')
+      setErrorEnvio('El envío automático no está disponible. Abrimos tu aplicación de correo para que completes el envío.')
+      window.location.href = `mailto:${correo}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`
+    } finally {
+      setEnviando(false)
+    }
   }
 
   return (
@@ -64,7 +88,7 @@ export default function Contacto() {
             <form onSubmit={solicitarDemo} className="space-y-4">
               <div className="mb-5">
                 <p className="text-xl font-bold text-white">Solicita una demostración</p>
-                <p className="mt-1 text-sm leading-relaxed text-zinc-400">Completa tus datos y prepararemos un correo para enviarlo a Mesora.</p>
+                <p className="mt-1 text-sm leading-relaxed text-zinc-400">Completa tus datos y enviaremos tu consulta directamente al equipo de Mesora.</p>
               </div>
               <div>
                 <label htmlFor="contacto-nombre" className="mb-1.5 block text-sm font-medium text-zinc-300">Tu nombre</label>
@@ -82,11 +106,12 @@ export default function Contacto() {
                 <label htmlFor="contacto-mensaje" className="mb-1.5 block text-sm font-medium text-zinc-300">¿Qué te gustaría mejorar? <span className="font-normal text-zinc-500">(opcional)</span></label>
                 <textarea id="contacto-mensaje" name="mensaje" rows={3} maxLength={1000} placeholder="Pedidos, cocina, caja, reportes…" className={`${campos} resize-y`} />
               </div>
-              <button type="submit" className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-6 py-3.5 font-bold text-surface-950 shadow-lg shadow-brand-500/15 transition hover:-translate-y-0.5 hover:bg-brand-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300">
-                Preparar consulta por correo <IconArrowRight className="h-5 w-5" />
+              <div aria-hidden="true" className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden"><label htmlFor="contacto-sitio-web">Deja este campo vacío</label><input id="contacto-sitio-web" name="sitio-web" tabIndex={-1} autoComplete="off" /></div>
+              <button type="submit" disabled={enviando} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-6 py-3.5 font-bold text-surface-950 shadow-lg shadow-brand-500/15 transition hover:-translate-y-0.5 hover:bg-brand-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 disabled:cursor-wait disabled:opacity-70">
+                {enviando ? 'Enviando consulta…' : 'Enviar consulta'} <IconArrowRight className="h-5 w-5" />
               </button>
-              <p className="text-center text-xs leading-relaxed text-zinc-500">Se abrirá tu aplicación de correo. Revisa el mensaje y envíalo para completar la consulta.</p>
-              {enviado && <p role="status" className="text-center text-sm text-emerald-400">El correo quedó preparado; envíalo desde tu aplicación para que podamos recibirlo.</p>}
+              {enviado && <p role="status" className="text-center text-sm text-emerald-400">¡Listo! Tu consulta se envió a Mesora. Nos pondremos en contacto contigo.</p>}
+              {errorEnvio && <p role="alert" className="text-center text-sm text-red-300">{errorEnvio} <a className="underline" href={`mailto:${correo}`}>Abrir correo</a></p>}
             </form>
           ) : (
             <div className="flex min-h-72 flex-col items-center justify-center px-4 text-center">
