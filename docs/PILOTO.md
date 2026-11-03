@@ -8,9 +8,9 @@ aceptar la versión publicada.
 
 ## Cierre técnico y dirección elegida
 
-- CI de GitHub aprobada para el commit `8cc8a06`: instalación SQL reproducible,
-  suite SQL, reglas de negocio, TypeScript, precuenta, configuración y build.
-  [Ejecución verificada](https://github.com/Benchi2312/Mesora/actions/runs/41103477386).
+- CI de GitHub aprobada para el commit `0900455`: instalación SQL reproducible,
+  suite SQL, reglas de negocio, TypeScript, precuenta, configuración, responsive
+  y build. [Ejecución verificada](https://github.com/Benchi2312/Mesora/actions/runs/41577533049).
 - El proyecto de Vercel se llama `mesora`; su URL pública es
   `https://mesora-benchi1.vercel.app`.
   Sus cuatro variables de producción ya están preparadas en Vercel: URL/key
