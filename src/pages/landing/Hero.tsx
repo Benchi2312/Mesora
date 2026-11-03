@@ -35,10 +35,10 @@ export default function Hero() {
               <IconArrowRight className="h-5 w-5" />
             </Link>
             <a
-              href="#piloto"
+              href="#contacto"
               className="inline-flex items-center rounded-xl border border-white/15 bg-white/5 px-6 py-3 text-base font-semibold text-white transition hover:-translate-y-0.5 hover:bg-white/10"
             >
-              Solicitar información del piloto
+              Solicitar una demostración
             </a>
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-2 text-sm text-zinc-400">

@@ -1,6 +1,6 @@
 # Instalar y actualizar Mesora en Supabase
 
-Revisión: 2/11/2026. Consultar [estado del piloto](./docs/PILOTO.md) y
+Revisión: 3/11/2026. Consultar [estado del piloto](./docs/PILOTO.md) y
 [operación del local](./docs/OPERACION_PILOTO.md).
 
 ## 1. Preparar
@@ -21,9 +21,9 @@ npm run sql:install
 npm run verificar:sql
 ```
 
-El generador combina **27 secciones SQL** (19 fuentes y nueve migraciones; la
-fuente de recuperación se vincula a su migración versionada y solo se incluye
-una vez), y verifica cobertura, equivalencia, encoding y delimitadores. La
+El generador combina **28 secciones SQL** (18 fuentes únicas y diez
+migraciones; las copias de compatibilidad no se duplican), y verifica
+cobertura, equivalencia, encoding y delimitadores. La
 suite instala 19 tablas en PostgreSQL aislado con pgcrypto real, verifica
 RLS/RPC, prueba la nueva migración desde las policies anteriores, opera el
 circuito completo y prueba una restauración aislada. No necesita ni modifica
@@ -69,6 +69,7 @@ recuperable antes de cualquier cambio:
 | Archivo en supabase/migrations | Efecto |
 | --- | --- |
 | `20261022120000_password_recovery.sql` | Columnas de recuperación/cambio temporal y RPC `confirmar_cambio_password()`. |
+| `20261103032730_admin_email_recovery.sql` | Verificación segura de correo alternativo, tokens de un solo uso, límite de solicitudes y protección de campos. |
 | `20261029052901_datos_local_dominio.sql` | Dominio opcional, validación y permiso administrativo por columna. |
 | `20261030173318_seguridad_rpc_piloto.sql` | Revoca EXECUTE público/anónimo, protege helpers y fija search_path; conserva API autenticada necesaria. |
 | `20261030173320_consultas_pendientes_piloto.sql` | RPC JSON de pedidos/mesas pendientes e índices FK sin cobertura. |
@@ -125,7 +126,17 @@ Una preview conectada al proyecto real **no es staging aislado**.
 - SMTP configurado y entrega real al administrador probada. El correo interno
   del personal puede no recibir mensajes.
 
-En Mesora se desactivó registro y se ajustó mínimo a ocho. El dominio mesora-piloto.vercel.app está elegido; la recuperación por correo sigue pendiente por decisión del propietario.
+En Mesora se desactivó registro y se ajustó mínimo a ocho. El dominio de Vercel es https://mesoraapp.vercel.app. El flujo de recuperación de administradores usa un correo alternativo verificado y la Edge Function `admin-password-recovery`; los enlaces vuelven a `/restablecer`.
+
+Para activarlo en producción:
+
+1. Configura `Site URL` como `https://mesoraapp.vercel.app` y permite `https://mesoraapp.vercel.app/restablecer` en Redirect URLs.
+2. Configura en Resend un dominio verificado y un remitente. Añade `RESEND_API_KEY`, `MESORA_AUTH_FROM_EMAIL` y `MESORA_SITE_URL=https://mesoraapp.vercel.app` como secretos de Edge Functions en Supabase. No los guardes en Git ni en variables `VITE_*`.
+3. La migración aplicada es `20261103032730_admin_email_recovery`; despliega `admin-password-recovery` con `verify_jwt=false`. La función valida manualmente la sesión al configurar un correo.
+4. Cada administrador registra un correo real en **Admin → Datos del local → Recuperación de contraseña** y confirma el enlace. Prueba recibirlo y completar el cambio antes de depender del flujo.
+5. Los empleados no usan recuperación por correo: el administrador les restablece la clave desde **Personal**.
+
+El contacto comercial de la landing es independiente de estos secretos y está provisionalmente como `contacto@mesora.invalid`.
 
 Crear el primer super administrador desde Authentication con cuenta individual,
 confirmación apropiada y contraseña privada. Insertar su perfil sustituyendo
@@ -143,8 +154,10 @@ Function crea tanto Auth como perfil; no dar de alta manualmente un segundo
 usuario para el mismo trabajador. El reset administrativo exige cambiar la
 contraseña temporal.
 
-Las columnas de correo alternativo existen; su verificación/recuperación no
-están implementadas. Acordar y probar recuperación del administrador y personal.
+La interfaz y Edge Function de recuperación del administrador están
+implementadas. La entrega real queda pendiente hasta configurar el proveedor y
+que cada admin verifique su dirección. El personal se restablece desde
+**Personal** por su administrador.
 
 ## 6. Edge Functions
 
@@ -157,6 +170,7 @@ supabase functions deploy crear-personal
 supabase functions deploy crear-restaurante
 supabase functions deploy crear-usuario
 supabase functions deploy reset-password-personal
+supabase functions deploy admin-password-recovery
 ```
 
 Conservar verificación JWT y controles internos de sesión/rol. Los secretos de

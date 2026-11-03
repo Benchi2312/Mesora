@@ -18,6 +18,10 @@ dist-ssr
 # Capturas generadas por `npm run capturas:demo` y `npm run verificar:responsive`
 capturas/
 
+# Estado local y herramientas descargadas para proyectos HyperFrames.
+**/.hyperframes/
+**/_render-tools/
+
 # Archivos sueltos de diagnóstico
 _*.txt
 
@@ -45,4 +49,5 @@ _*.txt
 # Metadatos del hosting y copias privadas; nunca se publican.
 /.vercel/
 /backups/
+/promocional/
 *.dump

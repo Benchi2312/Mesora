@@ -3,6 +3,8 @@ import { getApi } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import { useAuthStore } from '../../store/auth'
 import { useDemoStore } from '../../demo/demoStore'
+import { mensajeErrorFuncion } from '../../lib/mensajeErrorFuncion'
+import { supabase } from '../../lib/supabase'
 import { Campo, IconoInfo } from '../../components/ui'
 import { PIN_MAX_DIGITOS, PIN_MIN_DIGITOS, errorAlConfigurarPin } from '../../domain/security/autorizacion'
 import { esDominioValido, normalizarDominio } from '../../domain/security/dominio'
@@ -27,6 +29,7 @@ type Formulario = {
  */
 export default function ConfiguracionTab() {
   const { restaurante } = useCurrentContext()
+  const usuarioActual = useAuthStore((s) => s.usuario)
   const esDemo = useDemoStore((s) => s.isDemo)
   const rid = restaurante?.id
 
@@ -47,6 +50,14 @@ export default function ConfiguracionTab() {
   const [errorPin, setErrorPin] = useState<string | null>(null)
   const [okPin, setOkPin] = useState<string | null>(null)
   const [guardandoPin, setGuardandoPin] = useState(false)
+  const [correoRecuperacion, setCorreoRecuperacion] = useState('')
+  const [enviandoVerificacion, setEnviandoVerificacion] = useState(false)
+  const [errorRecuperacion, setErrorRecuperacion] = useState<string | null>(null)
+  const [okRecuperacion, setOkRecuperacion] = useState<string | null>(null)
+
+  useEffect(() => {
+    setCorreoRecuperacion(usuarioActual?.correo_recuperacion ?? '')
+  }, [usuarioActual?.id, usuarioActual?.correo_recuperacion])
 
   useEffect(() => {
     if (!restaurante) return
@@ -154,6 +165,34 @@ export default function ConfiguracionTab() {
     olvidarPinCacheado()
     await cargarPin()
     setOkPin('PIN eliminado. Cualquiera del restaurante puede anular ítems y cobros.')
+  }
+
+  async function solicitarVerificacionCorreo(e: React.FormEvent) {
+    e.preventDefault()
+    setErrorRecuperacion(null)
+    setOkRecuperacion(null)
+    const email = correoRecuperacion.trim().toLowerCase()
+    if (!EMAIL_OK.test(email) || email.endsWith('.invalid')) {
+      setErrorRecuperacion('Ingresa un correo real y válido al que puedas acceder.')
+      return
+    }
+    setEnviandoVerificacion(true)
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('admin-password-recovery', {
+        body: { accion: 'iniciar_verificacion', email },
+      })
+      if (invokeError) {
+        setErrorRecuperacion(await mensajeErrorFuncion(invokeError, 'No se pudo enviar la verificación.'))
+      } else if (typeof data?.error === 'string') {
+        setErrorRecuperacion(data.error)
+      } else {
+        setOkRecuperacion(data?.message ?? 'Revisa tu correo para verificarlo.')
+      }
+    } catch {
+      setErrorRecuperacion('No se pudo conectar con el servidor. Intenta más tarde.')
+    } finally {
+      setEnviandoVerificacion(false)
+    }
   }
 
   const campos: Array<[keyof Formulario, string]> = [
@@ -278,6 +317,50 @@ export default function ConfiguracionTab() {
           </div>
         </div>
       </form>
+
+      <section className="card mt-5 p-4 sm:p-5">
+        <h2 className="text-lg font-bold tracking-tight text-zinc-100">Recuperación de contraseña del administrador</h2>
+        <p className="mb-4 mt-1 text-sm leading-relaxed text-zinc-500">
+          Configura un correo al que puedas acceder. Lo verificaremos antes de usarlo para recuperar la cuenta. El administrador seguirá restableciendo las claves del personal desde la sección Personal.
+        </p>
+        {esDemo ? (
+          <p className="text-sm text-zinc-400">La configuración de recuperación no se guarda en el demo.</p>
+        ) : (
+          <>
+            <p className={`mb-4 text-sm ${usuarioActual?.correo_recuperacion_verificado ? 'text-ok-400' : 'text-amber-300'}`}>
+              {usuarioActual?.correo_recuperacion_verificado
+                ? `Correo verificado: ${usuarioActual.correo_recuperacion}`
+                : 'Todavía no hay un correo de recuperación verificado.'}
+            </p>
+            <form onSubmit={(e) => void solicitarVerificacionCorreo(e)} className="space-y-3">
+              <Campo etiqueta="Correo de recuperación" htmlFor="cfg-correo-recuperacion">
+                <input
+                  id="cfg-correo-recuperacion"
+                  type="email"
+                  autoComplete="email"
+                  maxLength={254}
+                  required
+                  value={correoRecuperacion}
+                  onChange={(e) => {
+                    setCorreoRecuperacion(e.target.value)
+                    setErrorRecuperacion(null)
+                    setOkRecuperacion(null)
+                  }}
+                  className="input"
+                  placeholder="tu-correo-real@ejemplo.com"
+                />
+              </Campo>
+              {errorRecuperacion && <p role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-400">{errorRecuperacion}</p>}
+              {okRecuperacion && <p role="status" className="aviso border-ok-500/40 bg-ok-500/10 text-ok-400">{okRecuperacion}</p>}
+              <div className="flex justify-end">
+                <button type="submit" disabled={enviandoVerificacion || !correoRecuperacion.trim()} className="btn btn-primary min-h-11 px-5 disabled:opacity-50">
+                  {enviandoVerificacion ? 'Enviando enlace…' : usuarioActual?.correo_recuperacion_verificado ? 'Verificar otro correo' : 'Enviar enlace de verificación'}
+                </button>
+              </div>
+            </form>
+          </>
+        )}
+      </section>
 
       <div className="card mt-5 p-4 sm:p-5">
         <h2 className="text-lg font-bold tracking-tight text-zinc-100">PIN de autorización</h2>

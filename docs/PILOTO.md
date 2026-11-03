@@ -1,22 +1,25 @@
 # Preparación del primer piloto de Mesora
 
-Revisión: **2 de noviembre de 2026**. Estado: versión web del piloto publicada;
-siguen pendientes el respaldo recuperable y la aceptación del primer turno.
+Revisión: **3 de noviembre de 2026**. Estado: versión web de Mesora publicada;
+siguen pendientes la activación de recuperación por correo, un respaldo
+restaurable y la aceptación del primer turno real.
 
 ## Cierre técnico y dirección elegida
 
 - CI de GitHub aprobada para el commit `8cc8a06`: instalación SQL reproducible,
   suite SQL, reglas de negocio, TypeScript, precuenta, configuración y build.
   [Ejecución verificada](https://github.com/Benchi2312/Mesora/actions/runs/41103477386).
-- El propietario eligió `https://mesora-piloto.vercel.app` para el piloto.
+- El proyecto de Vercel se renombró a `mesoraapp`; la URL oficial es
+  `https://mesoraapp.vercel.app`.
   Sus cuatro variables de producción ya están preparadas en Vercel: URL/key
   pública de Supabase, modo local desactivado y diagnóstico activado.
-- La redirección exacta `/restablecer` del dominio elegido está admitida en
-  Supabase Auth, junto con la preview. Config push/diff confirmó el cambio.
+- Supabase Auth usa `https://mesoraapp.vercel.app` como Site URL y permite la
+  redirección exacta `/restablecer`. Las URL anteriores siguen admitidas durante
+  la transición.
 - GitHub y Vercel conectados; `main` es la rama de producción. Node 22 y build
   reproducible configurados. El check `build` de CI condiciona la asignación del
   dominio y una comprobación pública se ejecuta después de cada publicación.
-- Dominio de producción: `https://mesora-piloto.vercel.app`. La versión y el
+- Dominio de producción previsto: `https://mesoraapp.vercel.app`. La versión y el
   resultado de cada publicación quedan registrados en Deployments de Vercel
   y en los workflows CI / Verificar despliegue de GitHub.
 - La organización Supabase está en Free; se volvió a consultar backups y la
@@ -31,7 +34,7 @@ siguen pendientes el respaldo recuperable y la aceptación del primer turno.
 | Permisos SQL | Revocado EXECUTE de PUBLIC/anon sobre funciones de negocio; helpers internos restringidos y search_path fijo. Eliminados los 25 avisos de funciones privilegiadas anónimas y cuatro de search_path mutable. |
 | Consultas pendientes | Dos RPC agregan en SQL y excluyen cuentas pagadas. Eliminada la descarga del historial completo. Prueba aislada con 1205 pedidos sin truncar totales. |
 | Índices | Resueltos los 14 hallazgos de claves foráneas sin índice de cobertura, incluida mesa/zona. |
-| Instalador | Reparado el schema base comentado accidentalmente. 27 piezas SQL ordenadas instalan 19 tablas en PostgreSQL aislado con pgcrypto real; circuito y restauración aislada aprobados. |
+| Instalador | Reparado el schema base comentado accidentalmente. 28 piezas SQL ordenadas instalan 19 tablas en PostgreSQL aislado con pgcrypto real; circuito, seguridad de recuperación y restauración aislada aprobados. |
 | Recibo de pago | Vista y PDF dicen RECIBO INTERNO DE PAGO y aclaran que no sustituye el comprobante electrónico del local. Mesora no tiene integración fiscal de emisión/aceptación. |
 | Auth | Registro público desactivado y contraseña mínima de ocho caracteres. Alta de usuarios mediante funciones administrativas. |
 | Cuentas desactivadas | Pantalla de acceso bloqueado con cierre de sesión, en lugar de una vista operativa vacía. Regresión con Auth/REST simulados incluida en CI. |
@@ -54,6 +57,7 @@ las que aún no tenga, después de revisar esquema y respaldo:
 7. `20261031073322_reporte_ventas_y_snapshot_bebidas.sql`
 8. `20261031075708_reporte_ventas_dashboard.sql`
 9. `20261102081247_acotar_politicas_rls_piloto.sql`
+10. `20261103032730_admin_email_recovery.sql`
 
 La migración anterior está aplicada al proyecto real y figura en su historial.
 El instalador `TODO_EN_UNO.sql` incluye
@@ -72,7 +76,8 @@ rollback. No dejaron ventas, pagos, anulaciones ni turnos de prueba persistidos.
 | P0 | Respaldo recuperable real | La API devolvió lista de backups vacía y PITR desactivado. El plan Free no incluye backups administrados; faltan la contraseña PostgreSQL y las herramientas locales para una exportación lógica. Restaurar y registrar responsable, frecuencia y pérdida máxima aceptable; PGlite no certifica producción. |
 | P0 | Aceptación con cuentas reales y dos dispositivos | Login por rol, contraseña temporal, pedido/cocina, precuenta, cobro concurrente, anulación con PIN y arqueo en el local. Registrar resultado y tiempos. El propietario eligió pruebas locales; no se creó staging de pago. |
 | P0 | Impresora y operación | Probar papel de 80 mm, impresora real, móvil y caja. Asignar encargado, soporte y contingencia sin internet. |
-| Diferido por el propietario | Recuperación por correo del administrador | Configuración SMTP, buzón real y prueba de recuperación pendientes por indicación explícita. El dominio mesora-piloto.vercel.app ya está seleccionado. |
+| P0 | Activar recuperación del admin por correo | Migración aplicada, Edge Function desplegada, dominio/redirect de Auth actualizados y UI publicada; falta configurar Resend y el remitente en secretos de Supabase, probar una entrega real y que cada admin verifique su dirección. |
+| P0 | Contacto comercial definitivo | La landing muestra `contacto@mesora.invalid`, un marcador que no recibe mensajes. Reemplazarlo por un correo real antes de captar solicitudes. |
 | P1 | Seguimiento | Asignar revisión de logs y escalamiento. Habilitar protección de claves filtradas si está disponible en el plan. |
 
 **Acuerdo del propietario (30/10/2026):** el restaurante mantendrá su sistema
@@ -90,10 +95,10 @@ datos**: usar el demo para mostrar y pruebas locales para validar cambios. No cr
 ### Recuperación: límite conocido
 
 La RPC `confirmar_cambio_password` y el reset administrativo están presentes.
-La recuperación por correo usa el correo de login. Existen columnas de correo
-alternativo, pero su verificación y recuperación no están implementadas.
-Los trabajadores con correo interno dependen del reset administrativo; el
-administrador necesita un mecanismo de recuperación acordado y probado.
+La recuperación del admin está implementada con un correo alternativo
+verificado, token de un solo uso y entrega mediante Resend. Aún requiere
+configuración de secretos y prueba de entrega real. Los trabajadores dependen
+del restablecimiento que inicia el administrador desde Personal.
 
 ## Evidencia automatizada
 
@@ -102,8 +107,8 @@ administrador necesita un mecanismo de recuperación acordado y probado.
 | `npm run verificar` | 510 checks aprobados del backend local y su persistencia. |
 | `npm run verificar:precuenta` | 24 escenarios a 390/1280 px: PDF/impresión, error de lectura, cambio entre lecturas, roles y cobro posterior. |
 | `npm run verificar:configuracion` | Validación, payload REST simulado, RPC pendientes, metadatos de diagnóstico y persistencia demo aprobados. |
-| `npm run verificar:responsive` | 344 checks en 360, 390, 768 y 1280 px aprobados. |
-| `npm run verificar:despliegue -- https://mesora-piloto.vercel.app` | Smoke público de 12 rutas; sin login ni escrituras en Supabase. |
+| `npm run verificar:responsive` | 438 checks en 360, 390, 768 y 1280 px aprobados; incluye solapamientos de botones y guía móvil. |
+| `npm run verificar:despliegue -- https://mesoraapp.vercel.app` | Smoke público de 13 rutas, incluida la pantalla de verificación; sin login ni escrituras en Supabase. |
 | `npm run verificar:sql` | Instalación vacía, permisos, migración RLS sobre policies previas, flujo SQL, 1205 pedidos y restauración aislada aprobados. Simula Auth; no prueba correo ni dos terminales concurrentes. |
 | `npm run build` | TypeScript y build de producción aprobados. |
 | `supabase/qa/seguridad_rpc_rollback.sql` | Anónimo rechazado, helpers privados, servicio autorizado y precio público comprobados. |
@@ -175,7 +180,8 @@ Objetivos iniciales: p95 de lectura menor a 3 s y cobro/anulación menor a
 
 Seguir [OPERACION_PILOTO.md](./OPERACION_PILOTO.md). Un restaurante, primer turno
 acompañado en baja demanda y conciliación diaria durante 3 a 7 días.
-El commit de código `5b4898b` se integró en `main` y se publicó automáticamente en https://mesora-piloto.vercel.app. El smoke público pasó 12 rutas el 2/11/2026. Cerrar los pendientes operativos antes de confiarle un turno real.
+La entrega que reemplaza el piloto se registra en `main`; Vercel despliega al
+actualizar esa rama. El smoke de 13 rutas se ejecuta después de la publicación.
 
 ### Pendientes después del primer piloto
 
@@ -187,11 +193,16 @@ listo para presentarse públicamente:
 | --- | --- | --- |
 | Pendiente tras el piloto | Revisar hallazgos de código y operación | Consolidar incidencias y solicitudes del turno; priorizar y corregir los bloqueos; repetir build, QA afectado, seguridad y aceptación antes de ampliar el uso. Los riesgos técnicos conocidos de esta auditoría siguen listados arriba. |
 | Pendiente tras el piloto | Actualizar el video promocional | Grabar la versión desplegada y aceptada, actualizar guion/capturas/URL, retirar cifras o etiquetas de demo que ya no correspondan y revisar afirmaciones de producto antes de reemplazar el video actual. |
-| Pendiente tras el piloto y revisión de seguridad | Preparar el repositorio para hacerlo público | Auditar archivos actuales, historial Git, ramas, artefactos y configuración; retirar secretos, datos personales/de clientes y material operativo; verificar reglas de exclusión y licencia; revisar README y escaneo final. Solo entonces cambiar la visibilidad del repositorio privado a público. |
+| Pendiente antes de captar solicitudes | Contacto comercial real | Reemplazar `contacto@mesora.invalid` por el correo definitivo. |
+| Pendiente tras el piloto | Actualizar el video promocional | Grabar la versión desplegada y aceptada, actualizar guion/capturas/URL y revisar las afirmaciones del producto antes de reemplazar el video. |
 
-El video actual es material de la demo y no representa todavía el piloto
-terminado. El repositorio permanece privado hasta que se complete la revisión
-de seguridad indicada en esta tabla. No publicar datos de acceso, copias de
-respaldo ni información del restaurante en el material promocional o Git.
+El video actual es material de la demo y no representa todavía la versión
+publicada. El video queda fuera del repositorio hasta que se actualice. La
+revisión de 19 commits no encontró credenciales conocidas; `promocional/` está
+excluido. El repositorio es público y todavía no declara una licencia. No subir
+datos de acceso, copias de respaldo ni información operativa del restaurante.
 
-La migración RLS ya está aplicada a Supabase. El código de esta entrega queda integrado en `main` y el despliegue automático se verifica con el smoke público de 12 rutas. Hacer público GitHub sigue aplazado hasta el cierre del piloto y la revisión de los materiales promocionales.
+La migración RLS y la nueva migración de recuperación están aplicadas a
+Supabase. La rama `main` está conectada a Vercel para despliegue automático.
+Quedan como bloqueos del primer turno: respaldo restaurable, aceptación real en
+el local, remitente verificado para recuperación y pruebas físicas de impresora.

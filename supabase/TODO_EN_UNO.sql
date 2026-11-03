@@ -18,14 +18,14 @@
 --   - Si algo falla, los comentarios de bloque indican donde revisar.
 --   - Generado por npm run sql:install. Edita los fuentes, no este archivo.
 --
--- Contenido: 27 archivos · sha256(cuerpo) = bae90eb55092
--- Orden: 00_schema_base.sql → ../migrations/20261022120000_password_recovery.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql → ../migrations/20261031075708_reporte_ventas_dashboard.sql → ../migrations/20261029052901_datos_local_dominio.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql → ../migrations/20261030173318_seguridad_rpc_piloto.sql → ../migrations/20261030173320_consultas_pendientes_piloto.sql → ../migrations/20261030173503_diagnostico_piloto.sql → ../migrations/20261030173925_indice_mesas_zona.sql → ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
+-- Contenido: 28 archivos · sha256(cuerpo) = a1206893cb91
+-- Orden: 00_schema_base.sql → ../migrations/20261022120000_password_recovery.sql → ../migrations/20261103032730_admin_email_recovery.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql → ../migrations/20261031075708_reporte_ventas_dashboard.sql → ../migrations/20261029052901_datos_local_dominio.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql → ../migrations/20261030173318_seguridad_rpc_piloto.sql → ../migrations/20261030173320_consultas_pendientes_piloto.sql → ../migrations/20261030173503_diagnostico_piloto.sql → ../migrations/20261030173925_indice_mesas_zona.sql → ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
 -- =============================================================================
 
 
 
 -- #############################################################################
--- # 1/27 · 00_schema_base.sql
+-- # 1/28 · 00_schema_base.sql
 -- #############################################################################
 
 -- -- Mesora: schema base para instalaciones NUEVAS.
@@ -197,7 +197,7 @@ $$;
 
 
 -- #############################################################################
--- # 2/27 · ../migrations/20261022120000_password_recovery.sql
+-- # 2/28 · ../migrations/20261022120000_password_recovery.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -276,7 +276,164 @@ grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
--- # 3/27 · 00_seguridad_rpcs.sql
+-- # 3/28 · ../migrations/20261103032730_admin_email_recovery.sql
+-- #############################################################################
+
+-- -- Recuperación por correo verificado para administradores de restaurante.
+-- Los tokens viven en un esquema no expuesto y solo las Edge Functions usan
+-- las RPC de service_role para emitirlos y consumirlos.
+
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+grant usage on schema private to service_role;
+
+create table if not exists private.admin_recovery_tokens (
+  id uuid primary key default gen_random_uuid(),
+  usuario_id uuid not null references public.usuarios(id) on delete cascade,
+  correo text not null,
+  token_hash text not null unique check (length(token_hash) = 64),
+  creado_en timestamptz not null default now(),
+  expira_en timestamptz not null,
+  consumido_en timestamptz,
+  constraint admin_recovery_token_expiry_check
+    check (expira_en > creado_en and expira_en <= creado_en + interval '1 hour')
+);
+
+alter table private.admin_recovery_tokens enable row level security;
+revoke all on table private.admin_recovery_tokens from public, anon, authenticated;
+grant select, insert, update, delete on table private.admin_recovery_tokens to service_role;
+
+create table if not exists private.admin_recovery_rate_limits (
+  usuario_id uuid not null references public.usuarios(id) on delete cascade,
+  accion text not null check (accion in ('verificar_correo', 'recuperar_password')),
+  primera_solicitud timestamptz not null default now(),
+  ultima_solicitud timestamptz not null default now(),
+  solicitudes integer not null default 1 check (solicitudes > 0),
+  primary key (usuario_id, accion)
+);
+
+alter table private.admin_recovery_rate_limits enable row level security;
+revoke all on table private.admin_recovery_rate_limits from public, anon, authenticated;
+grant select, insert, update, delete on table private.admin_recovery_rate_limits to service_role;
+
+-- El usuario no puede marcar directamente un correo como verificado usando el
+-- permiso amplio de UPDATE que necesita Personal. Solo la Edge Function con
+-- service_role puede escribir estos dos campos.
+create or replace function public.proteger_correo_recuperacion()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, auth
+as $$
+begin
+  if (new.correo_recuperacion is distinct from old.correo_recuperacion
+      or new.correo_recuperacion_verificado is distinct from old.correo_recuperacion_verificado)
+     and coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then
+    raise exception 'El correo de recuperación solo se actualiza mediante verificación segura';
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.proteger_correo_recuperacion() from public, anon, authenticated;
+grant execute on function public.proteger_correo_recuperacion() to authenticated, service_role;
+
+drop trigger if exists usuarios_proteger_correo_recuperacion on public.usuarios;
+create trigger usuarios_proteger_correo_recuperacion
+  before update of correo_recuperacion, correo_recuperacion_verificado on public.usuarios
+  for each row execute function public.proteger_correo_recuperacion();
+
+create or replace function public.mesora_recovery_can_send(
+  p_usuario_id uuid,
+  p_accion text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = pg_catalog, public, private
+as $$
+declare
+  v_permitido boolean;
+begin
+  if p_accion not in ('verificar_correo', 'recuperar_password') then
+    return false;
+  end if;
+
+  insert into private.admin_recovery_rate_limits as limite
+    (usuario_id, accion, primera_solicitud, ultima_solicitud, solicitudes)
+  values (p_usuario_id, p_accion, now(), now(), 1)
+  on conflict (usuario_id, accion) do update
+    set primera_solicitud = case
+          when limite.primera_solicitud <= now() - interval '24 hours' then now()
+          else limite.primera_solicitud
+        end,
+        solicitudes = case
+          when limite.primera_solicitud <= now() - interval '24 hours' then 1
+          else limite.solicitudes + 1
+        end,
+        ultima_solicitud = now()
+    where limite.ultima_solicitud <= now() - interval '60 seconds'
+      and (limite.primera_solicitud <= now() - interval '24 hours' or limite.solicitudes < 5)
+  returning true into v_permitido;
+
+  return coalesce(v_permitido, false);
+end;
+$$;
+
+create or replace function public.mesora_recovery_store_token(
+  p_usuario_id uuid,
+  p_correo text,
+  p_token_hash text,
+  p_expira_en timestamptz
+)
+returns void
+language plpgsql
+security definer
+set search_path = pg_catalog, private
+as $$
+begin
+  if length(p_token_hash) <> 64
+     or p_expira_en <= now()
+     or p_expira_en > now() + interval '1 hour'
+     or p_correo <> lower(btrim(p_correo)) then
+    raise exception 'Datos de verificación inválidos';
+  end if;
+
+  delete from private.admin_recovery_tokens
+   where usuario_id = p_usuario_id and consumido_en is null;
+
+  insert into private.admin_recovery_tokens (usuario_id, correo, token_hash, expira_en)
+  values (p_usuario_id, p_correo, p_token_hash, p_expira_en);
+end;
+$$;
+
+create or replace function public.mesora_recovery_consume_token(p_token_hash text)
+returns table (usuario_id uuid, correo text)
+language sql
+security definer
+set search_path = pg_catalog, private
+as $$
+  update private.admin_recovery_tokens as token
+     set consumido_en = now()
+   where token.token_hash = p_token_hash
+     and token.consumido_en is null
+     and token.expira_en > now()
+  returning token.usuario_id, token.correo;
+$$;
+
+revoke all on function public.mesora_recovery_can_send(uuid, text) from public, anon, authenticated;
+revoke all on function public.mesora_recovery_store_token(uuid, text, text, timestamptz) from public, anon, authenticated;
+revoke all on function public.mesora_recovery_consume_token(text) from public, anon, authenticated;
+grant execute on function public.mesora_recovery_can_send(uuid, text) to service_role;
+grant execute on function public.mesora_recovery_store_token(uuid, text, text, timestamptz) to service_role;
+grant execute on function public.mesora_recovery_consume_token(text) to service_role;
+
+comment on schema private is 'Datos internos que no se exponen por PostgREST.';
+comment on table private.admin_recovery_tokens is 'Tokens de verificación de correo alternativo; solo se almacena el hash.';
+comment on table private.admin_recovery_rate_limits is 'Límites por usuario para evitar abuso de los correos de recuperación.';
+
+
+-- #############################################################################
+-- # 4/28 · 00_seguridad_rpcs.sql
 -- #############################################################################
 
 -- -- Mesora · Control de acceso en el SERVIDOR (ejecutar tras 00_schema_base.sql).
@@ -387,7 +544,7 @@ grant execute on function public.validar_acceso_restaurante(uuid) to authenticat
 
 
 -- #############################################################################
--- # 4/27 · migracion_items_anulables.sql
+-- # 5/28 · migracion_items_anulables.sql
 -- #############################################################################
 
 -- -- Mesora · Edición y anulación de ítems de una comanda.
@@ -734,7 +891,7 @@ $$;
 
 
 -- #############################################################################
--- # 5/27 · migracion_productos_es_bebida.sql
+-- # 6/28 · migracion_productos_es_bebida.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -773,7 +930,7 @@ select r.nombre as restaurante,
 
 
 -- #############################################################################
--- # 6/27 · ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql
+-- # 7/28 · ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql
 -- #############################################################################
 
 -- -- Conserva la clasificación de cocina/barra al momento de vender y entrega
@@ -929,7 +1086,7 @@ grant execute on function public.reporte_ventas_restaurante(uuid, timestamptz, t
 
 
 -- #############################################################################
--- # 7/27 · ../migrations/20261031075708_reporte_ventas_dashboard.sql
+-- # 8/28 · ../migrations/20261031075708_reporte_ventas_dashboard.sql
 -- #############################################################################
 
 -- -- Conserva la clasificación de cocina/barra al momento de vender y entrega
@@ -1116,7 +1273,7 @@ grant execute on function public.reporte_ventas_restaurante(uuid, timestamptz, t
 
 
 -- #############################################################################
--- # 8/27 · ../migrations/20261029052901_datos_local_dominio.sql
+-- # 9/28 · ../migrations/20261029052901_datos_local_dominio.sql
 -- #############################################################################
 
 -- -- Datos del local: dominio opcional para identificar al personal.
@@ -1152,7 +1309,7 @@ grant update (dominio) on public.restaurantes to authenticated;
 
 
 -- #############################################################################
--- # 9/27 · pin_autorizacion.sql
+-- # 10/28 · pin_autorizacion.sql
 -- #############################################################################
 
 -- -- Mesora · PIN de autorización + anulación de cobros.
@@ -1412,7 +1569,7 @@ $$;
 
 
 -- #############################################################################
--- # 10/27 · rpc_crear_pedido.sql
+-- # 11/28 · rpc_crear_pedido.sql
 -- #############################################################################
 
 -- -- Mesora · RPC: crear pedido (comanda) de forma atómica.
@@ -1543,7 +1700,7 @@ $$;
 
 
 -- #############################################################################
--- # 11/27 · rpc_cerrar_cuenta.sql
+-- # 12/28 · rpc_cerrar_cuenta.sql
 -- #############################################################################
 
 -- -- Mesora · RPC: cerrar cuenta y registrar el pago en una sola transacción.
@@ -1866,7 +2023,7 @@ $$;
 
 
 -- #############################################################################
--- # 12/27 · rpc_anular_cuenta.sql
+-- # 13/28 · rpc_anular_cuenta.sql
 -- #############################################################################
 
 -- -- Mesora · Anulación de cobros (void de una boleta ya emitida).
@@ -2082,7 +2239,7 @@ comment on function public.anular_cuenta(uuid, uuid, text, text) is
 
 
 -- #############################################################################
--- # 13/27 · caja_turnos.sql
+-- # 14/28 · caja_turnos.sql
 -- #############################################################################
 
 -- -- Mesora · Caja por turnos: tabla `caja_turnos` + RPC de apertura y cierre.
@@ -2378,7 +2535,7 @@ $$;
 
 
 -- #############################################################################
--- # 14/27 · 01_rls_completo.sql
+-- # 15/28 · 01_rls_completo.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3279,7 +3436,7 @@ select c.relname as tabla,
 
 
 -- #############################################################################
--- # 15/27 · admin_super_restaurante.sql
+-- # 16/28 · admin_super_restaurante.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3486,7 +3643,7 @@ select a.attname as columna,
 
 
 -- #############################################################################
--- # 16/27 · usuarios_super_admin.sql
+-- # 17/28 · usuarios_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3713,7 +3870,7 @@ select c.relname as tabla,
 
 
 -- #############################################################################
--- # 17/27 · estadisticas_super_admin.sql
+-- # 18/28 · estadisticas_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3931,7 +4088,7 @@ select p.proname,
 
 
 -- #############################################################################
--- # 18/27 · soporte.sql
+-- # 19/28 · soporte.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4065,7 +4222,7 @@ select
 
 
 -- #############################################################################
--- # 19/27 · suscripciones_super_admin.sql
+-- # 20/28 · suscripciones_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4480,7 +4637,7 @@ select
 
 
 -- #############################################################################
--- # 20/27 · auditoria.sql
+-- # 21/28 · auditoria.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4837,7 +4994,7 @@ select
 
 
 -- #############################################################################
--- # 21/27 · configuracion_global.sql
+-- # 22/28 · configuracion_global.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -5125,7 +5282,7 @@ select
 
 
 -- #############################################################################
--- # 22/27 · seguridad_piloto.sql
+-- # 23/28 · seguridad_piloto.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -5262,7 +5419,7 @@ grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
--- # 23/27 · ../migrations/20261030173318_seguridad_rpc_piloto.sql
+-- # 24/28 · ../migrations/20261030173318_seguridad_rpc_piloto.sql
 -- #############################################################################
 
 -- -- Cierra la API de funciones a anónimos y preserva el acceso autenticado real.
@@ -5305,7 +5462,7 @@ alter default privileges in schema public revoke execute on functions from publi
 
 
 -- #############################################################################
--- # 24/27 · ../migrations/20261030173320_consultas_pendientes_piloto.sql
+-- # 25/28 · ../migrations/20261030173320_consultas_pendientes_piloto.sql
 -- #############################################################################
 
 -- -- Consultas acotadas a lo pendiente. JSON evita truncar el agregado por el
@@ -5397,7 +5554,7 @@ $$;
 
 
 -- #############################################################################
--- # 25/27 · ../migrations/20261030173503_diagnostico_piloto.sql
+-- # 26/28 · ../migrations/20261030173503_diagnostico_piloto.sql
 -- #############################################################################
 
 -- -- Diagnóstico mínimo: únicamente categorías y rutas normalizadas, sin mensajes,
@@ -5423,7 +5580,7 @@ grant execute on function public.registrar_error_cliente(text,text,text) to auth
 
 
 -- #############################################################################
--- # 26/27 · ../migrations/20261030173925_indice_mesas_zona.sql
+-- # 27/28 · ../migrations/20261030173925_indice_mesas_zona.sql
 -- #############################################################################
 
 -- -- Cubre también la FK compuesta que garantiza zona y mesa del mismo local.
@@ -5431,7 +5588,7 @@ create index if not exists idx_mesas_zona_restaurante on public.mesas(zona_id, r
 
 
 -- #############################################################################
--- # 27/27 · ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
+-- # 28/28 · ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
 -- #############################################################################
 
 -- -- Acota las políticas de catálogo/mesas a usuarios autenticados y separa

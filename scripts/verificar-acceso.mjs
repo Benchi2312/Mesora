@@ -136,7 +136,53 @@ try {
       await context.close()
     }
   }
-  console.log('Acceso verificado: inactividad, sesión activa, refresco, salida sin bucle y cambio de contraseña temporal.')
+
+  const context = await browser.newContext({ serviceWorkers: 'block' })
+  const errores = []
+  let llamadas = 0
+  let solicitud
+  try {
+    await context.route('**/*', async (route) => {
+      const request = route.request()
+      if (request.url().startsWith(origen + '/')) return route.continue()
+      const url = new URL(request.url())
+      if (url.hostname === 'fonts.googleapis.com') return route.fulfill({ status: 200, contentType: 'text/css', body: '' })
+      if (url.origin === endpoint && url.pathname === '/functions/v1/admin-password-recovery') {
+        if (request.method() === 'OPTIONS') {
+          return route.fulfill({ status: 200, headers: {
+            'Access-Control-Allow-Origin': origen,
+            'Access-Control-Allow-Headers': 'authorization, apikey, x-client-info, content-type',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          }, body: 'ok' })
+        }
+        llamadas++
+        solicitud = JSON.parse(request.postData() ?? '{}')
+        return route.fulfill({
+          status: 200,
+          headers: { 'Access-Control-Allow-Origin': origen, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: 'Si corresponde a una cuenta de administrador activa, enviaremos instrucciones al correo de recuperación configurado.' }),
+        })
+      }
+      errores.push(`Solicitud fuera de QA: ${url.hostname}${url.pathname}`)
+      return route.abort()
+    })
+    const page = await context.newPage()
+    page.setDefaultTimeout(15_000)
+    page.on('pageerror', (error) => errores.push(error.message))
+    await page.goto(`${origen}/login`)
+    await page.getByRole('button', { name: '¿Olvidaste tu contraseña?', exact: true }).click()
+    await page.locator('#recovery-email').fill('ADMIN@MESORA.EXAMPLE')
+    await page.getByRole('button', { name: 'Enviar enlace', exact: true }).click()
+    await expect(page.getByText(/Si corresponde a una cuenta de administrador activa/)).toBeVisible()
+    assert.equal(llamadas, 1, 'Debe enviar una solicitud al endpoint una sola vez.')
+    assert.deepEqual(solicitud, { accion: 'solicitar', email: 'ADMIN@MESORA.EXAMPLE' }, 'La UI debe usar la Edge Function y no escribir en Auth directamente.')
+    assert.deepEqual(errores, [], 'No debe haber fallos de JavaScript ni solicitudes externas.')
+    console.log('OK recuperación: diálogo, envío por Edge Function y respuesta genérica para evitar enumeración.')
+  } finally {
+    await context.close()
+  }
+
+  console.log('Acceso verificado: inactividad, sesión activa, refresco, salida sin bucle, contraseña temporal y solicitud de recuperación.')
 } finally {
   await browser?.close()
   await server.close()

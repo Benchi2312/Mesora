@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os'
 
 const SCRIPTS = dirname(fileURLToPath(import.meta.url))
 const RAIZ = join(SCRIPTS, '..')
-const CAPTURAS = join(RAIZ, 'capturas', 'responsive')
+const CAPTURAS = mkdtempSync(join(tmpdir(), 'mesora-responsive-capturas-'))
 const PUERTO = 5175
 const URL = `http://127.0.0.1:${PUERTO}`
 
@@ -118,7 +118,26 @@ async function medir(page, vp, etiqueta) {
         })
       }
     }
-    return { scroll, ancho: window.innerWidth, desbordes, chicos }
+    const botones = [...document.querySelectorAll('button')].filter((el) => {
+      const estilo = getComputedStyle(el)
+      const r = el.getBoundingClientRect()
+      return estilo.display !== 'none' && estilo.visibility !== 'hidden' && Number(estilo.opacity) !== 0 && r.width > 1 && r.height > 1
+    })
+    const solapados = []
+    for (let i = 0; i < botones.length; i++) {
+      const a = botones[i].getBoundingClientRect()
+      for (let j = i + 1; j < botones.length; j++) {
+        if (botones[i].contains(botones[j]) || botones[j].contains(botones[i])) continue
+        const b = botones[j].getBoundingClientRect()
+        const anchoComun = Math.min(a.right, b.right) - Math.max(a.left, b.left)
+        const altoComun = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
+        if (anchoComun > 3 && altoComun > 3) {
+          const texto = (el) => (el.getAttribute('aria-label') || el.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 35)
+          solapados.push({ a: texto(botones[i]), b: texto(botones[j]), ancho: Math.round(anchoComun), alto: Math.round(altoComun) })
+        }
+      }
+    }
+    return { scroll, ancho: window.innerWidth, desbordes, chicos, solapados }
   }, vp.w)
 
   check(`sin scroll horizontal en ${etiqueta}`, datos.scroll <= datos.ancho + 1, `scrollWidth=${datos.scroll}`)
@@ -132,8 +151,140 @@ async function medir(page, vp, etiqueta) {
     datos.chicos.length === 0,
     datos.chicos.slice(0, 5).map((c) => `${c.tag} "${c.texto}" ${c.alto}px`).join(' · '),
   )
+  if (vp.w <= 768) {
+    check(
+      `botones sin superponerse en ${etiqueta}`,
+      datos.solapados.length === 0,
+      datos.solapados.slice(0, 4).map((b) => `"${b.a}" / "${b.b}" (${b.ancho}x${b.alto}px)`).join(' · '),
+    )
+  }
   if (datos.desbordes.length > 0) {
     await page.screenshot({ path: join(CAPTURAS, `${etiqueta}.png`), fullPage: false })
+  }
+}
+
+async function correrGuiaMovil(browser, vp) {
+  if (vp.w > 768) return
+  const ctx = await browser.newContext({ viewport: { width: vp.w, height: vp.h } })
+  const page = await ctx.newPage()
+  try {
+    await page.goto(`${URL}/demo/admin`, { waitUntil: 'networkidle', timeout: 45000 })
+    await page.getByRole('button', { name: 'Empezar recorrido' }).click()
+    const panel = page.locator('[data-guia-panel]')
+    await panel.getByRole('button', { name: /Hazlo por mí/ }).waitFor({ timeout: 10000 })
+    await page.waitForTimeout(250)
+    const solapados = await panel.evaluate((root) => {
+      const botones = [...root.querySelectorAll('button')].filter((el) => {
+        const r = el.getBoundingClientRect()
+        const estilo = getComputedStyle(el)
+        return estilo.display !== 'none' && estilo.visibility !== 'hidden' && r.width > 1 && r.height > 1
+      })
+      const casos = []
+      for (let i = 0; i < botones.length; i++) {
+        const a = botones[i].getBoundingClientRect()
+        for (let j = i + 1; j < botones.length; j++) {
+          const b = botones[j].getBoundingClientRect()
+          if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 3 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 3) {
+            casos.push(`${botones[i].getAttribute('aria-label') || botones[i].innerText} / ${botones[j].getAttribute('aria-label') || botones[j].innerText}`)
+          }
+        }
+      }
+      return casos
+    })
+    check(`barra de guía móvil sin botones superpuestos ${vp.nombre}`, solapados.length === 0, solapados.join(' · '))
+    const revisarPastilla = async (vista) => {
+      await panel.getByRole('button', { name: 'Minimizar guía' }).click()
+      const solapamientos = await page.locator('[data-guia-minimizada]').evaluate((burbuja) => {
+        const a = burbuja.getBoundingClientRect()
+        return [...document.querySelectorAll('button')]
+          .filter((otro) => otro !== burbuja)
+          .filter((otro) => {
+            const estilo = getComputedStyle(otro)
+            const b = otro.getBoundingClientRect()
+            return estilo.display !== 'none' && estilo.visibility !== 'hidden' &&
+              Math.min(a.right, b.right) - Math.max(a.left, b.left) > 3 &&
+              Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 3
+          })
+          .map((otro) => (otro.getAttribute('aria-label') || otro.innerText || '').trim().slice(0, 40))
+      })
+      check(`guía minimizada móvil no tapa controles ${vista} ${vp.nombre}`, solapamientos.length === 0, solapamientos.join(' · '))
+      await page.locator('[data-guia-minimizada]').click()
+    }
+    await revisarPastilla('admin')
+    for (const [rol, ruta] of [['Mesero', 'mesero'], ['Cocina', 'cocina'], ['Cajero', 'cajero']]) {
+      await page.getByRole('link', { name: rol, exact: true }).click()
+      await page.waitForURL((url) => url.pathname === `/demo/${ruta}`, { timeout: 10000 })
+      await revisarPastilla(rol.toLowerCase())
+    }
+  } catch (e) {
+    fallos++
+    checks++
+    console.log(`  FALLA guía móvil ${vp.nombre} — ${String(e).split('\n')[0].slice(0, 180)}`)
+  } finally {
+    await ctx.close()
+  }
+}
+
+async function correrGuiaCategoria(browser) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } })
+  const page = await ctx.newPage()
+  let etapa = 'abrir el demo admin'
+  try {
+    await page.goto(`${URL}/demo/admin`, { waitUntil: 'networkidle', timeout: 45000 })
+    etapa = 'iniciar el recorrido'
+    await page.getByRole('button', { name: 'Empezar recorrido' }).click()
+    const hazlo = () => page.locator('[data-guia-panel]').getByRole('button', { name: /Hazlo por m/ })
+
+    etapa = 'abrir y confirmar la zona'
+    await hazlo().click()
+    await page.getByRole('heading', { name: 'Nueva zona' }).waitFor({ timeout: 10000 })
+    await page.waitForFunction(() => Boolean(document.querySelector('#zona-nombre')?.value))
+    await page.getByRole('button', { name: 'Crear zona' }).click()
+
+    etapa = 'abrir y confirmar la mesa'
+    await page.waitForTimeout(1400)
+    await hazlo().click()
+    await page.getByRole('heading', { name: 'Agregar mesa' }).waitFor({ timeout: 10000 })
+    await page.waitForFunction(() => Boolean(document.querySelector('#mesa-nombre')?.value))
+    await page.getByRole('button', { name: 'Crear mesa' }).click()
+
+    await page.waitForTimeout(1400)
+    etapa = 'esperar la misión de carta'
+    await page.locator('[data-guia-panel]').getByText(/agrega tu primer producto/).waitFor({ timeout: 10000 })
+    etapa = 'solicitar el formulario de categoría'
+    await hazlo().click()
+    etapa = 'esperar el modal de categoría'
+    await page.getByRole('heading', { name: 'Nueva categoría' }).waitFor({ timeout: 10000 })
+    etapa = 'leer la categoría sugerida'
+    etapa = 'guardar la categoría y abrir el producto'
+    const nombreCategoria = await page.locator('#categoria-nombre').inputValue()
+    await page.getByRole('button', { name: 'Crear categoría' }).click()
+
+    await page.getByRole('heading', { name: 'Agregar producto' }).waitFor({ timeout: 10000 })
+    etapa = 'verificar el producto sugerido'
+    await page.waitForFunction(() => {
+      return document.querySelector('#producto-nombre')?.value === 'Lomo saltado' &&
+        document.querySelector('#producto-precio')?.value === '12.50'
+    }, null, { timeout: 10000 })
+    const categoriaProducto = await page.locator('#producto-categoria option:checked').innerText()
+    check(
+      'guía móvil de carta enseña y guarda la categoría antes de rellenar el producto',
+      nombreCategoria === 'PROMOS' && categoriaProducto === 'PROMOS',
+      `categoría creada="${nombreCategoria}", categoría de producto="${categoriaProducto}"`,
+    )
+  } catch (e) {
+    fallos++
+    checks++
+    const estado = await page.evaluate(() => ({
+      url: location.pathname,
+      modales: [...document.querySelectorAll('[role="dialog"]')].map((el) => (el.innerText || '').slice(0, 180)),
+      titulos: [...document.querySelectorAll('h1,h2,h3')].map((el) => (el.innerText || '').slice(0, 70)),
+      campos: ['#categoria-nombre', '#producto-nombre'].filter((selector) => document.querySelector(selector)),
+    }))
+    await page.screenshot({ path: join(CAPTURAS, 'categoria-falla.png') })
+    console.log(`  FALLA guía de categoría móvil al ${etapa} — ${String(e).split('\n')[0].slice(0, 180)}; estado=${JSON.stringify(estado)}`)
+  } finally {
+    await ctx.close()
   }
 }
 
@@ -250,16 +401,24 @@ async function run() {
   try {
     await esperarServidor()
     browser = await chromium.launch({ headless: true })
-    for (const vp of VIEWPORTS) {
-      console.log(`\nViewport ${vp.nombre}`)
-      for (const pantalla of PANTALLAS) await correrPantalla(browser, vp, pantalla)
-      try {
-        await correrSesionesLocales(browser, vp)
-      } catch (e) {
-        fallos++
-        checks++
-        console.log(`  FALLA sesiones locales ${vp.nombre} — ${String(e).split('\n')[0].slice(0, 200)}`)
+    if (process.argv.includes('--solo-guia-categoria')) {
+      await correrGuiaCategoria(browser)
+    } else if (process.argv.includes('--solo-guia-movil')) {
+      for (const vp of VIEWPORTS.filter((vista) => vista.w <= 768)) await correrGuiaMovil(browser, vp)
+    } else {
+      for (const vp of VIEWPORTS) {
+        console.log(`\nViewport ${vp.nombre}`)
+        for (const pantalla of PANTALLAS) await correrPantalla(browser, vp, pantalla)
+        await correrGuiaMovil(browser, vp)
+        try {
+          await correrSesionesLocales(browser, vp)
+        } catch (e) {
+          fallos++
+          checks++
+          console.log(`  FALLA sesiones locales ${vp.nombre} — ${String(e).split('\n')[0].slice(0, 200)}`)
+        }
       }
+      await correrGuiaCategoria(browser)
     }
   } finally {
     if (browser) await browser.close()
@@ -268,8 +427,14 @@ async function run() {
   }
 
   console.log(`\n${'-'.repeat(60)}`)
+  const cobertura = process.argv.includes('--solo-guia-categoria')
+    ? 'recorrido guiado de categoría en 390x844'
+    : process.argv.includes('--solo-guia-movil')
+      ? 'guía móvil en 360x640 y 390x844'
+      : `${VIEWPORTS.length} viewports`
   if (fallos === 0) {
-    console.log(`RESPONSIVE OK: ${checks} comprobaciones en ${VIEWPORTS.length} viewports.`)
+    console.log(`RESPONSIVE OK: ${checks} comprobaciones; cobertura: ${cobertura}.`)
+    rmSync(CAPTURAS, { recursive: true, force: true })
   } else {
     console.log(`${fallos} de ${checks} comprobaciones fallaron. Capturas en ${CAPTURAS}`)
     process.exitCode = 1

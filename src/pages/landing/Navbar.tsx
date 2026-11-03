@@ -55,10 +55,10 @@ export default function Navbar() {
             <IconArrowRight className="h-4 w-4" />
           </Link>
           <a
-            href="#piloto"
+            href="#contacto"
             className="hidden rounded-lg border border-brand-500/40 px-3 py-2 text-sm font-semibold text-brand-300 transition hover:bg-brand-500/10 sm:inline-flex"
           >
-            Solicitar piloto
+            Solicitar demo
           </a>
         </div>
       </nav>

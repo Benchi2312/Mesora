@@ -178,6 +178,7 @@ export default function GuiaDemo() {
   const [cargado, setCargado] = useState(false)
   const [listo, setListo] = useState(false)
   const [abierta, setAbierta] = useState(true)
+  const [ocultaPorExplorar, setOcultaPorExplorar] = useState(false)
   const [verTodos, setVerTodos] = useState(false)
   const [clics, setClics] = useState<string[]>([])
   const [logro, setLogro] = useState<{ logro: Logro; xp: number; nivel: Nivel } | null>(null)
@@ -563,10 +564,11 @@ export default function GuiaDemo() {
   if (!abierta) {
     // Mientras el demo rellena un formulario, la guía desaparece del todo: su
     // burbuja flota en z-[60] y taparía el botón de guardar del modal (z-50).
-    if (autoLlenado) return null
+    if (autoLlenado || ocultaPorExplorar) return null
     return (
       <button
         type="button"
+        data-guia-minimizada
         onClick={() => setAbierta(true)}
         className="fixed bottom-4 right-4 z-[60] flex min-h-12 touch-manipulation items-center gap-2.5 rounded-full border border-brand-500/40 bg-surface-900/95 py-2 pl-2 pr-5 text-left shadow-xl shadow-black/50 backdrop-blur transition hover:border-brand-500 hover:bg-surface-900 active:scale-95"
       >
@@ -629,7 +631,13 @@ export default function GuiaDemo() {
         style={estilo}
       >
         {compacto ? (
-          <div className="card flex items-center gap-2.5 p-2.5 shadow-2xl shadow-black/60">
+          <div
+            className={`card shadow-2xl shadow-black/60 ${
+              esMovil
+                ? 'grid grid-cols-[auto_minmax(0,1fr)] gap-x-2.5 gap-y-2 p-2.5'
+                : 'flex items-center gap-2.5 p-2.5'
+            }`}
+          >
             <NivelBadge nivel={arrancado ? nivel.nivel : 1} frac={arrancado ? (terminado ? 1 : xpFrac) : 0} size="sm" />
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-1.5">
@@ -642,6 +650,7 @@ export default function GuiaDemo() {
               </span>
               {arrancado && <BarraXp frac={terminado ? 1 : xpFrac} className="mt-1.5 h-1" />}
             </span>
+            <div className={esMovil ? 'col-span-2 flex items-center justify-end gap-1' : 'contents'}>
             {isDemo && arrancado && !terminado && (
               <button
                 type="button"
@@ -659,7 +668,7 @@ export default function GuiaDemo() {
                 type="button"
                 onClick={() => setVista('expandido')}
                 aria-label="Expandir guía"
-                className="grid h-9 w-9 shrink-0 touch-manipulation place-items-center rounded-lg text-zinc-400 transition hover:bg-surface-800 hover:text-white"
+                className="grid h-10 w-10 shrink-0 touch-manipulation place-items-center rounded-lg text-zinc-400 transition hover:bg-surface-800 hover:text-white"
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M4 10V4h6M20 14v6h-6" />
@@ -670,12 +679,13 @@ export default function GuiaDemo() {
               type="button"
               onClick={() => setAbierta(false)}
               aria-label="Minimizar guía"
-              className="grid h-9 w-9 shrink-0 touch-manipulation place-items-center rounded-lg text-zinc-400 transition hover:bg-surface-800 hover:text-white"
+              className="grid h-10 w-10 shrink-0 touch-manipulation place-items-center rounded-lg text-zinc-400 transition hover:bg-surface-800 hover:text-white"
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M6 12h12" />
               </svg>
             </button>
+            </div>
           </div>
         ) : (
           <div className="card overflow-hidden p-0 shadow-2xl shadow-black/60">
@@ -793,7 +803,10 @@ export default function GuiaDemo() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setAbierta(false)}
+                      onClick={() => {
+                        setOcultaPorExplorar(true)
+                        setAbierta(false)
+                      }}
                       className="inline-flex min-h-11 touch-manipulation rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-400 transition hover:bg-surface-800 hover:text-zinc-200"
                     >
                       Explorar por mi cuenta

@@ -68,7 +68,7 @@ export default function Login() {
       setError(err)
       return
     }
-    setRecuperarOk('Si el correo existe, te enviamos un enlace para restablecer tu contraseña. Revisa tu bandeja.')
+    setRecuperarOk('Si corresponde a una cuenta de administrador activa, enviaremos instrucciones al correo de recuperación configurado. El personal debe pedir el cambio al administrador.')
   }
 
   return (
@@ -266,7 +266,7 @@ export default function Login() {
                 Restablecer contraseña
               </h2>
               <p className="mb-5 text-sm leading-relaxed text-zinc-500">
-                Escribe tu correo y te enviaremos un enlace para crear una nueva contraseña.
+                Escribe tu correo de inicio de sesión o el correo alternativo verificado. El personal debe pedir al administrador que restablezca su contraseña.
               </p>
 
               {error && (

@@ -33,4 +33,4 @@ jobs:
       - run: npx playwright install --with-deps chromium
       # Dominio fijo: el evento nunca decide a qué servidor se envían solicitudes.
       # Solo lectura pública y demo; no usa credenciales ni crea ventas.
-      - run: npm run verificar:despliegue -- https://mesora-piloto.vercel.app
+      - run: npm run verificar:despliegue -- https://mesoraapp.vercel.app

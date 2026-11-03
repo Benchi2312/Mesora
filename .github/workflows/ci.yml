@@ -22,6 +22,8 @@ jobs:
       - run: npm run typecheck
       - run: npx playwright install --with-deps chromium
       - run: npm run verificar:acceso
+      - run: npx --yes deno check supabase/functions/admin-password-recovery/index.ts
       - run: npm run verificar:precuenta
       - run: npm run verificar:configuracion
+      - run: npm run verificar:responsive
       - run: npm run build

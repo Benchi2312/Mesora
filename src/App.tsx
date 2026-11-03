@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import AppLayout from './components/AppLayout'
 import Login from './pages/Login'
 import Restablecer from './pages/Restablecer'
+import VerificarCorreoRecuperacion from './pages/VerificarCorreoRecuperacion'
 import SuscripcionVencida from './pages/SuscripcionVencida'
 import Landing from './pages/landing/Landing'
 import NotFound from './pages/NotFound'
@@ -24,6 +25,7 @@ const pagina =
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
   { path: '/restablecer', element: <Restablecer /> },
+  { path: '/verificar-correo-recuperacion', element: <VerificarCorreoRecuperacion /> },
   { path: '/suscripcion-vencida', element: <SuscripcionVencida /> },
   {
     path: '/demo',

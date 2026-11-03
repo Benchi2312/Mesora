@@ -103,6 +103,9 @@ export type Usuario = {
    * nueva antes de entrar. Lo enciende el reset administrativo de personal.
    */
   debe_cambiar_password?: boolean | null
+  /** Correo alternativo, propiedad del administrador, solo tras verificarlo. */
+  correo_recuperacion?: string | null
+  correo_recuperacion_verificado?: boolean | null
   created_at: string
 }
 

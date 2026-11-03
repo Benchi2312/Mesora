@@ -549,17 +549,17 @@ export interface SolicitudForm {
  * vez de crear el registro en silencio abre ese formulario con los datos por
  * defecto, para que el usuario vea cómo se rellena y solo confirme.
  *
- * La carta siempre pide el formulario del producto: si el restaurante no tiene
- * categorías, el autocompletado crea la categoría «PROMOS» antes de elegirla,
- * así que un solo clic deja el plato a medio camino de guardarse. El resto de
- * pasos (comanda, cocina, cobro…) no tienen formulario.
+ * Si el menú está vacío, la carta muestra primero el formulario de categoría.
+ * Al confirmarla, el panel abre el producto sugerido para que el usuario lo
+ * revise y lo guarde. El resto de pasos (comanda, cocina, cobro…) no tienen
+ * formulario.
  */
 export function formularioDePaso(paso: PasoId, ctx: ContextoGuiado): SolicitudForm | null {
   switch (paso) {
     case 'salon':
       return { tab: 'mesas', form: ctx.nuevaZona ? 'mesa' : 'zona' }
     case 'carta':
-      return { tab: 'menu', form: 'producto' }
+      return { tab: 'menu', form: ctx.categorias === 0 ? 'categoria' : 'producto' }
     default:
       return null
   }

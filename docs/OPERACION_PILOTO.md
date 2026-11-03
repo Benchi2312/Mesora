@@ -9,7 +9,7 @@ pendientes. Completar con el encargado antes del primer turno.
 | --- | --- |
 | Restaurante, encargado y soporte | Pendiente |
 | Primer turno acompañado: fecha/horario | Pendiente |
-| URL final | https://mesora-piloto.vercel.app; publicación autorizada por el propietario. |
+| URL de producción | https://mesoraapp.vercel.app; validar después del despliegue de la versión nueva. |
 | Proyecto y versión | Supabase Mesora; rama main en GitHub. El commit desplegado y sus checks se consultan en Deployments de Vercel y Actions de GitHub. |
 | Sistema de comprobantes electrónicos | Se mantiene el sistema actual del local; confirmado por el propietario el 30/10/2026. |
 | Responsable y ubicación privada del respaldo | Pendiente |
@@ -121,12 +121,14 @@ Esto no elimina registros anteriores del proveedor.
    antes de actualizar la base.
 2. Probar preview; si apunta a la base real, usar demo para mostrar y staging
    aislado para ensayos persistentes. Verificar Auth en la URL exacta.
-3. El propietario autorizó publicar esta entrega y diferir el correo. Integrar
-   a `main` con CI aprobada: Vercel detecta el push y publica automáticamente
-   cuando el check `build` permite asignar el dominio. Mantener visibles los
-   pendientes de respaldo/restauración y aceptación del local.
+3. La integración de recuperación del administrador ya está en el código;
+   antes de depender de ella, configurar sus secretos de correo, redirección de
+   Auth y probar entrega real. Integrar a `main` con CI aprobada: Vercel detecta
+   el push y publica automáticamente cuando el check `build` permite asignar el
+   dominio. Mantener visibles los pendientes de respaldo/restauración y
+   aceptación del local.
 4. Comprobar rutas públicas con `npm run verificar:despliegue --
-   https://mesora-piloto.vercel.app`; el workflow de GitHub también lo ejecuta
+   https://mesoraapp.vercel.app`; el workflow de GitHub también lo ejecuta
    tras el despliegue. Registrar commit y deployment. Esta comprobación no
    autentica ni crea ventas. GitHub borra la rama del PR al integrarlo; borrar
    la local con `git branch -d` después de sincronizar `main`.

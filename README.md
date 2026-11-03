@@ -5,6 +5,12 @@ Una app web (SPA) que funciona en tres modos — **local** con datos simulados,
 **demo** y **Supabase** real — con reglas de negocio compartidas y pruebas
 específicas para cada adaptador.
 
+## Demo pública
+
+Explora el [demo interactivo de Mesora](https://mesoraapp.vercel.app/demo).
+No requiere cuenta y utiliza datos de ejemplo; no registra ventas reales ni
+modifica la base de datos del restaurante.
+
 ## Stack
 
 - React 19 + TypeScript + Vite
@@ -67,8 +73,8 @@ npm run verificar            # 510 checks de reglas de negocio (backend local)
 npm run verificar:precuenta  # QA de precuenta, impresión/PDF y ausencia de escrituras
 npm run verificar:configuracion # QA del guardado de Datos del local, REST y dominio
 npm run verificar:sql        # PostgreSQL aislado: instalación, permisos, flujo y restauración
-npm run verificar:responsive # 344 checks de layout en 4 viewports
-npm run verificar:despliegue -- https://mesora-piloto.vercel.app # rutas públicas, sin ventas reales
+npm run verificar:responsive # 438 checks responsive, solapamientos y guía del demo
+npm run verificar:despliegue -- https://mesoraapp.vercel.app # rutas públicas, sin ventas reales
 npm run verificar:acceso      # cuentas desactivadas, salida y contraseña temporal con Auth simulado
 npm run capturas:demo        # capturas del recorrido guiado (Playwright)
 npm run sql:install          # regenera supabase/TODO_EN_UNO.sql
@@ -97,9 +103,9 @@ dashboard, la caja por turnos y el round-trip de `localStorage` simulando un F5.
 
 `npm run verificar:responsive` usa Playwright con Chromium: recorre landing,
 login, demo, las 8 pestañas del admin, mesero, cocina, cajero y las 10 secciones
-del super admin con datos, en 360, 390, 768 y 1280 px. Falla si el documento
-gana scroll horizontal o si un control táctil queda por debajo de 28 px. Usa un
-directorio de entorno temporal para forzar el modo QA sin mover
+del super admin con datos, en 360, 390, 768 y 1280 px. Comprueba desbordes,
+botones superpuestos, controles táctiles y el flujo guiado de categoría/producto.
+Usa un directorio de entorno temporal para forzar el modo QA sin mover
 `.env.local` ni alterar servidores Vite que ya estén abiertos.
 
 Ambas suites salen con código 1 si algún check falla.
@@ -121,9 +127,9 @@ las rutas y controles táctiles en los cuatro anchos indicados arriba.
 
 ## Desplegar en Vercel
 
-El proyecto `mesora-piloto` está conectado al repositorio privado
+El proyecto `mesoraapp` está conectado al repositorio de Mesora,
 `Benchi2312/Mesora`, con `main` como rama de producción y dirección
-**https://mesora-piloto.vercel.app**. Node 22, `npm ci`, `npm run build` y salida
+**https://mesoraapp.vercel.app**. Node 22, `npm ci`, `npm run build` y salida
 `dist` están definidos; el rewrite SPA permite recargar las rutas internas.
 
 Flujo de cambios:
@@ -135,7 +141,7 @@ Flujo de cambios:
    El control `CI de Mesora` espera al check `build` antes de asignar el dominio
    de producción; si falla, la versión anterior continúa publicada.
 4. El evento de despliegue exitoso ejecuta `Verificar despliegue` en GitHub:
-   12 rutas, recursos, redirección de páginas privadas e independencia del demo.
+   13 rutas, recursos, redirección de páginas privadas e independencia del demo.
    También se puede ejecutar manualmente desde Actions. Esta prueba detecta
    fallos después de publicar; no revierte automáticamente el despliegue.
 5. GitHub elimina la rama del PR al integrarlo. Sincronizar `main` y limpiar las
@@ -143,12 +149,21 @@ Flujo de cambios:
 
 Variables en Production y Preview: `VITE_SUPABASE_URL`,
 `VITE_SUPABASE_ANON_KEY` (clave pública), `VITE_MESORA_MODO_LOCAL=false` y
-`VITE_MESORA_DIAGNOSTICO=true`. No usar `service_role` en el frontend. Tras
-cambiar variables, reconstruir: Vite las incrusta durante el build.
+`VITE_MESORA_DIAGNOSTICO=true`. `VITE_MESORA_CONTACTO_EMAIL` usa el marcador
+`contacto@mesora.invalid` en Production y Preview hasta que se reemplace.
+No usar `service_role` en el frontend. Tras cambiar variables, reconstruir:
+Vite las incrusta durante el build.
 
 En Supabase, Site URL debe coincidir con el dominio publicado y Redirect URLs
-debe incluir `https://mesora-piloto.vercel.app/restablecer`. La configuración
-del correo de recuperación queda diferida por decisión del propietario.
+debe incluir `https://mesoraapp.vercel.app/restablecer`.
+La recuperación de administradores está integrada con el correo alternativo
+verificado. Para activarla hay que desplegar la migración y la Edge Function
+`admin-password-recovery`, y configurar `RESEND_API_KEY`,
+`MESORA_AUTH_FROM_EMAIL` y `MESORA_SITE_URL` en los secretos de Supabase
+Functions. Cada admin debe confirmar un correo real. El personal sigue
+dependiendo del restablecimiento que inicia su administrador desde **Personal**.
+El correo comercial visible en la landing es el marcador no entregable
+`contacto@mesora.invalid`; reemplázalo antes de captar solicitudes reales.
 Consultar [operación del piloto](./docs/OPERACION_PILOTO.md) para respaldo,
 aceptación del local y reversión. El despliegue web no certifica esas pruebas.
 
@@ -184,7 +199,7 @@ scripts/
   verificar-configuracion.mjs guardado, errores y dominio del local
   verificar-precuenta.mjs  vista, PDF, impresión y consumo actualizado
   verificar-sql.mjs        instalación y circuito SQL en PostgreSQL aislado
-  verificar-responsive.mjs suite de layout responsive (344 checks)
+  verificar-responsive.mjs suite responsive, overlap y guía móvil (438 checks)
   capturas-demo.mjs        capturas del recorrido guiado
   build-install-sql.mjs    genera TODO_EN_UNO.sql
 ```
@@ -285,7 +300,7 @@ El orden de fuentes y su cobertura se verifican con npm run sql:install.
 ## Estado actual
 
 Implementado. Última verificación registrada (`npm run verificar`: 510 checks;
-`npm run verificar:responsive`: 344 checks en 4 viewports):
+`npm run verificar:responsive`: 438 checks en 4 viewports):
 
 - Auth (email/password), lectura de rol desde `usuarios`, rutas protegidas por rol y bloqueo por suscripción vencida.
 - **Vista Mesero**: grilla de mesas por zona, toma de pedido desde el menú (categorías, promociones, notas por ítem), envío de comanda atómica (`crear_pedido`), **varias comandas por mesa** con pantalla intermedia que acumula el total, y cierre de cuenta con método de pago, pago dividido, propina y boleta imprimible (`cerrar_cuenta`), con **edición y anulación de ítems** desde la comanda abierta.
@@ -295,7 +310,7 @@ Implementado. Última verificación registrada (`npm run verificar`: 510 checks;
 - **Modo local** (solo desarrollo, activación explícita con VITE_MESORA_MODO_LOCAL=true): login y roles simulados sobre un dataset de prueba, persistencia en localStorage y botón de reset en /login. Sin esa variable, la app falla cerrada si Supabase no está configurado.
 - **Modo demo** (`/demo`): las 4 vistas sin login, con recorrido guiado que escribe por ti ("Hazlo por mí"), persistencia en `localStorage` y botón para vaciarlo.
 - **Rendimiento**: code-splitting por ruta; la landing y el login no descargan el panel.
-- **Instalador generado**: `supabase/TODO_EN_UNO.sql` (27 piezas SQL ordenadas, 19 tablas con RLS y grants). Instalación vacía, restauración aislada y migración de políticas verificadas con `npm run verificar:sql`.
+- **Instalador generado**: `supabase/TODO_EN_UNO.sql` (28 piezas SQL ordenadas, 19 tablas con RLS y grants). Instalación vacía, restauración aislada, políticas y recuperación del administrador verificadas con `npm run verificar:sql`.
 - **Seguridad del piloto**: funciones de negocio sin EXECUTE anónimo, search_path fijo, registro público desactivado y contraseña mínima de ocho caracteres en el proyecto revisado.
 - **Revisión RLS (2 nov 2026)**: la migración aplicada limita la configuración global al superadmin y deja públicos solo el precio y el contacto que muestra la landing; también separa políticas de catálogo/mesas. Ver [informe de seguridad](./docs/REVISION_SEGURIDAD_SUPABASE.md).
 - **Diagnóstico**: categorías de API/render/JavaScript/promesas en logs PostgreSQL, sin mensajes originales, PIN ni tokens. Requiere sesión; límite por pestaña de 20 intentos/10 minutos y deduplicación de 60 segundos. Desactivar con `VITE_MESORA_DIAGNOSTICO=false` y reconstruir. No incluye alertas automáticas.
@@ -311,13 +326,17 @@ de forma coherente; las suites locales y SQL cubren los circuitos principales.
 - Completar la aceptación punta a punta en el local con cuentas de prueba: cuentas por
   rol, pedidos y cocina, cobros/anulación con PIN, arqueo, impresora y dos
   dispositivos. La batería local no sustituye la aceptación presencial; por decisión del propietario no se creó staging de pago.
-- Acordar responsable, monitoreo y operación ante cortes de red. La recuperación
-  por correo del administrador queda aplazada por decisión del propietario.
+- Configurar y probar Resend para la verificación y recuperación; cada
+  administrador debe registrar un correo alternativo real.
+- Reemplazar `contacto@mesora.invalid` por el correo comercial real antes de
+  publicar campañas o recibir solicitudes.
+- Acordar responsable, monitoreo y operación ante cortes de red.
 ## Integración continua
 
 GitHub Actions ejecuta `npm ci`, `npm run sql:install`, `npm run verificar:sql`, `npm run verificar`,
 `npm run typecheck`, `npm run verificar:precuenta`,
-`npm run verificar:configuracion` y `npm run build` al abrir un pull request o actualizar
+`npm run verificar:configuracion`, `npm run verificar:responsive`, comprobación
+de tipos de la Edge Function y `npm run build` al abrir un pull request o actualizar
 `main`/`master`. Para que se active, Mesora debe ser
 la raíz del repositorio GitHub.
 

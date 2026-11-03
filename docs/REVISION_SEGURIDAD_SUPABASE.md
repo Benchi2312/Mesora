@@ -1,9 +1,12 @@
 # Revisión de seguridad y preparación del repositorio
 
-Fecha de corte: **2 de noviembre de 2026**. Esta revisión se hizo sobre los
+Fecha de corte: **3 de noviembre de 2026**. Esta revisión se hizo sobre los
 metadatos del proyecto Supabase Mesora, sus asesores, las fuentes SQL locales y
 los refs Git disponibles. Tras probarla en PostgreSQL aislado, se aplicó una
-migración de policies/grants a producción; no modificó filas. El código de esta revisión quedó integrado en `main`; Vercel publicó el commit de producción y el smoke público pasó 12 rutas. El repositorio permanece privado.
+migración de policies/grants a producción; no modificó filas. El código quedó
+integrado en `main`; se añadieron la migración de recuperación y la Edge
+Function. El repositorio quedó público después de revisar sus 19 commits; no
+se agregó una licencia de reutilización.
 
 ## Hallazgos de Supabase
 
@@ -50,15 +53,15 @@ permisivas y la ejecución de funciones `SECURITY DEFINER`:
   `anon`, grants acotados, cero filas globales para admin de restaurante y
   lectura completa para superadmin. Se volvieron a consultar los asesores: ya
   no aparece `multiple_permissive_policies`.
-- La organización figura en el plan Free, que no incluye respaldos diarios. El
-  equipo local no tiene `pg_dump`, `psql`, Docker ni la contraseña PostgreSQL;
-  no se obtuvo una copia restaurable de la base real. El dump/restore de QA
+- La organización figura en el plan Free, que no incluye respaldos diarios.
+  Docker está instalado, pero faltan `pg_dump`, `psql` y la contraseña
+  PostgreSQL; no se obtuvo una copia restaurable de la base real. El dump/restore de QA
   corresponde a PostgreSQL aislado y no sustituye el backup de Supabase.
 
-## Historial Git y contenido pendiente de revisar antes de hacerlo público
+## Historial Git y contenido excluido de la publicación
 
-- Al inicio de la revision se analizaron los 17 commits accesibles desde las refs locales, incluida
-  `origin/main`, y el árbol de trabajo textual. No hubo coincidencias para
+- Se analizaron los 19 commits accesibles desde las refs locales, incluida
+  `origin/main`, el árbol textual y el correo/contraseña de prueba conocidos. No hubo coincidencias para
   claves AWS, tokens GitHub/Supabase/Stripe/npm/Slack/Google, JWT completos,
   bloques de claves privadas, URLs de PostgreSQL con credenciales ni claves
   `service_role`. Los binarios de video/audio no se analizaron con ese escáner;
@@ -68,15 +71,13 @@ permisivas y la ejecución de funciones `SECURITY DEFINER`:
   aquí ningún valor de entorno.
 - `main` y `origin/main` apuntaban al mismo commit al iniciar esta revisión. En
   las refs remotas solo estaba `origin/main`. Esta entrega integra los cambios en `main`.
-- `promocional/` está sin seguimiento e incluye el proyecto HyperFrames, video,
+- `promocional/` está ignorado y excluido del repositorio. Incluye el proyecto HyperFrames, video,
   narración/música y capturas del demo. Antes de incorporarlo, comprobar que las
   capturas no muestren datos reales y que cada audio/imagen tenga licencia para
   distribución pública. Los cachés y binarios de herramientas de render no
   deben agregarse al repo.
-- No hay archivo `LICENSE`. El dueño debe elegir una licencia antes de hacer
-  público el código; sin licencia, hacerlo visible no concede permisos de uso.
-- La visibilidad del repo no se cambió. El video final y la publicación pública
-  continúan pendientes hasta cerrar el piloto, según la decisión del propietario.
+- No hay archivo `LICENSE`; no se conceden derechos generales de reutilización
+  del código. El video final sigue pendiente por decisión del propietario.
 
 ## Lista de cierre
 
@@ -87,8 +88,7 @@ permisivas y la ejecución de funciones `SECURITY DEFINER`:
    once RPC administrativas de superadmin ya rechazan al mesero en QA aislada.
 3. Completar la aceptación con Auth real, dos dispositivos, pagos concurrentes
    e impresora; el propietario eligió pruebas locales y rechazó staging de pago; no se creó esa rama ni se generó costo.
-4. Revisar manualmente material promocional, datos del demo, licencia y
-   dependencias/avisos de terceros; elegir y añadir `LICENSE`.
-5. Repetir el escaneo de secretos sobre refs e historial completos y actualizar
-   el README/video al estado posterior al piloto. Solo entonces cambiar la
-   visibilidad del repositorio.
+4. Configurar el proveedor de correo y probar una recuperación real de admin;
+   cada administrador debe verificar su correo alternativo.
+5. Mantener excluido el video promocional hasta actualizarlo y autorizar su
+   publicación; reemplazar el contacto comercial provisional.

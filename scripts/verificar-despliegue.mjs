@@ -1,7 +1,7 @@
 // Smoke público del despliegue: rutas, recursos y aislamiento del demo.
 // No inicia sesión, envía formularios ni modifica la base de datos real.
 // No sustituye las pruebas de caja, recuperación por correo o impresora física.
-// Uso: node scripts/verificar-despliegue.mjs https://mesora-piloto.vercel.app
+// Uso: node scripts/verificar-despliegue.mjs https://mesoraapp.vercel.app
 import assert from 'node:assert/strict'
 import { chromium, expect } from '@playwright/test'
 
@@ -35,6 +35,7 @@ const casos = [
   { ruta: '/demo/cocina', tipo: 'demo', titulo: 'Cocina y barra' },
   { ruta: '/demo/cajero', tipo: 'demo', titulo: 'Caja' },
   { ruta: '/restablecer', tipo: 'restablecer' },
+  { ruta: '/verificar-correo-recuperacion', tipo: 'verificar' },
   ...['/admin', '/mesero', '/cocina', '/cajero', '/super-admin'].map((ruta) => ({ ruta, tipo: 'privada' })),
 ]
 
@@ -103,9 +104,12 @@ try {
         await expect(page.getByText('Modo demo', { exact: true })).toBeVisible()
         if (caso.titulo) await expect(page.getByRole('heading', { level: 1, name: caso.titulo, exact: true })).toBeVisible()
         if (caso.texto) await expect(page.getByText(caso.texto, { exact: true })).toBeVisible()
-      } else {
+      } else if (caso.tipo === 'restablecer') {
         await expect(page.getByText('Este enlace no es válido o ya venció.', { exact: false })).toBeVisible()
-        await expect(page.getByRole('button', { name: 'Volver a iniciar sesión', exact: true })).toBeVisible()
+        await expect(page.getByRole('link', { name: 'Volver al inicio de sesión', exact: true })).toBeVisible()
+      } else if (caso.tipo === 'verificar') {
+        await expect(page.getByRole('heading', { name: 'Verifica tu correo', exact: true })).toBeVisible()
+        await expect(page.getByRole('button', { name: 'Confirmar correo', exact: true })).toBeDisabled()
       }
 
       // Espera dos frames para capturar fallos del render sin depender de

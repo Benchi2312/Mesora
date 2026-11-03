@@ -3286,8 +3286,8 @@ check(
   eq(formularioDePaso('salon', ctx28(true)), { tab: 'mesas', form: 'mesa' }),
 )
 check(
-  '28c · «Hazlo por mí» en la carta abre el formulario de producto (la categoría la pone el autocompletado)',
-  eq(formularioDePaso('carta', ctx28(false, 0)), { tab: 'menu', form: 'producto' }),
+  '28c · «Hazlo por mí» en una carta vacía abre el formulario de categoría',
+  eq(formularioDePaso('carta', ctx28(false, 0)), { tab: 'menu', form: 'categoria' }),
 )
 check(
   '28d · con categorías ya creadas, «Hazlo por mí» en la carta abre el plato',

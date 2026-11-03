@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Session } from '@supabase/supabase-js'
 import { apiMode, enDemo } from '../lib/api'
+import { mensajeErrorFuncion } from '../lib/mensajeErrorFuncion'
 import {
   modoLocalHabilitado,
   supabase,
@@ -263,10 +264,13 @@ export const useAuthStore = create<AuthState>()((set, get) => {
         return 'La recuperación de contraseña solo está disponible con el servidor conectado.'
       }
       try {
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: `${window.location.origin}/restablecer`,
+        const { data, error } = await supabase.functions.invoke('admin-password-recovery', {
+          body: { accion: 'solicitar', email: email.trim() },
         })
-        if (error) return mensajeErrorAuth(error.message)
+        if (error) {
+          return await mensajeErrorFuncion(error, 'No se pudo solicitar la recuperación. Intenta más tarde.')
+        }
+        if (typeof data?.error === 'string') return data.error
         return null
       } catch {
         return 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.'

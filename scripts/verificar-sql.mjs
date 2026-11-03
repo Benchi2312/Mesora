@@ -30,6 +30,56 @@ try {
   }
   assert.equal((await pg.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 19)
   console.log('SQL QA: tablas, RPC, RLS y pgcrypto instalados')
+  await pg.exec(`
+    begin;
+    do $$
+    declare r uuid:=gen_random_uuid(); u uuid:=gen_random_uuid(); permitido boolean; resultado record;
+      inicial text:=current_user; token text:=repeat('a',64); correo text:='admin@mesora.example';
+    begin
+      if has_schema_privilege('anon','private','usage') or has_schema_privilege('authenticated','private','usage') then
+        raise exception 'Un cliente puede acceder al esquema privado';
+      end if;
+      if has_table_privilege('authenticated','private.admin_recovery_tokens','select') then
+        raise exception 'Autenticado puede leer tokens de recuperación';
+      end if;
+      if has_function_privilege('authenticated','public.mesora_recovery_can_send(uuid,text)','execute') then
+        raise exception 'Autenticado puede invocar el rate limit';
+      end if;
+
+      insert into auth.users(id,email) values(u,correo);
+      insert into public.restaurantes(id,nombre) values(r,'QA recovery');
+      insert into public.usuarios(id,restaurante_id,rol,nombre,email,activo)
+        values(u,r,'admin_restaurante','Admin QA',correo,true);
+
+      perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+      permitido:=public.mesora_recovery_can_send(u,'verificar_correo');
+      if permitido is not true then raise exception 'La primera solicitud fue rechazada'; end if;
+      permitido:=public.mesora_recovery_can_send(u,'verificar_correo');
+      if permitido is not false then raise exception 'No se aplicó el límite por minuto'; end if;
+      perform public.mesora_recovery_store_token(u,correo,token,now()+interval '30 minutes');
+      select * into resultado from public.mesora_recovery_consume_token(token);
+      if resultado.usuario_id<>u or resultado.correo<>correo then raise exception 'No se consumió el token esperado'; end if;
+      if exists(select 1 from public.mesora_recovery_consume_token(token)) then raise exception 'Se permitió reutilizar el token'; end if;
+
+      perform set_config('request.jwt.claims','{"role":"authenticated"}',true);
+      begin
+        update public.usuarios set correo_recuperacion='falso@mesora.example', correo_recuperacion_verificado=true where id=u;
+        raise exception 'Un usuario pudo verificar su correo sin token';
+      exception when raise_exception then
+        if sqlerrm not like 'El correo de recuperación solo se actualiza mediante verificación segura%' then raise; end if;
+      end;
+
+      perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+      update public.usuarios set correo_recuperacion=correo, correo_recuperacion_verificado=true where id=u;
+      if not exists(select 1 from public.usuarios where id=u and correo_recuperacion=correo and correo_recuperacion_verificado) then
+        raise exception 'La Edge Function no puede guardar el correo verificado';
+      end if;
+      execute format('set local role %I',inicial);
+    end;
+    $$;
+    rollback;
+  `)
+  console.log('SQL QA: recuperación admin, permisos privados, límite y token de un solo uso aprobados')
   await pg.exec(readFileSync(new URL('../supabase/qa/seguridad_rpc_rollback.sql', import.meta.url), 'utf8'))
   console.log('SQL QA: permisos de anónimo, autenticado y servicio correctos')
   const pruebaPoliticas = readFileSync(new URL('../supabase/qa/politicas_catalogo_rollback.sql', import.meta.url), 'utf8')

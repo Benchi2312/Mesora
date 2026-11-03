@@ -9,14 +9,14 @@ const enlaces = [
   { href: '#como-funciona', label: 'Cómo funciona' },
   { href: '#planes', label: 'Precio' },
   { href: '#preguntas', label: 'Preguntas frecuentes' },
-  { href: '#piloto', label: 'Piloto' },
+  { href: '#contacto', label: 'Contacto' },
 ]
 
 export default function Footer() {
   const { correo, telefono } = useLandingConfig()
 
   return (
-    <footer id="contacto" className="scroll-mt-16 border-t border-white/5 bg-surface-950">
+    <footer id="pie-de-pagina" className="border-t border-white/5 bg-surface-950">
       <div className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6">
         <div className="flex flex-col items-start justify-between gap-8 sm:flex-row sm:items-center">
           <div className="flex max-w-md flex-col items-start gap-3">
@@ -28,9 +28,9 @@ export default function Footer() {
             {telefono && <a href={`tel:${telefono.replace(/[^+\d]/g, '')}`} className="text-sm text-brand-400 hover:text-brand-300">{telefono}</a>}
           </div>
           <div className="flex flex-col items-start gap-3 sm:items-end">
-            <p className="text-sm font-semibold text-white">¿Quieres conocer el piloto?</p>
-            <a href="#piloto" className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-bold text-surface-950 shadow-lg shadow-brand-500/25 transition hover:bg-brand-400">
-              Solicitar información <IconArrowRight className="h-4 w-4" />
+            <p className="text-sm font-semibold text-white">¿Quieres conocer Mesora?</p>
+            <a href="#contacto" className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-bold text-surface-950 shadow-lg shadow-brand-500/25 transition hover:bg-brand-400">
+              Solicitar una demostración <IconArrowRight className="h-4 w-4" />
             </a>
           </div>
         </div>

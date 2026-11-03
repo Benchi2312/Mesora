@@ -3,19 +3,19 @@ import SectionHeading from './SectionHeading'
 const preguntas = [
   {
     q: '¿Mesora reemplaza mi sistema de facturación electrónica?',
-    r: 'No. Para este piloto, el restaurante conserva su proveedor actual de facturación. Mesora ayuda a gestionar pedidos, cuentas y operación interna.',
+    r: 'Mesora gestiona pedidos, cuentas y cobros internos. El restaurante sigue emitiendo sus comprobantes con el proveedor de facturación que ya utiliza.',
   },
   {
     q: '¿La demo usa datos reales?',
     r: 'No. La demo trabaja con datos de ejemplo para recorrer las vistas de administración, mesero, cocina y caja.',
   },
   {
-    q: '¿Qué necesito para probarlo en mi local?',
-    r: 'El piloto debe revisar los dispositivos, la conexión a internet, la configuración del local y el flujo de impresión que usa cada restaurante.',
+    q: '¿Qué necesito para poner Mesora en marcha en mi local?',
+    r: 'Se configura el restaurante, sus usuarios, dispositivos, conexión a internet y el flujo de impresión que utiliza.',
   },
   {
     q: '¿El precio publicado incluye soporte y puesta en marcha?',
-    r: 'El precio mostrado es el monto mensual configurado para el plan. El alcance, soporte y condiciones de un piloto se confirman antes de iniciarlo.',
+    r: 'El precio publicado es la referencia mensual del plan. La propuesta debe detallar el alcance, soporte y puesta en marcha.',
   },
 ]
 

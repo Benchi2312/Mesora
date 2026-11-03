@@ -98,16 +98,42 @@ export default function MenuTab() {
   // Cada «Hazlo por mí» es una corrida nueva: el número reinicia la secuencia
   // aunque el formulario siga abierto.
   const [corrida, setCorrida] = useState(0)
-  // Canceladores: el de la secuencia en curso y el de la preparación (crear la
-  // categoría). Ambos se limpian al cerrar el modal, al pedir otra simulación
-  // o al desmontar: nunca puede quedar un temporizador vivo.
+  // La secuencia de escritura se cancela al cerrar el formulario, iniciar otra
+  // simulación o desmontar el panel.
   const secuenciaRef = useRef<(() => void) | null>(null)
-  const autoRef = useRef<object | null>(null)
   const categoriasRef = useRef(categorias)
+  const categoriaGuiadaRef = useRef(false)
   categoriasRef.current = categorias
 
+  const iniciarAutocompletadoProducto = useCallback((categoriaId: string) => {
+    setProductoError(null)
+    setModalProducto({
+      accion: 'crear',
+      categoriaId,
+      nombre: '',
+      descripcion: '',
+      imagenUrl: '',
+      precio: '',
+      disponible: true,
+      esPromocion: false,
+      precioPromocion: '',
+      esBebida: false,
+    })
+    setCategoriaAuto(categoriaId)
+    setCorrida((n) => n + 1)
+    setAutoLlenando(true)
+    setAutoLlenado(true)
+  }, [setAutoLlenado])
+
+  function cerrarModalCategoria() {
+    setModalCategoria(null)
+    if (categoriaGuiadaRef.current) {
+      categoriaGuiadaRef.current = false
+      setAutoLlenado(false)
+    }
+  }
+
   const detenerAutoLlenado = useCallback(() => {
-    autoRef.current = null
     secuenciaRef.current?.()
     secuenciaRef.current = null
     setAutoLlenando(false)
@@ -119,9 +145,9 @@ export default function MenuTab() {
   // Al desmontar (o al cambiar de pestaña) se corta la simulación.
   useEffect(
     () => () => {
-      autoRef.current = null
       secuenciaRef.current?.()
       secuenciaRef.current = null
+      categoriaGuiadaRef.current = false
       // Si el usuario cambia de pestaña a media simulación, el panel de la guía
       // tiene que volver a su sitio.
       setAutoLlenado(false)
@@ -129,11 +155,10 @@ export default function MenuTab() {
     [setAutoLlenado],
   )
 
-  // «Hazlo por mí»: abre el formulario del plato y lo deja a medio camino de
-  // guardarse. Si el restaurante no tiene la categoría «PROMOS» se crea
-  // primero: el demo arranca con el menú vacío.
+  // «Hazlo por mí» muestra primero la categoría sugerida si no existe; al
+  // confirmarla abre el producto y lo rellena para que el usuario lo revise.
   useEffect(() => {
-    if (!solicitud || solicitud.form !== 'producto') return
+    if (!solicitud || (solicitud.form !== 'producto' && solicitud.form !== 'categoria')) return
     // Se espera a que el menú esté cargado: si la simulación empieza con el
     // spinner en pantalla, el modal aparece ya relleno y el usuario se pierde
     // exactamente lo que quería ver (cómo se escribe solo).
@@ -146,48 +171,31 @@ export default function MenuTab() {
     // Tras recargar el navegador el recorrido se restaura pero `prefillGuia`
     // vuelve a false; PREFILL_GUIA garantiza que siempre haya datos que escribir.
     const sugerido = prefill ?? PREFILL_GUIA
-    const nombreCategoria = sugerido.producto.categoria
-    const estado = {}
-    autoRef.current = estado
-    void (async () => {
-      const actuales = categoriasRef.current
-      const exacta = actuales.find(
-        (c) => c.nombre.trim().toLowerCase() === nombreCategoria.toLowerCase(),
-      )
-      const parecida = actuales.find((c) =>
-        c.nombre.toLowerCase().includes(nombreCategoria.toLowerCase()),
-      )
-      let categoriaId = exacta?.id ?? parecida?.id
-      if (!categoriaId && rid) {
-        const creada = await getApi().crearCategoria(rid, nombreCategoria)
-        if (autoRef.current !== estado) return // otra simulación empezó o se canceló
-        if (creada.error || !creada.data) {
-          setProductoError(creada.error ?? 'No se pudo preparar la categoría del producto.')
-          return
-        }
-        setCategorias((prev) => [...prev, creada.data as CategoriaProducto])
-        categoriaId = creada.data.id
-      }
-      if (autoRef.current !== estado || !categoriaId) return
-      setProductoError(null)
-      setModalProducto({
-        accion: 'crear',
-        categoriaId,
-        nombre: '',
-        descripcion: '',
-        imagenUrl: '',
-        precio: '',
-        disponible: true,
-        esPromocion: false,
-        precioPromocion: '',
-        esBebida: false,
-      })
-      setCategoriaAuto(categoriaId)
-      setCorrida((n) => n + 1)
-      setAutoLlenando(true)
+    if (solicitud.form === 'categoria') {
+      categoriaGuiadaRef.current = true
+      setCategoriaError(null)
       setAutoLlenado(true)
-    })()
-  }, [solicitud, cargando, prefill, rid, limpiarSolicitud, setAutoLlenado])
+      setModalCategoria({ accion: 'crear', nombre: sugerido.producto.categoria })
+      return
+    }
+    const nombreCategoria = sugerido.producto.categoria
+    const actuales = categoriasRef.current
+    const exacta = actuales.find(
+      (c) => c.nombre.trim().toLowerCase() === nombreCategoria.toLowerCase(),
+    )
+    const parecida = actuales.find((c) =>
+      c.nombre.toLowerCase().includes(nombreCategoria.toLowerCase()),
+    )
+    const categoriaId = exacta?.id ?? parecida?.id
+    if (!categoriaId) {
+      categoriaGuiadaRef.current = true
+      setCategoriaError(null)
+      setAutoLlenado(true)
+      setModalCategoria({ accion: 'crear', nombre: nombreCategoria })
+      return
+    }
+    iniciarAutocompletadoProducto(categoriaId)
+  }, [solicitud, cargando, prefill, limpiarSolicitud, setAutoLlenado, iniciarAutocompletadoProducto])
 
   // La secuencia de escritura: un campo detrás de otro, con una pausa para que
   // se vea. Al terminar, el botón de guardar late.
@@ -276,6 +284,13 @@ export default function MenuTab() {
     }
     setModalCategoria(null)
     await cargar()
+    if (categoriaGuiadaRef.current && res.data?.id) {
+      categoriaGuiadaRef.current = false
+      iniciarAutocompletadoProducto(res.data.id)
+    } else if (categoriaGuiadaRef.current) {
+      categoriaGuiadaRef.current = false
+      setAutoLlenado(false)
+    }
   }
 
   async function guardarProducto() {
@@ -538,7 +553,7 @@ export default function MenuTab() {
       {modalCategoria && (
         <Modal
           titulo={modalCategoria.accion === 'crear' ? 'Nueva categoría' : 'Editar categoría'}
-          onCerrar={() => setModalCategoria(null)}
+          onCerrar={cerrarModalCategoria}
         >
           <form
             onSubmit={(e) => {
@@ -557,7 +572,7 @@ export default function MenuTab() {
               />
             </Campo>
             <PieAcciones
-              onCancelar={() => setModalCategoria(null)}
+              onCancelar={cerrarModalCategoria}
               enviando={enviando}
               textoEnvio="Guardando…"
               labelGuardar={modalCategoria.accion === 'crear' ? 'Crear categoría' : 'Guardar cambios'}

@@ -6,7 +6,7 @@ import DashboardSection from './DashboardSection'
 import ControlSection from './ControlSection'
 import Planes from './Planes'
 import PreguntasFrecuentes from './PreguntasFrecuentes'
-import Piloto from './Piloto'
+import Contacto from './Contacto'
 import Footer from './Footer'
 
 export default function Landing() {
@@ -21,7 +21,7 @@ export default function Landing() {
         <ControlSection />
         <Planes />
         <PreguntasFrecuentes />
-        <Piloto />
+        <Contacto />
       </main>
       <Footer />
     </div>

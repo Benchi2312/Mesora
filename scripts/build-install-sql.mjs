@@ -37,6 +37,7 @@ const GENERADOS = ['TODO_EN_UNO.sql']
 // desde migrations/; esta fuente debe mantenerse idéntica.
 const FUENTES_VERSIONADAS = {
   'migracion_password_recovery.sql': '../migrations/20261022120000_password_recovery.sql',
+  'migracion_admin_email_recovery.sql': '../migrations/20261103032730_admin_email_recovery.sql',
 }
 
 // -----------------------------------------------------------------------------
@@ -53,12 +54,13 @@ const FUENTES_VERSIONADAS = {
 //   - suscripciones crea suscripciones_historial, sobre la que auditaría dispara
 //     sus triggers; soporte crea soporte_tickets, que configuración consulta;
 //     auditoría crea audit_logs, en la que configuración inserta.
-//   - migracion_password_recovery altera `usuarios`, que ya existe desde el
-//     schema base, y va antes de que RLS reparta los permisos de esa tabla.
+//   - migracion_password_recovery y admin_email_recovery alteran `usuarios`,
+//     que ya existe desde el schema base, y van antes de que RLS reparta permisos.
 // -----------------------------------------------------------------------------
 const ORDEN = [
   '00_schema_base.sql',
   '../migrations/20261022120000_password_recovery.sql',
+  '../migrations/20261103032730_admin_email_recovery.sql',
   '00_seguridad_rpcs.sql',
   'migracion_items_anulables.sql',
   'migracion_productos_es_bebida.sql',

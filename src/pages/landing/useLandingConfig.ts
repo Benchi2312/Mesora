@@ -4,9 +4,11 @@ import { PRECIO_PLAN_DEFECTO } from '../../domain/restaurant/configuracion'
 
 export type LandingConfig = { precio: number; correo: string | null; telefono: string | null }
 
+const correoEntorno = import.meta.env.VITE_MESORA_CONTACTO_EMAIL?.trim() || null
+
 const configInicial: LandingConfig = {
   precio: PRECIO_PLAN_DEFECTO,
-  correo: import.meta.env.VITE_MESORA_CONTACTO_EMAIL?.trim() || null,
+  correo: correoEntorno,
   telefono: null,
 }
 
@@ -24,7 +26,9 @@ function cargarConfiguracion(): Promise<LandingConfig> {
     if (!data) return configInicial
     return {
       precio: data.precio_plan_mensual == null ? configInicial.precio : Number(data.precio_plan_mensual),
-      correo: data.correo_soporte?.trim() || configInicial.correo,
+      // Una dirección configurada para la landing (incluido el placeholder
+      // temporal) tiene prioridad sobre el correo interno de soporte.
+      correo: correoEntorno || data.correo_soporte?.trim() || 'contacto@mesora.invalid',
       telefono: data.telefono_soporte?.trim() || null,
     }
   })().catch(() => configInicial)

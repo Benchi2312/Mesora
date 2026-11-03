@@ -44,10 +44,10 @@ export default function Planes() {
             ))}
           </ul>
           <div className="mt-7 rounded-xl border border-surface-700 bg-surface-950/60 p-4 text-sm leading-relaxed text-zinc-400">
-            El restaurante conserva su proveedor actual de facturación electrónica. Las condiciones y el alcance del piloto se confirman antes de iniciar.
+            El restaurante conserva su proveedor actual de facturación electrónica. El alcance, soporte y puesta en marcha se detallan antes de contratar.
           </div>
-          <a href="#piloto" className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-6 py-3.5 text-base font-bold text-surface-950 shadow-lg shadow-brand-500/25 transition hover:bg-brand-400">
-            Consultar por el piloto <IconArrowRight className="h-5 w-5" />
+          <a href="#contacto" className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-6 py-3.5 text-base font-bold text-surface-950 shadow-lg shadow-brand-500/25 transition hover:bg-brand-400">
+            Solicitar una demostración <IconArrowRight className="h-5 w-5" />
           </a>
           <Link to="/demo" className="mt-4 block text-center text-sm font-semibold text-zinc-400 transition hover:text-white">
             Explorar demo primero
