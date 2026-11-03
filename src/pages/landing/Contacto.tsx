@@ -106,7 +106,7 @@ export default function Contacto() {
                 <label htmlFor="contacto-mensaje" className="mb-1.5 block text-sm font-medium text-zinc-300">¿Qué te gustaría mejorar? <span className="font-normal text-zinc-500">(opcional)</span></label>
                 <textarea id="contacto-mensaje" name="mensaje" rows={3} maxLength={1000} placeholder="Pedidos, cocina, caja, reportes…" className={`${campos} resize-y`} />
               </div>
-              <div aria-hidden="true" className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden"><label htmlFor="contacto-sitio-web">Deja este campo vacío</label><input id="contacto-sitio-web" name="sitio-web" tabIndex={-1} autoComplete="off" /></div>
+              <div hidden aria-hidden="true"><label htmlFor="contacto-sitio-web">Deja este campo vacío</label><input id="contacto-sitio-web" name="sitio-web" tabIndex={-1} autoComplete="off" /></div>
               <button type="submit" disabled={enviando} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-6 py-3.5 font-bold text-surface-950 shadow-lg shadow-brand-500/15 transition hover:-translate-y-0.5 hover:bg-brand-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 disabled:cursor-wait disabled:opacity-70">
                 {enviando ? 'Enviando consulta…' : 'Enviar consulta'} <IconArrowRight className="h-5 w-5" />
               </button>
