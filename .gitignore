@@ -51,3 +51,4 @@ _*.txt
 /backups/
 /promocional/
 *.dump
+.vercel

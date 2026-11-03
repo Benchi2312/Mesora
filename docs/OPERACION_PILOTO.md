@@ -9,7 +9,7 @@ pendientes. Completar con el encargado antes del primer turno.
 | --- | --- |
 | Restaurante, encargado y soporte | Pendiente |
 | Primer turno acompañado: fecha/horario | Pendiente |
-| URL de producción | https://mesoraapp.vercel.app; validar después del despliegue de la versión nueva. |
+| URL de producción | https://mesoraapp-benchi1.vercel.app; validar después del despliegue de la versión nueva. |
 | Proyecto y versión | Supabase Mesora; rama main en GitHub. El commit desplegado y sus checks se consultan en Deployments de Vercel y Actions de GitHub. |
 | Sistema de comprobantes electrónicos | Se mantiene el sistema actual del local; confirmado por el propietario el 30/10/2026. |
 | Responsable y ubicación privada del respaldo | Pendiente |
@@ -128,7 +128,7 @@ Esto no elimina registros anteriores del proveedor.
    dominio. Mantener visibles los pendientes de respaldo/restauración y
    aceptación del local.
 4. Comprobar rutas públicas con `npm run verificar:despliegue --
-   https://mesoraapp.vercel.app`; el workflow de GitHub también lo ejecuta
+   https://mesoraapp-benchi1.vercel.app`; el workflow de GitHub también lo ejecuta
    tras el despliegue. Registrar commit y deployment. Esta comprobación no
    autentica ni crea ventas. GitHub borra la rama del PR al integrarlo; borrar
    la local con `git branch -d` después de sincronizar `main`.
