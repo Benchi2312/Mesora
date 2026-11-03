@@ -138,7 +138,7 @@ export default function SuperAdminRestaurantes() {
     setAltaAbierta(false)
     setForm(FORM_VACIO)
     setCreado(
-      `Restaurante "${res.data?.nombre ?? nombre}" creado. ${adminEmail} ya puede iniciar sesión con la contraseña que definiste.`,
+      `Restaurante "${res.data?.nombre ?? nombre}" creado. ${adminEmail} puede iniciar sesión con la contraseña temporal y deberá cambiarla.`,
     )
     await cargar()
   }
@@ -377,8 +377,9 @@ export default function SuperAdminRestaurantes() {
             }}
           >
             <p className="mb-5 rounded-xl border border-brand-500/30 bg-brand-500/10 px-4 py-3 text-sm text-brand-300">
-              El alta crea el restaurante y la cuenta de acceso de su administrador. La contraseña
-              inicial se define acá y el administrador puede entrar de inmediato.
+              El alta crea el restaurante y la cuenta de su administrador. Usa un correo real al
+              que tenga acceso: podrá utilizarlo para recuperar su contraseña cuando el envío de
+              correos esté configurado. Deberá cambiar la contraseña temporal al entrar.
             </p>
 
             <h4 className="mb-3 text-sm font-bold uppercase tracking-widest text-zinc-400">
@@ -482,7 +483,7 @@ export default function SuperAdminRestaurantes() {
               />
             </Campo>
 
-            <Campo etiqueta="Email (será su usuario de acceso)" htmlFor="a-email">
+            <Campo etiqueta="Correo real del administrador (usuario de acceso)" htmlFor="a-email">
               <input
                 id="a-email"
                 type="email"
@@ -495,7 +496,7 @@ export default function SuperAdminRestaurantes() {
               />
             </Campo>
 
-            <Campo etiqueta="Contraseña inicial (mínimo 8 caracteres)" htmlFor="a-pass">
+            <Campo etiqueta="Contraseña temporal (mínimo 8 caracteres)" htmlFor="a-pass">
               <input
                 id="a-pass"
                 type="password"

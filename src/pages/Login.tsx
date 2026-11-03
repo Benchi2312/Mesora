@@ -68,7 +68,7 @@ export default function Login() {
       setError(err)
       return
     }
-    setRecuperarOk('Si corresponde a una cuenta de administrador activa, enviaremos instrucciones al correo de recuperación configurado. El personal debe pedir el cambio al administrador.')
+    setRecuperarOk('Si corresponde a una cuenta de administrador activa, enviaremos instrucciones al correo asociado a la cuenta o al correo de recuperación verificado. El personal debe pedir el cambio al administrador.')
   }
 
   return (
