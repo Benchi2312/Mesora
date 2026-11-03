@@ -238,7 +238,9 @@ async function correrLandingResponsive(browser) {
             await boton.click()
             await page.getByRole('navigation', { name: 'Menú de navegación' }).getByRole('link', { name: 'Ingresar', exact: true }).click()
             await page.waitForURL('**/login')
-            check('ingresar desde el menú móvil abre el login', await page.getByRole('heading', { name: 'Iniciar sesión', exact: true }).isVisible())
+            const tituloLogin = page.getByRole('heading', { name: 'Iniciar sesión', exact: true })
+            await tituloLogin.waitFor({ state: 'visible' })
+            check('ingresar desde el menú móvil abre el login', await tituloLogin.isVisible())
           }
           if (vp.w === 820) {
             await boton.click()
