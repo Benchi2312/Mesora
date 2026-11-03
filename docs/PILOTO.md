@@ -20,6 +20,9 @@ se actualizará después de aceptar la versión publicada.
 - GitHub y Vercel conectados; `main` es la rama de producción. Node 22 y build
   reproducible configurados. CI y despliegue automático se ejecutan de forma
   independiente; el smoke público corre después de una publicación exitosa.
+- El 03/11/2026 un despliegue de `main` quedó listo sin actualizar la URL
+  `mesora-sistema.vercel.app`; se asignó manualmente. Revisar en Vercel la
+  asignación automática del dominio antes de depender de ella en otros cambios.
 - Dominio de producción: `https://mesora-sistema.vercel.app`. La versión y el
   resultado de cada publicación quedan registrados en Deployments de Vercel
   y en los workflows CI / Verificar despliegue de GitHub.
