@@ -22,15 +22,15 @@ export default function Footer() {
           <div className="flex max-w-md flex-col items-start gap-3">
             <Logo />
             <p className="text-sm leading-relaxed text-zinc-400">
-              Gestión de pedidos, cocina, caja y ventas para restaurantes.
+              Pedidos, cocina, caja y administración conectados para restaurantes.
             </p>
             {correo && <a href={`mailto:${correo}`} className="text-sm text-brand-400 hover:text-brand-300">{correo}</a>}
             {telefono && <a href={`tel:${telefono.replace(/[^+\d]/g, '')}`} className="text-sm text-brand-400 hover:text-brand-300">{telefono}</a>}
           </div>
           <div className="flex flex-col items-start gap-3 sm:items-end">
-            <p className="text-sm font-semibold text-white">¿Quieres conocer Mesora?</p>
+            <p className="text-sm font-semibold text-white">¿Quieres ver Mesora en acción?</p>
             <a href="#contacto" className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-bold text-surface-950 shadow-lg shadow-brand-500/25 transition hover:bg-brand-400">
-              Solicitar una demostración <IconArrowRight className="h-4 w-4" />
+              Coordinar una demostración <IconArrowRight className="h-4 w-4" />
             </a>
           </div>
         </div>

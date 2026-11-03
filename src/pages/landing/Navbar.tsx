@@ -3,10 +3,10 @@ import { IconArrowRight } from './Icons'
 
 const links = [
   { href: '#inicio', label: 'Inicio' },
-  { href: '#soluciones', label: 'Soluciones' },
+  { href: '#soluciones', label: 'Funciones' },
   { href: '#como-funciona', label: 'Cómo funciona' },
-  { href: '#planes', label: 'Planes' },
-  { href: '#preguntas', label: 'FAQ' },
+  { href: '#planes', label: 'Precio' },
+  { href: '#preguntas', label: 'Preguntas' },
 ]
 
 export function Logo() {
@@ -51,14 +51,14 @@ export default function Navbar() {
             to="/demo"
             className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2 text-sm font-bold text-surface-950 shadow-lg shadow-brand-500/25 transition hover:bg-brand-400"
           >
-            Explorar demo
+            Probar demo
             <IconArrowRight className="h-4 w-4" />
           </Link>
           <a
             href="#contacto"
             className="hidden rounded-lg border border-brand-500/40 px-3 py-2 text-sm font-semibold text-brand-300 transition hover:bg-brand-500/10 sm:inline-flex"
           >
-            Solicitar demo
+            Hablar con Mesora
           </a>
         </div>
       </nav>

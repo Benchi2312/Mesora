@@ -11,33 +11,33 @@ import {
 const features = [
   {
     icon: IconClipboard,
-    title: 'Toma de pedidos',
-    desc: 'Registra pedidos desde las mesas con productos, categorías y precios configurados para el local.',
+    title: 'Pedidos ligados a cada mesa',
+    desc: 'El equipo de salón registra el consumo y mantiene a la vista qué se pidió en cada cuenta.',
   },
   {
     icon: IconPot,
-    title: 'Cocina sincronizada',
-    desc: 'La cocina consulta las comandas y actualiza su estado de preparación durante el servicio.',
+    title: 'Comandas para cocina',
+    desc: 'Cocina consulta los pedidos y actualiza su avance para que salón pueda seguirlos.',
   },
   {
     icon: IconCard,
-    title: 'Cierre de cuenta',
-    desc: 'Registra el pago con el método utilizado y consulta el detalle de la cuenta y su cierre.',
+    title: 'Consumo y cobro claros',
+    desc: 'Caja revisa el detalle de la cuenta, registra pagos y realiza el cierre del turno.',
   },
   {
     icon: IconChartBar,
-    title: 'Dashboard de ventas',
-    desc: 'Consulta cobros, anulaciones, productos más vendidos y ventas por mesero.',
+    title: 'Reportes para administrar',
+    desc: 'Consulta cobros, anulaciones, productos y bebidas vendidos, mesas y ventas por mesero.',
   },
   {
     icon: IconGrid,
-    title: 'Configuración del local',
-    desc: 'Organiza zonas, mesas, categorías, productos y personal desde administración.',
+    title: 'Un menú a la medida del local',
+    desc: 'Configura zonas, mesas, categorías, productos y equipo desde administración.',
   },
   {
     icon: IconRocket,
-    title: 'Hecho para MYPEs',
-    desc: 'Acceso desde navegador con vistas diferenciadas para cada rol del restaurante.',
+    title: 'Cada rol, su espacio de trabajo',
+    desc: 'Acceso desde navegador con vistas para salón, cocina, caja y administración.',
   },
 ]
 
@@ -47,8 +47,8 @@ export default function Features() {
       <div className="flex flex-col items-center gap-3 text-center">
         <SectionHeading
           eyebrow="Soluciones"
-          title="Todo lo que tu restaurante necesita, en un solo lugar"
-          subtitle="Del primer pedido de la mañana hasta el cierre del día, Mesora acompaña cada paso de tu operación."
+          title="El mismo servicio, conectado de principio a fin"
+          subtitle="Mesora reúne los pedidos, la preparación, los cobros y los reportes para que cada área trabaje con el contexto de la mesa."
         />
       </div>
       <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

@@ -81,7 +81,7 @@ rollback. No dejaron ventas, pagos, anulaciones ni turnos de prueba persistidos.
 | P0 | Aceptación con cuentas reales y dos dispositivos | Login por rol, contraseña temporal, pedido/cocina, precuenta, cobro concurrente, anulación con PIN y arqueo en el local. Registrar resultado y tiempos. El propietario eligió pruebas locales; no se creó staging de pago. |
 | P0 | Impresora y operación | Probar papel de 80 mm, impresora real, móvil y caja. Asignar encargado, soporte y contingencia sin internet. |
 | P0 | Activar recuperación del admin por correo | Migración aplicada, Edge Function desplegada, dominio/redirect de Auth actualizados y UI publicada; falta configurar Resend y el remitente en secretos de Supabase, probar una entrega real y que cada admin verifique su dirección. |
-| P0 | Contacto comercial definitivo | La landing muestra `contacto@mesora.invalid`, un marcador que no recibe mensajes. Reemplazarlo por un correo real antes de captar solicitudes. |
+| P0 | Contacto comercial | Configurado como `mesoratech@gmail.com` en la landing, Vercel y Supabase. Antes de una campaña, hacer una prueba de recepción desde una cuenta externa. |
 | P1 | Seguimiento | Asignar revisión de logs y escalamiento. Habilitar protección de claves filtradas si está disponible en el plan. |
 
 **Acuerdo del propietario (30/10/2026):** el restaurante mantendrá su sistema
@@ -90,9 +90,9 @@ Este punto queda definido; se debe conciliar ambos registros durante el turno.
 El propietario confirmó que todavía falta completar la aceptación del local.
 El respaldo sí se creó y restauró en una base local aislada; sigue pendiente su
 copia cifrada fuera de este equipo.
-Posteriormente autorizó publicar la versión y automatizar `main`, dejando
-expresamente el correo para después. Publicar no cierra las pruebas presenciales
-ni crea por sí solo una copia externa cifrada del respaldo.
+Posteriormente autorizó publicar la versión y automatizar `main`; luego definió
+el correo comercial `mesoratech@gmail.com`. Publicar no cierra las pruebas
+presenciales ni crea por sí solo una copia externa cifrada del respaldo.
 
 Una preview puede conectar al mismo proyecto real. **Su URL no aísla los
 datos**: usar el demo para mostrar y pruebas locales para validar cambios. No crear operaciones ficticias en producción. No crear ventas ficticias en el local operativo.
@@ -198,7 +198,7 @@ listo para presentarse públicamente:
 | Estado | Tarea | Criterio de cierre |
 | --- | --- | --- |
 | Pendiente tras el piloto | Revisar hallazgos de código y operación | Consolidar incidencias y solicitudes del turno; priorizar y corregir los bloqueos; repetir build, QA afectado, seguridad y aceptación antes de ampliar el uso. Los riesgos técnicos conocidos de esta auditoría siguen listados arriba. |
-| Pendiente antes de captar solicitudes | Contacto comercial real | Reemplazar `contacto@mesora.invalid` por el correo definitivo. |
+| Configurado; validar recepción antes de una campaña | Contacto comercial | La landing usa `mesoratech@gmail.com`; enviar una consulta de prueba y confirmar que llega al buzón. |
 | Pendiente tras el piloto | Actualizar el video promocional | Grabar la versión desplegada y aceptada, actualizar guion/capturas/URL y revisar las afirmaciones del producto antes de reemplazar el video. |
 
 El video actual es material de la demo y no representa todavía la versión
@@ -210,5 +210,6 @@ datos de acceso, copias de respaldo ni información operativa del restaurante.
 La migración RLS y la migración de recuperación están aplicadas a Supabase. La
 rama `main` está conectada a Vercel para despliegue automático. Antes del primer
 turno faltan la copia externa del respaldo, la aceptación real en el local, un
-remitente verificado para recuperación, el contacto real y las pruebas físicas
-de impresora. El video se actualizará después de validar esta versión.
+remitente verificado para recuperación y las pruebas físicas de impresora. Antes
+de una campaña, probar también que el contacto comercial recibe mensajes. El
+video se actualizará después de validar esta versión.

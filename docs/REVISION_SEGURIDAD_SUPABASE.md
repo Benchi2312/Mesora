@@ -92,4 +92,4 @@ permisivas y la ejecución de funciones `SECURITY DEFINER`:
 4. Configurar el proveedor de correo y probar una recuperación real de admin;
    cada administrador debe verificar su correo alternativo.
 5. Mantener excluido el video promocional hasta actualizarlo y autorizar su
-   publicación; reemplazar el contacto comercial provisional.
+   publicación; probar la recepción del correo comercial antes de una campaña.

@@ -2,20 +2,24 @@ import SectionHeading from './SectionHeading'
 
 const preguntas = [
   {
+    q: '¿Puedo probar Mesora antes de contratar?',
+    r: 'Sí. El demo interactivo es público, no necesita cuenta y usa datos de ejemplo. Puedes recorrer las vistas de administración, mesero, cocina y caja.',
+  },
+  {
     q: '¿Mesora reemplaza mi sistema de facturación electrónica?',
-    r: 'Mesora gestiona pedidos, cuentas y cobros internos. El restaurante sigue emitiendo sus comprobantes con el proveedor de facturación que ya utiliza.',
+    r: 'No. Mesora organiza pedidos, cuentas y cobros internos. El restaurante sigue emitiendo sus comprobantes con el proveedor de facturación que ya utiliza.',
   },
   {
-    q: '¿La demo usa datos reales?',
-    r: 'No. La demo trabaja con datos de ejemplo para recorrer las vistas de administración, mesero, cocina y caja.',
+    q: '¿El demo modifica los datos de mi restaurante?',
+    r: 'No. Trabaja con datos de ejemplo en el navegador y no registra ventas reales ni modifica la base de datos operativa.',
   },
   {
-    q: '¿Qué necesito para poner Mesora en marcha en mi local?',
-    r: 'Se configura el restaurante, sus usuarios, dispositivos, conexión a internet y el flujo de impresión que utiliza.',
+    q: '¿Qué se necesita para empezar a usar Mesora?',
+    r: 'Se configura el restaurante, sus usuarios y dispositivos, y se valida el flujo de trabajo e impresión con el equipo del local.',
   },
   {
     q: '¿El precio publicado incluye soporte y puesta en marcha?',
-    r: 'El precio publicado es la referencia mensual del plan. La propuesta debe detallar el alcance, soporte y puesta en marcha.',
+    r: 'El monto publicado es la referencia mensual del plan. Antes de contratar, se confirma contigo el alcance, la puesta en marcha y el soporte.',
   },
 ]
 
@@ -25,8 +29,8 @@ export default function PreguntasFrecuentes() {
       <div className="flex flex-col items-center gap-3 text-center">
         <SectionHeading
           eyebrow="Preguntas frecuentes"
-          title="Lo importante antes de probar Mesora"
-          subtitle="Alcance claro para que puedas evaluar si encaja con la operación de tu restaurante."
+          title="Respuestas claras para evaluar Mesora"
+          subtitle="Revisa el alcance del sistema y prueba el demo antes de conversar sobre la puesta en marcha."
         />
       </div>
       <div className="mx-auto mt-10 max-w-3xl divide-y divide-surface-800 rounded-2xl border border-surface-800 bg-surface-900/60 px-5 sm:px-7">

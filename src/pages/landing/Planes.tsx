@@ -18,9 +18,9 @@ export default function Planes() {
     <section id="planes" className="mx-auto w-full max-w-7xl scroll-mt-16 px-4 py-24 sm:px-6">
       <div className="flex flex-col items-center gap-3 text-center">
         <SectionHeading
-          eyebrow="Precio de referencia"
-          title="Evalúa Mesora antes de decidir"
-          subtitle="Explora la demo y conversemos sobre el alcance que necesita tu restaurante."
+          eyebrow="Plan mensual"
+          title="Conoce el plan y pruébalo antes de decidir"
+          subtitle="Explora el demo y conversemos sobre la puesta en marcha para tu restaurante."
         />
       </div>
       <div className="mx-auto mt-10 max-w-xl">
@@ -28,7 +28,7 @@ export default function Planes() {
           <span className="absolute right-0 top-0 rounded-bl-2xl bg-brand-500 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-surface-950">
             Mesora Pro
           </span>
-          <p className="text-sm text-zinc-400">Monto mensual configurado para el plan</p>
+          <p className="text-sm text-zinc-400">Plan mensual Mesora Pro</p>
           <div className="mt-3 flex items-end gap-2">
             <span className="text-5xl font-black tracking-tight text-white">{mostrarPrecioPlan(precio)}</span>
             <span className="pb-1.5 text-sm text-zinc-500">/mes</span>

@@ -3,7 +3,7 @@
 -- =============================================================================
 -- Dos piezas aditivas:
 --   1. `configuracion_global`: fila única (id = 1) con el nombre de Mesora,
---      contacto de soporte, logo e información general, y el precio mensual del
+--      correo de contacto público, teléfono, logo e información general, y el precio mensual del
 --      plan (único, editable): la landing pública lo lee; solo el super admin
 --      lo edita (y cada cambio queda auditado por trigger).
 --   2. `admin_alertas()`: RPC SECURITY DEFINER que devuelve las alertas
@@ -41,13 +41,13 @@ comment on column public.configuracion_global.precio_plan_mensual is
   'Precio mensual en soles del plan único Mesora Pro. Es editable desde el panel
   del super admin; la landing lo muestra en público.';
 
-insert into public.configuracion_global (id, nombre_app)
-values (1, 'Mesora')
+insert into public.configuracion_global (id, nombre_app, correo_soporte)
+values (1, 'Mesora', 'mesoratech@gmail.com')
 on conflict (id) do nothing;
 
 comment on table public.configuracion_global is
   'Configuración general de la plataforma (fila única id = 1): nombre, contacto
-  de soporte, logo, información y precio mensual del plan. La lectura es pública
+  público, logo, información y precio mensual del plan. La lectura es pública
   (se muestra en la landing); la edición es exclusiva del super admin.';
 
 alter table public.configuracion_global enable row level security;

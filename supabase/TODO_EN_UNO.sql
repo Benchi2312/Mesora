@@ -18,7 +18,7 @@
 --   - Si algo falla, los comentarios de bloque indican donde revisar.
 --   - Generado por npm run sql:install. Edita los fuentes, no este archivo.
 --
--- Contenido: 28 archivos · sha256(cuerpo) = a1206893cb91
+-- Contenido: 28 archivos · sha256(cuerpo) = e770803429ed
 -- Orden: 00_schema_base.sql → ../migrations/20261022120000_password_recovery.sql → ../migrations/20261103032730_admin_email_recovery.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql → ../migrations/20261031075708_reporte_ventas_dashboard.sql → ../migrations/20261029052901_datos_local_dominio.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql → ../migrations/20261030173318_seguridad_rpc_piloto.sql → ../migrations/20261030173320_consultas_pendientes_piloto.sql → ../migrations/20261030173503_diagnostico_piloto.sql → ../migrations/20261030173925_indice_mesas_zona.sql → ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
 -- =============================================================================
 
@@ -5002,7 +5002,7 @@ select
 -- =============================================================================
 -- Dos piezas aditivas:
 --   1. `configuracion_global`: fila única (id = 1) con el nombre de Mesora,
---      contacto de soporte, logo e información general, y el precio mensual del
+--      correo de contacto público, teléfono, logo e información general, y el precio mensual del
 --      plan (único, editable): la landing pública lo lee; solo el super admin
 --      lo edita (y cada cambio queda auditado por trigger).
 --   2. `admin_alertas()`: RPC SECURITY DEFINER que devuelve las alertas
@@ -5040,13 +5040,13 @@ comment on column public.configuracion_global.precio_plan_mensual is
   'Precio mensual en soles del plan único Mesora Pro. Es editable desde el panel
   del super admin; la landing lo muestra en público.';
 
-insert into public.configuracion_global (id, nombre_app)
-values (1, 'Mesora')
+insert into public.configuracion_global (id, nombre_app, correo_soporte)
+values (1, 'Mesora', 'mesoratech@gmail.com')
 on conflict (id) do nothing;
 
 comment on table public.configuracion_global is
   'Configuración general de la plataforma (fila única id = 1): nombre, contacto
-  de soporte, logo, información y precio mensual del plan. La lectura es pública
+  público, logo, información y precio mensual del plan. La lectura es pública
   (se muestra en la landing); la edición es exclusiva del super admin.';
 
 alter table public.configuracion_global enable row level security;

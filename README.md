@@ -10,6 +10,8 @@ o información dispersa entre varias personas.
 [🌐 Conocer Mesora](https://mesora-sistema.vercel.app) ·
 [▶ Probar el demo interactivo](https://mesora-sistema.vercel.app/demo)
 
+Consultas comerciales: [mesoratech@gmail.com](mailto:mesoratech@gmail.com).
+
 El demo es gratuito, no requiere cuenta y usa datos de ejemplo. Puedes recorrer
 los roles de administración, mesero, cocina y caja, probar el flujo guiado
 **«Hazlo por mí»** y reiniciarlo cuando quieras. Las acciones del demo no
@@ -190,8 +192,10 @@ Flujo de cambios:
 
 Variables en Production y Preview: `VITE_SUPABASE_URL`,
 `VITE_SUPABASE_ANON_KEY` (clave pública), `VITE_MESORA_MODO_LOCAL=false` y
-`VITE_MESORA_DIAGNOSTICO=true`. `VITE_MESORA_CONTACTO_EMAIL` usa el marcador
-`contacto@mesora.invalid` en Production y Preview hasta que se reemplace.
+`VITE_MESORA_DIAGNOSTICO=true`. `VITE_MESORA_CONTACTO_EMAIL` define el correo
+público de la landing. El contacto comercial actual es
+[`mesoratech@gmail.com`](mailto:mesoratech@gmail.com) y está configurado para
+Production y Preview.
 No usar `service_role` en el frontend. Tras cambiar variables, reconstruir:
 Vite las incrusta durante el build.
 
@@ -203,8 +207,10 @@ y el Redirect URL oficiales ya están configurados. Falta configurar
 `RESEND_API_KEY`, `MESORA_AUTH_FROM_EMAIL` y `MESORA_SITE_URL` en los secretos de
 Supabase Functions y que cada admin confirme un correo real. El personal sigue
 dependiendo del restablecimiento que inicia su administrador desde **Personal**.
-El correo comercial visible en la landing es el marcador no entregable
-`contacto@mesora.invalid`; reemplázalo antes de captar solicitudes reales.
+El correo comercial visible en la landing es
+[`mesoratech@gmail.com`](mailto:mesoratech@gmail.com). La recuperación de
+contraseñas de administradores utiliza un proveedor y remitente separados;
+consulta los pasos anteriores antes de activarla.
 Consultar [operación del piloto](./docs/OPERACION_PILOTO.md) para respaldo,
 aceptación del local y reversión. El despliegue web no certifica esas pruebas.
 
@@ -369,8 +375,8 @@ de forma coherente; las suites locales y SQL cubren los circuitos principales.
   dispositivos. La batería local no sustituye la aceptación presencial; por decisión del propietario no se creó staging de pago.
 - Configurar y probar Resend para la verificación y recuperación; cada
   administrador debe registrar un correo alternativo real.
-- Reemplazar `contacto@mesora.invalid` por el correo comercial real antes de
-  publicar campañas o recibir solicitudes.
+- Probar que el correo comercial de la landing recibe consultas y mantenerlo
+  actualizado si cambia.
 - Acordar responsable, monitoreo y operación ante cortes de red.
 - Actualizar el video promocional con capturas de esta versión después de la aceptación del primer turno.
 ## Integración continua

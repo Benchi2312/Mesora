@@ -86,9 +86,9 @@ export default function SuperAdminConfiguracion() {
         className="card max-w-2xl p-5 sm:p-6"
       >
         <p className="mb-5 text-sm text-zinc-500">
-          Ajustes generales de la plataforma: el nombre con el que se presentan las boletas, el
-          contacto de soporte y el precio mensual del plan único. Solo el super administrador los
-          ve y los edita; cada cambio queda auditado.
+          Ajustes generales de la plataforma. El correo y el teléfono se muestran como contacto
+          público en la landing; el precio mensual del plan también aparece allí. Solo el super
+          administrador puede editarlos y cada cambio queda auditado.
         </p>
 
         <Campo etiqueta="Nombre de la aplicación" htmlFor="cfg-nombre" error={null}>
@@ -102,19 +102,19 @@ export default function SuperAdminConfiguracion() {
           />
         </Campo>
 
-        <Campo etiqueta="Correo de soporte" htmlFor="cfg-correo" error={null}>
+        <Campo etiqueta="Correo público de contacto" htmlFor="cfg-correo" error={null}>
           <input
             id="cfg-correo"
             type="email"
             className="input"
             maxLength={160}
-            placeholder="soporte@mesora.pe"
+            placeholder="mesoratech@gmail.com"
             value={form.correo_soporte ?? ''}
             onChange={(e) => setForm((f) => ({ ...f, correo_soporte: e.target.value }))}
           />
         </Campo>
 
-        <Campo etiqueta="Teléfono de soporte" htmlFor="cfg-telefono" error={null}>
+        <Campo etiqueta="Teléfono público de contacto" htmlFor="cfg-telefono" error={null}>
           <input
             id="cfg-telefono"
             type="tel"

@@ -5,10 +5,11 @@ import { PRECIO_PLAN_DEFECTO } from '../../domain/restaurant/configuracion'
 export type LandingConfig = { precio: number; correo: string | null; telefono: string | null }
 
 const correoEntorno = import.meta.env.VITE_MESORA_CONTACTO_EMAIL?.trim() || null
+const correoComercialDefecto = 'mesoratech@gmail.com'
 
 const configInicial: LandingConfig = {
   precio: PRECIO_PLAN_DEFECTO,
-  correo: correoEntorno,
+  correo: correoEntorno || correoComercialDefecto,
   telefono: null,
 }
 
@@ -26,9 +27,8 @@ function cargarConfiguracion(): Promise<LandingConfig> {
     if (!data) return configInicial
     return {
       precio: data.precio_plan_mensual == null ? configInicial.precio : Number(data.precio_plan_mensual),
-      // Una dirección configurada para la landing (incluido el placeholder
-      // temporal) tiene prioridad sobre el correo interno de soporte.
-      correo: correoEntorno || data.correo_soporte?.trim() || 'contacto@mesora.invalid',
+      // El correo comercial puede configurarse en Vercel o desde la tabla global.
+      correo: correoEntorno || data.correo_soporte?.trim() || correoComercialDefecto,
       telefono: data.telefono_soporte?.trim() || null,
     }
   })().catch(() => configInicial)
