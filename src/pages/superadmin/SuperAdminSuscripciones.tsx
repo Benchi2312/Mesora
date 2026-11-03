@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getApi } from '../../lib/api'
 import type { AdminRestaurante } from '../../lib/api'
-import { fmtFecha } from '../../lib/format'
+import { fmtFecha, fmtFechaVencimiento } from '../../lib/format'
+import { fechaEnPeru, finDeDiaEnPeru } from '../../domain/restaurant/fechasSuscripcion'
 import { diasParaVencimiento } from '../../domain/restaurant/restaurantes'
 import {
   CRITERIOS_SUSCRIPCIONES_VACIOS,
@@ -20,10 +21,10 @@ import { ChipSuscripcion } from './Chips'
 
 type TipoAccion = 'renovar' | 'cambiar_plan' | 'suspender' | 'reactivar' | 'historial'
 
-/** Fecha (yyyy-mm-dd) para el input type=date, en la zona horaria local. */
+/** Fecha (yyyy-mm-dd) para el input type=date, en Perú. */
 function fechaInput(dias: number): string {
   const d = new Date(Date.now() + dias * 86_400_000)
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+  return fechaEnPeru(d)
 }
 
 const ESTADOS: { valor: 'todos' | 'activa' | 'por_vencer' | 'vencida' | 'suspendida'; texto: string }[] = [
@@ -125,7 +126,7 @@ export default function SuperAdminSuscripciones() {
       }
       res = await api.suscripcionesRenovar(
         accion.r.id,
-        new Date(`${fecha}T23:59:59`).toISOString(),
+        finDeDiaEnPeru(fecha),
         creador,
       )
     } else if (accion.tipo === 'cambiar_plan') {
@@ -138,7 +139,7 @@ export default function SuperAdminSuscripciones() {
     } else if (accion.tipo === 'suspender') {
       res = await api.suscripcionesSuspender(accion.r.id, motivo, creador)
     } else {
-      res = await api.suscripcionesReactivar(accion.r.id, fecha || null, creador)
+      res = await api.suscripcionesReactivar(accion.r.id, fecha ? finDeDiaEnPeru(fecha) : null, creador)
     }
 
     setEnviando(false)
@@ -280,7 +281,7 @@ export default function SuperAdminSuscripciones() {
               <tbody className="divide-y divide-surface-800">
                 {filtrados.map((r) => {
                   const dias = diasParaVencimiento(r)
-                  const vencido = dias !== null && dias < 0
+                  const vencido = !!r.fecha_vencimiento && new Date(r.fecha_vencimiento).getTime() < Date.now()
                   return (
                     <tr key={r.id} className="transition-colors hover:bg-surface-800/60">
                       <td className="px-4 py-3.5">
@@ -297,7 +298,7 @@ export default function SuperAdminSuscripciones() {
                       <td className="px-4 py-3.5 text-zinc-400">
                         {r.fecha_vencimiento ? (
                           <>
-                            <p>{fmtFecha(r.fecha_vencimiento)}</p>
+                            <p>{fmtFechaVencimiento(r.fecha_vencimiento)}</p>
                             {dias !== null && (
                               <p
                                 className={`text-xs font-medium ${
@@ -305,7 +306,7 @@ export default function SuperAdminSuscripciones() {
                                 }`}
                               >
                                 {vencido
-                                  ? `hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'}`
+                                  ? dias === 0 ? 'venció hoy' : `hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'}`
                                   : dias === 0
                                     ? 'vence hoy'
                                     : `en ${dias} día${dias === 1 ? '' : 's'}`}
@@ -392,7 +393,7 @@ export default function SuperAdminSuscripciones() {
               {' · '}
               {nombrePlan(planes, accion.r.plan_id)}
               {' · '}
-              Actual: {fmtFecha(accion.r.fecha_vencimiento)}
+              Actual: {fmtFechaVencimiento(accion.r.fecha_vencimiento)}
             </p>
 
             {(accion.tipo === 'renovar' || accion.tipo === 'reactivar') && (

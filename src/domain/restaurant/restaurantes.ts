@@ -1,6 +1,7 @@
 import type { AdminRestaurante } from '../../lib/api'
 import { suSuscripcionVencida } from '../../store/auth'
 import type { Restaurante } from '../../types/database'
+import { diasCalendarioPeru } from './fechasSuscripcion'
 
 /**
  * Lógica pura del módulo "Gestión de restaurantes" del super admin: estados,
@@ -71,14 +72,15 @@ export function diasParaVencimiento(r: Restaurante): number | null {
   if (!r.fecha_vencimiento) return null
   const t = new Date(r.fecha_vencimiento).getTime()
   if (Number.isNaN(t)) return null
-  return Math.ceil((t - Date.now()) / MS_POR_DIA)
+  return diasCalendarioPeru(new Date(), new Date(t))
 }
 
 /** Texto breve "vence en X días" o "vencido hace Y días". */
 export function venceEnTexto(r: Restaurante): string | null {
   const d = diasParaVencimiento(r)
   if (d === null) return null
-  if (d <= 0) return `Venció hace ${Math.abs(d)} día${Math.abs(d) !== 1 ? 's' : ''}`
+  if (d === 0) return r.fecha_vencimiento && new Date(r.fecha_vencimiento).getTime() < Date.now() ? 'Venció hoy' : 'Vence hoy'
+  if (d < 0) return `Venció hace ${Math.abs(d)} día${Math.abs(d) !== 1 ? 's' : ''}`
   return `Vence en ${d} día${d !== 1 ? 's' : ''}`
 }
 

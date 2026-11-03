@@ -20,6 +20,16 @@ export function fmtFecha(iso: string | null | undefined): string {
   })
 }
 
+/** Una fecha de vencimiento se muestra como día natural en Perú. */
+export function fmtFechaVencimiento(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const fecha = new Date(iso)
+  if (Number.isNaN(fecha.getTime())) return '—'
+  return fecha.toLocaleDateString('es-PE', {
+    timeZone: 'America/Lima', day: '2-digit', month: '2-digit', year: 'numeric',
+  })
+}
+
 /** Solo la hora y los minutos: para las boletas del día, donde la fecha no aporta. */
 export function fmtHora(iso: string | null | undefined): string {
   if (!iso) return '—'

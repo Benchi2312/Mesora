@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getApi } from '../../lib/api'
 import type { AdminRestaurante, DatosRestauranteConAdmin } from '../../lib/api'
-import { fmtFecha } from '../../lib/format'
+import { fmtFecha, fmtFechaVencimiento } from '../../lib/format'
+import { finDeDiaEnPeru } from '../../domain/restaurant/fechasSuscripcion'
 import {
   CRITERIOS_VACIOS,
   diasParaVencimiento,
@@ -124,7 +125,7 @@ export default function SuperAdminRestaurantes() {
       email_contacto: form.emailContacto.trim() || null,
       suscripcion_activa: form.suscripcionActiva,
       fecha_vencimiento: form.fechaVencimiento
-        ? new Date(form.fechaVencimiento).toISOString()
+        ? finDeDiaEnPeru(form.fechaVencimiento)
         : null,
       admin: { nombre: adminNombre, email: adminEmail, password: form.adminPassword },
     }
@@ -329,7 +330,7 @@ export default function SuperAdminRestaurantes() {
                       <td className="px-4 py-3.5 text-zinc-400">
                         {r.fecha_vencimiento ? (
                           <>
-                            <p>{fmtFecha(r.fecha_vencimiento)}</p>
+                            <p>{fmtFechaVencimiento(r.fecha_vencimiento)}</p>
                             {porVencer && dias !== null && (
                               <p className="text-xs font-medium text-warn-400">
                                 {dias === 0 ? 'hoy' : `en ${dias} día${dias === 1 ? '' : 's'}`}

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getApi } from '../../lib/api'
 import type { AdminRestaurante, UsuarioPlataforma } from '../../lib/api'
-import { fmtFecha } from '../../lib/format'
+import { fmtFecha, fmtFechaVencimiento } from '../../lib/format'
+import { fechaEnPeru, finDeDiaEnPeru } from '../../domain/restaurant/fechasSuscripcion'
 import { rolLabel } from '../../domain/security/roles'
 import { diasParaVencimiento, estadoOperativo, venceEnDias } from '../../domain/restaurant/restaurantes'
 import type { Restaurante } from '../../types/database'
@@ -84,7 +85,7 @@ export default function SuperAdminRestauranteDetalle() {
   const candidatosAdmin = usuariosDel.filter((u) => u.activo && u.rol !== 'admin_restaurante')
 
   useEffect(() => {
-    if (r) setFormVence(r.fecha_vencimiento ? r.fecha_vencimiento.slice(0, 10) : '')
+    if (r) setFormVence(r.fecha_vencimiento ? fechaEnPeru(r.fecha_vencimiento) : '')
   }, [r?.id, r?.fecha_vencimiento])
 
   function abrirEdicion() {
@@ -140,7 +141,7 @@ export default function SuperAdminRestauranteDetalle() {
     const res = await getApi().adminCambiarSuscripcion(
       r.id,
       r.suscripcion_activa,
-      formVence ? new Date(formVence).toISOString() : null,
+      formVence ? finDeDiaEnPeru(formVence) : null,
     )
     setEnviandoSub(false)
     if (res.error) {
@@ -225,7 +226,7 @@ export default function SuperAdminRestauranteDetalle() {
 
   const dias = diasParaVencimiento(r)
   const porVencer = venceEnDias(r)
-  const vencidaPorFecha = r.suscripcion_activa && dias !== null && dias < 0
+  const vencidaPorFecha = r.suscripcion_activa && !!r.fecha_vencimiento && new Date(r.fecha_vencimiento).getTime() < Date.now()
   const operando = estadoOperativo(r) === 'operando'
 
   const eventos: Evento[] = [
@@ -401,17 +402,17 @@ export default function SuperAdminRestauranteDetalle() {
                 Vence
               </p>
               <p className="mt-0.5 text-sm text-zinc-200">
-                {r.fecha_vencimiento ? fmtFecha(r.fecha_vencimiento) : 'Sin fecha de vencimiento'}
+                {r.fecha_vencimiento ? fmtFechaVencimiento(r.fecha_vencimiento) : 'Sin fecha de vencimiento'}
                 {r.fecha_vencimiento && dias !== null && (
                   <span
                     className={`ml-2 text-xs font-medium ${
-                      dias < 0 ? 'text-danger-500' : porVencer ? 'text-warn-400' : 'text-zinc-500'
+                      vencidaPorFecha ? 'text-danger-500' : porVencer ? 'text-warn-400' : 'text-zinc-500'
                     }`}
                   >
-                    {dias < 0
-                      ? `vencida hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'}`
+                    {vencidaPorFecha
+                      ? dias === 0 ? 'venció hoy' : `vencida hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'}`
                       : porVencer
-                        ? `vence en ${dias} día${dias === 1 ? '' : 's'}`
+                        ? dias === 0 ? 'vence hoy' : `vence en ${dias} día${dias === 1 ? '' : 's'}`
                         : ''}
                   </span>
                 )}
