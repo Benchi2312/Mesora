@@ -1,15 +1,55 @@
 # Mesora
 
-Sistema de gestión para restaurantes: mesas, comandas, cocina, caja y reportes.
-Una app web (SPA) que funciona en tres modos — **local** con datos simulados,
-**demo** y **Supabase** real — con reglas de negocio compartidas y pruebas
-específicas para cada adaptador.
+### El servicio del restaurante, coordinado en un solo lugar.
 
-## Demo pública
+Mesas, pedidos, cocina, caja y ventas conectados en una sola aplicación. Mesora
+ayuda a que el equipo sepa qué pidió cada mesa, qué debe preparar cocina, qué
+está cobrando caja y cómo se movieron las ventas, sin depender de notas sueltas
+o información dispersa entre varias personas.
 
-Explora el [demo interactivo de Mesora](https://mesora-sistema.vercel.app/demo).
-No requiere cuenta y utiliza datos de ejemplo; no registra ventas reales ni
-modifica la base de datos del restaurante.
+[🌐 Conocer Mesora](https://mesora-sistema.vercel.app) ·
+[▶ Probar el demo interactivo](https://mesora-sistema.vercel.app/demo)
+
+El demo es gratuito, no requiere cuenta y usa datos de ejemplo. Puedes recorrer
+los roles de administración, mesero, cocina y caja, probar el flujo guiado
+**«Hazlo por mí»** y reiniciarlo cuando quieras. Las acciones del demo no
+registran ventas reales ni modifican la base de datos del restaurante.
+
+## ¿Qué problema resuelve?
+
+En un turno, los pedidos pueden quedar repartidos entre conversaciones, papel
+y memoria: se pierde contexto de la mesa, cocina no siempre ve los cambios a
+tiempo y luego cuesta reconstruir qué se consumió, cobró o vendió. Mesora reúne
+ese recorrido para que cada rol trabaje con la misma información.
+
+- **Salón:** organiza zonas y mesas, registra pedidos y permite consultar el
+  consumo de cada cuenta.
+- **Cocina:** recibe comandas y actualiza su avance para que el equipo de salón
+  pueda seguir el estado.
+- **Caja:** reúne cobros, pagos y turnos; facilita el arqueo y el cierre de
+  caja.
+- **Administración:** ofrece reportes para revisar ventas, productos y bebidas,
+  mesas, cuentas y desempeño del equipo.
+
+Mesora organiza la operación diaria y los reportes internos. La emisión fiscal
+de comprobantes electrónicos continúa en el sistema de facturación que use el
+restaurante.
+
+## Prueba rápida
+
+1. Abre [mesora-sistema.vercel.app/demo](https://mesora-sistema.vercel.app/demo).
+2. Sigue **«Hazlo por mí»** para ver un ejemplo paso a paso, o elige una vista:
+   administración, mesero, cocina o caja.
+3. Explora una mesa, revisa una comanda y mira cómo se presenta la información
+   al equipo.
+4. Usa **«Vaciar el demo»** para reiniciar los datos de ejemplo.
+
+## Sobre este proyecto
+
+Mesora es una aplicación web para restaurantes con modos demo, QA local y
+conexión a Supabase. Comparte reglas de negocio entre adaptadores y protege los
+datos operativos mediante autenticación, permisos y políticas de base de datos.
+Las instrucciones de instalación, arquitectura y verificación están más abajo.
 
 ## Stack
 
