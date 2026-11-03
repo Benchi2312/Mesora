@@ -209,8 +209,15 @@ async function correrLandingResponsive(browser) {
         await page.setViewportSize({ width: vp.w, height: vp.h })
         await page.goto(URL, { waitUntil: 'load', timeout: 45000 })
         await page.getByRole('heading', { level: 1 }).waitFor()
+        await page.evaluate(() => document.fonts.ready)
         await medir(page, vp, `${vp.nombre}_landing_detalle`)
         await revisarCabeceraLanding(page, `${vp.nombre} cerrada`)
+        if (vp.w === 320 || vp.w === 820) {
+          const fuenteRespaldo = await page.addStyleTag({ content: 'html { font-family: Arial, sans-serif !important; }' })
+          await medir(page, vp, `${vp.nombre}_landing_fuente_respaldo`)
+          await revisarCabeceraLanding(page, `${vp.nombre} fuente de respaldo`)
+          await fuenteRespaldo.evaluate((el) => el.remove())
+        }
 
         const precio = await page.locator('#planes').getByText('Plan mensual', { exact: true }).last().boundingBox()
         const etiqueta = await page.locator('#planes').getByText('Mesora Pro', { exact: true }).boundingBox()

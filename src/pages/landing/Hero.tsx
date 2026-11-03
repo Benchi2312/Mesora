@@ -13,8 +13,8 @@ export default function Hero() {
   return (
     <section id="inicio" className="relative isolate overflow-hidden pt-16">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_78%_18%,rgba(255,149,0,0.17),transparent_38%),radial-gradient(ellipse_at_10%_58%,rgba(27,90,111,0.16),transparent_35%)]" />
-      <div className="mx-auto grid w-full max-w-7xl items-center gap-12 px-4 pb-20 pt-16 sm:px-6 sm:pb-24 sm:pt-24 lg:grid-cols-[0.95fr_1.05fr] lg:gap-16 lg:pb-28 lg:pt-28">
-        <div className="flex flex-col items-start gap-6">
+      <div className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-12 px-4 pb-20 pt-16 sm:px-6 sm:pb-24 sm:pt-24 lg:grid-cols-[0.95fr_1.05fr] lg:gap-16 lg:pb-28 lg:pt-28">
+        <div className="flex min-w-0 flex-col items-start gap-6">
           <span className="inline-flex items-center gap-2 rounded-full border border-brand-500/30 bg-brand-500/10 px-3.5 py-1.5 text-xs font-semibold tracking-wide text-brand-300">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-400" />
             Gestión operativa para restaurantes
@@ -53,7 +53,7 @@ export default function Hero() {
           </div>
         </div>
 
-        <div className="relative mx-auto w-full max-w-xl lg:max-w-none">
+        <div className="relative mx-auto w-full min-w-0 max-w-xl lg:max-w-none">
           <div className="absolute inset-8 rounded-[2.5rem] bg-brand-500/15 blur-3xl" />
           <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#111418]/95 shadow-2xl shadow-black/50 ring-1 ring-white/[0.03]">
             <div className="flex items-center justify-between gap-4 border-b border-white/[0.07] px-5 py-4 sm:px-6">
