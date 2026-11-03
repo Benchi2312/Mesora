@@ -203,16 +203,16 @@ Vite las incrusta durante el build.
 
 En Supabase, Site URL debe coincidir con el dominio publicado y Redirect URLs
 debe incluir `https://mesora-sistema.vercel.app/restablecer`.
-La recuperación de administradores está integrada con el correo alternativo
-verificado. La migración, la Edge Function `admin-password-recovery`, el Site URL
-y el Redirect URL oficiales ya están configurados. Falta configurar
-`RESEND_API_KEY`, `MESORA_AUTH_FROM_EMAIL` y `MESORA_SITE_URL` en los secretos de
-Supabase Functions y que cada admin confirme un correo real. El personal sigue
-dependiendo del restablecimiento que inicia su administrador desde **Personal**.
-El correo comercial visible en la landing es
-[`mesoratech@gmail.com`](mailto:mesoratech@gmail.com). La recuperación de
-contraseñas de administradores utiliza un proveedor y remitente separados;
-consulta los pasos anteriores antes de activarla.
+Supabase Auth usa SMTP personalizado con el remitente `Mesora Tech` para los
+enlaces enviados al correo de acceso. El superadministrador recibió un enlace,
+estableció su contraseña e ingresó; falta comprobar el circuito completo con
+un administrador de restaurante real. La plantilla de recuperación está en
+`supabase/templates/recuperar-contrasena.html`.
+
+El correo alternativo verificado del administrador es un circuito adicional:
+requiere `RESEND_API_KEY`, `MESORA_AUTH_FROM_EMAIL` y `MESORA_SITE_URL` en los
+secretos de Supabase Functions, un remitente admitido y una prueba real. El
+personal sigue dependiendo del restablecimiento iniciado desde **Personal**.
 Consultar [operación del piloto](./docs/OPERACION_PILOTO.md) para respaldo,
 aceptación del local y reversión. El despliegue web no certifica esas pruebas.
 
@@ -375,8 +375,9 @@ de forma coherente; las suites locales y SQL cubren los circuitos principales.
 - Completar la aceptación punta a punta en el local con cuentas de prueba: cuentas por
   rol, pedidos y cocina, cobros/anulación con PIN, arqueo, impresora y dos
   dispositivos. La batería local no sustituye la aceptación presencial; por decisión del propietario no se creó staging de pago.
-- Configurar y probar Resend para la verificación y recuperación; cada
-  administrador debe registrar un correo alternativo real.
+- Probar la recuperación con el correo real de acceso del administrador del
+  restaurante. Si se habilita un correo alternativo, configurar y probar
+  Resend y verificar ese correo antes de depender de él.
 - Probar que el correo comercial de la landing recibe consultas y mantenerlo
   actualizado si cambia.
 - Acordar responsable, monitoreo y operación ante cortes de red.

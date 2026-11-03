@@ -62,8 +62,8 @@ certifica el tiempo de recuperación ni restaura Storage o secretos.
 - Accesos individuales: rol, restaurante y activo comprobados.
 - PIN del encargado configurado; credenciales en un gestor privado.
 - Precios, bebidas, zonas/mesas, datos del local y suscripción revisados.
-- Reset de personal probado. Recuperación del administrador con buzón real
-  diferida expresamente por el propietario; conservarla como pendiente.
+- Reset de personal probado. Probar recuperación con el correo real de acceso
+  del administrador del restaurante; el correo alternativo requiere Resend.
 - Impresora de 80 mm, PDF, móvil y equipo de caja aprobados.
 - Sistema de comprobantes acordado: Mesora entrega recibo interno y precuenta.
   El propietario confirmó que mantiene su facturación actual; conciliar ambos
@@ -118,8 +118,9 @@ Esto no elimina registros anteriores del proveedor.
 2. Probar preview; si apunta a la base real, usar demo para mostrar y staging
    aislado para ensayos persistentes. Verificar Auth en la URL exacta.
 3. La integración de recuperación del administrador ya está desplegada y la
-   redirección de Auth apunta a la URL oficial; antes de depender de ella,
-   configurar los secretos del remitente y probar entrega real. Integrar a
+   redirección de Auth apunta a la URL oficial. SMTP está configurado y el
+   superadmin recuperó el acceso; falta probar el admin del restaurante. El
+   correo alternativo requiere secretos de Resend y prueba propia. Integrar a
    `main` después de CI aprobada; Vercel detecta el push y publica automáticamente.
    CI y despliegue son comprobaciones separadas. Mantener visibles los pendientes
    de copia externa del respaldo y aceptación del local.

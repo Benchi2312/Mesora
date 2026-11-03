@@ -8,6 +8,14 @@ almacenamiento cifrado fuera de este equipo y definir responsable, frecuencia y
 retención. Este dump no incluye objetos de
 Storage, secretos de Edge Functions ni configuración completa de Auth/hosting.
 
+El 03/11/2026, antes de retirar los datos de prueba, se generó otro volcado en
+`%LOCALAPPDATA%\Mesora\Respaldos\antes-limpieza-20261103-201714` y se restauró
+en PostgreSQL 17.6 aislado. Contenía dos restaurantes y nueve usuarios. Este
+volcado usa `--no-owner --no-acl`: conserva datos y esquema, pero no propietarios
+ni concesiones de permisos. Mantener también el respaldo anterior y respaldar
+por separado los roles y permisos. Ninguna de estas pruebas sustituye una
+restauración integral de Auth, Storage, secretos y configuración del servicio.
+
 ## Exportacion preparada para Windows
 
 `scripts/respaldar-supabase.ps1` usa `supabase db dump`, comprueba las opciones

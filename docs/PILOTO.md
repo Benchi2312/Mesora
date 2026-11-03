@@ -2,9 +2,9 @@
 
 Revisión: **3 de noviembre de 2026**. Estado: primera versión web de Mesora
 publicada. Siguen pendientes la aceptación presencial del local, una copia del
-respaldo fuera de esta computadora, la activación final del correo de
-recuperación y el contacto comercial real. El video se actualizará después de
-aceptar la versión publicada.
+respaldo fuera de esta computadora, la prueba de recuperación con un admin de
+restaurante y la comprobación de recepción de consultas comerciales. El video
+se actualizará después de aceptar la versión publicada.
 
 ## Cierre técnico y dirección elegida
 
@@ -80,7 +80,7 @@ rollback. No dejaron ventas, pagos, anulaciones ni turnos de prueba persistidos.
 | P0 | Continuidad del respaldo | Dump completo restaurado en PostgreSQL 17.6 aislado y validado. Antes del primer turno, copiar el archivo excluido de Git a almacenamiento cifrado fuera de este equipo y definir responsable, frecuencia, retención y tiempo de recuperación. La copia no incluye objetos de Storage ni secretos/configuración de proveedores. |
 | P0 | Aceptación con cuentas reales y dos dispositivos | Login por rol, contraseña temporal, pedido/cocina, precuenta, cobro concurrente, anulación con PIN y arqueo en el local. Registrar resultado y tiempos. El propietario eligió pruebas locales; no se creó staging de pago. |
 | P0 | Impresora y operación | Probar papel de 80 mm, impresora real, móvil y caja. Asignar encargado, soporte y contingencia sin internet. |
-| P0 | Activar recuperación del admin por correo | Migración aplicada, Edge Function desplegada, dominio/redirect de Auth actualizados y UI publicada; falta configurar Resend y el remitente en secretos de Supabase, probar una entrega real y que cada admin verifique su dirección. |
+| P0 | Validar recuperación del admin por correo | SMTP de Supabase configurado; el superadmin recuperó su acceso. Falta probar con el correo real de acceso de un admin de restaurante. El correo alternativo requiere Resend y verificación por separado. |
 | P0 | Contacto comercial | Configurado como `mesoratech@gmail.com` en la landing, Vercel y Supabase. Antes de una campaña, hacer una prueba de recepción desde una cuenta externa. |
 | P1 | Seguimiento | Asignar revisión de logs y escalamiento. Habilitar protección de claves filtradas si está disponible en el plan. |
 
@@ -100,10 +100,12 @@ datos**: usar el demo para mostrar y pruebas locales para validar cambios. No cr
 ### Recuperación: límite conocido
 
 La RPC `confirmar_cambio_password` y el reset administrativo están presentes.
-La recuperación del admin está implementada con un correo alternativo
-verificado, token de un solo uso y entrega mediante Resend. Aún requiere
-configuración de secretos y prueba de entrega real. Los trabajadores dependen
-del restablecimiento que inicia el administrador desde Personal.
+Supabase Auth envía recuperación al correo de acceso mediante SMTP de Gmail;
+el superadministrador completó ese flujo. La recuperación al correo alternativo
+verificado utiliza Resend y aún requiere configuración y prueba de entrega real.
+Los trabajadores dependen del restablecimiento que inicia el administrador
+desde Personal. La recuperación del admin de restaurante con su correo de
+acceso queda pendiente de prueba integral.
 
 ## Evidencia automatizada
 
@@ -209,7 +211,7 @@ datos de acceso, copias de respaldo ni información operativa del restaurante.
 
 La migración RLS y la migración de recuperación están aplicadas a Supabase. La
 rama `main` está conectada a Vercel para despliegue automático. Antes del primer
-turno faltan la copia externa del respaldo, la aceptación real en el local, un
-remitente verificado para recuperación y las pruebas físicas de impresora. Antes
+turno faltan la copia externa del respaldo, la aceptación real en el local, la
+prueba de recuperación del admin de restaurante y las pruebas de impresora. Antes
 de una campaña, probar también que el contacto comercial recibe mensajes. El
 video se actualizará después de validar esta versión.
