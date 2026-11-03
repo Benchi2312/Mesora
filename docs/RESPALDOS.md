@@ -1,9 +1,12 @@
 # Respaldo real y prueba de recuperacion
 
-Estado al 30/10/2026: el proyecto Free no tiene copias recuperables listadas.
-Docker, `pg_dump` y `psql` no estan instalados en el equipo revisado. El script
-de esta guia esta preparado, pero **no se ha realizado ni restaurado un
-respaldo real**. La prueba PGlite de CI solo cubre el entorno de QA.
+Estado al 03/11/2026: se creó `backups/mesora-production-20261102.dump`, una
+exportación privada de la base real en formato custom, y se restauró con éxito
+en un PostgreSQL 17.6 aislado. `pg_restore --list` y una restauración completa
+terminaron correctamente. El archivo está excluido de Git. Falta copiarlo a
+almacenamiento cifrado fuera de este equipo y definir responsable, frecuencia y
+retención. Este dump no incluye objetos de
+Storage, secretos de Edge Functions ni configuración completa de Auth/hosting.
 
 ## Exportacion preparada para Windows
 

@@ -126,13 +126,13 @@ Una preview conectada al proyecto real **no es staging aislado**.
 - SMTP configurado y entrega real al administrador probada. El correo interno
   del personal puede no recibir mensajes.
 
-En Mesora se desactivó registro y se ajustó mínimo a ocho. El dominio de Vercel es https://mesoraapp-benchi1.vercel.app. El flujo de recuperación de administradores usa un correo alternativo verificado y la Edge Function `admin-password-recovery`; los enlaces vuelven a `/restablecer`.
+En Mesora se desactivó registro y se ajustó mínimo a ocho. El dominio de Vercel es https://mesora-benchi1.vercel.app. El flujo de recuperación de administradores usa un correo alternativo verificado y la Edge Function `admin-password-recovery`; los enlaces vuelven a `/restablecer`.
 
-Para activarlo en producción:
+Estado en producción:
 
-1. Configura `Site URL` como `https://mesoraapp-benchi1.vercel.app` y permite `https://mesoraapp-benchi1.vercel.app/restablecer` en Redirect URLs.
-2. Configura en Resend un dominio verificado y un remitente. Añade `RESEND_API_KEY`, `MESORA_AUTH_FROM_EMAIL` y `MESORA_SITE_URL=https://mesoraapp-benchi1.vercel.app` como secretos de Edge Functions en Supabase. No los guardes en Git ni en variables `VITE_*`.
-3. La migración aplicada es `20261103032730_admin_email_recovery`; despliega `admin-password-recovery` con `verify_jwt=false`. La función valida manualmente la sesión al configurar un correo.
+1. `Site URL` ya es `https://mesora-benchi1.vercel.app` y Redirect URLs permite el destino exacto `https://mesora-benchi1.vercel.app/restablecer`.
+2. La migración `20261103032730_admin_email_recovery` está aplicada y la Edge Function `admin-password-recovery` está desplegada con `verify_jwt=false`; la función valida manualmente la sesión al configurar un correo.
+3. Para habilitar el envío, configura en Resend un dominio verificado y un remitente. Añade `RESEND_API_KEY`, `MESORA_AUTH_FROM_EMAIL` y `MESORA_SITE_URL=https://mesora-benchi1.vercel.app` como secretos de Edge Functions en Supabase. No los guardes en Git ni en variables `VITE_*`.
 4. Cada administrador registra un correo real en **Admin → Datos del local → Recuperación de contraseña** y confirma el enlace. Prueba recibirlo y completar el cambio antes de depender del flujo.
 5. Los empleados no usan recuperación por correo: el administrador les restablece la clave desde **Personal**.
 

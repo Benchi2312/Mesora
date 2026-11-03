@@ -7,7 +7,7 @@ específicas para cada adaptador.
 
 ## Demo pública
 
-Explora el [demo interactivo de Mesora](https://mesoraapp-benchi1.vercel.app/demo).
+Explora el [demo interactivo de Mesora](https://mesora-benchi1.vercel.app/demo).
 No requiere cuenta y utiliza datos de ejemplo; no registra ventas reales ni
 modifica la base de datos del restaurante.
 
@@ -74,7 +74,7 @@ npm run verificar:precuenta  # QA de precuenta, impresión/PDF y ausencia de esc
 npm run verificar:configuracion # QA del guardado de Datos del local, REST y dominio
 npm run verificar:sql        # PostgreSQL aislado: instalación, permisos, flujo y restauración
 npm run verificar:responsive # 438 checks responsive, solapamientos y guía del demo
-npm run verificar:despliegue -- https://mesoraapp-benchi1.vercel.app # rutas públicas, sin ventas reales
+npm run verificar:despliegue -- https://mesora-benchi1.vercel.app # rutas públicas, sin ventas reales
 npm run verificar:acceso      # cuentas desactivadas, salida y contraseña temporal con Auth simulado
 npm run capturas:demo        # capturas del recorrido guiado (Playwright)
 npm run sql:install          # regenera supabase/TODO_EN_UNO.sql
@@ -127,9 +127,9 @@ las rutas y controles táctiles en los cuatro anchos indicados arriba.
 
 ## Desplegar en Vercel
 
-El proyecto `mesoraapp` está conectado al repositorio de Mesora,
+El proyecto `mesora` está conectado al repositorio de Mesora,
 `Benchi2312/Mesora`, con `main` como rama de producción y dirección
-**https://mesoraapp-benchi1.vercel.app**. Node 22, `npm ci`, `npm run build` y salida
+**https://mesora-benchi1.vercel.app**. Node 22, `npm ci`, `npm run build` y salida
 `dist` están definidos; el rewrite SPA permite recargar las rutas internas.
 
 Flujo de cambios:
@@ -137,9 +137,10 @@ Flujo de cambios:
 1. Crear `respaldo/<tema>`, hacer los cambios, subir la rama y abrir PR hacia `main`.
 2. Esperar la CI de reglas de negocio, SQL, TypeScript, precuenta, configuración
    y build. Las ramas de trabajo no publican automáticamente (`vercel.json`).
-3. Integrar el PR. El push a `main` dispara el despliegue nativo de Vercel.
-   El control `CI de Mesora` espera al check `build` antes de asignar el dominio
-   de producción; si falla, la versión anterior continúa publicada.
+3. Integrar el PR. El push a `main` dispara el despliegue de producción desde
+   la integración Git de Vercel. CI y despliegue se ejecutan por separado; revisar
+   ambos resultados. Si el build falla después de publicar, revertir desde Vercel
+   o corregir `main`; no hay rollback automático por el resultado de CI.
 4. El evento de despliegue exitoso ejecuta `Verificar despliegue` en GitHub:
    13 rutas, recursos, redirección de páginas privadas e independencia del demo.
    También se puede ejecutar manualmente desde Actions. Esta prueba detecta
@@ -155,12 +156,12 @@ No usar `service_role` en el frontend. Tras cambiar variables, reconstruir:
 Vite las incrusta durante el build.
 
 En Supabase, Site URL debe coincidir con el dominio publicado y Redirect URLs
-debe incluir `https://mesoraapp-benchi1.vercel.app/restablecer`.
+debe incluir `https://mesora-benchi1.vercel.app/restablecer`.
 La recuperación de administradores está integrada con el correo alternativo
-verificado. Para activarla hay que desplegar la migración y la Edge Function
-`admin-password-recovery`, y configurar `RESEND_API_KEY`,
-`MESORA_AUTH_FROM_EMAIL` y `MESORA_SITE_URL` en los secretos de Supabase
-Functions. Cada admin debe confirmar un correo real. El personal sigue
+verificado. La migración, la Edge Function `admin-password-recovery`, el Site URL
+y el Redirect URL oficiales ya están configurados. Falta configurar
+`RESEND_API_KEY`, `MESORA_AUTH_FROM_EMAIL` y `MESORA_SITE_URL` en los secretos de
+Supabase Functions y que cada admin confirme un correo real. El personal sigue
 dependiendo del restablecimiento que inicia su administrador desde **Personal**.
 El correo comercial visible en la landing es el marcador no entregable
 `contacto@mesora.invalid`; reemplázalo antes de captar solicitudes reales.
@@ -322,7 +323,7 @@ de forma coherente; las suites locales y SQL cubren los circuitos principales.
 
 ### Pendiente para el primer turno piloto
 
-- Obtener una exportación lógica de Supabase y ensayar su restauración. El plan Free no incluye backups administrados; faltan la contraseña PostgreSQL y las herramientas locales, así que no se certificó una copia restaurable real.
+- Copiar el dump ya restaurado en PostgreSQL aislado a almacenamiento cifrado fuera de esta computadora y definir responsable, frecuencia y retención. Añadir cobertura separada para Storage y configuración/secrets de proveedores.
 - Completar la aceptación punta a punta en el local con cuentas de prueba: cuentas por
   rol, pedidos y cocina, cobros/anulación con PIN, arqueo, impresora y dos
   dispositivos. La batería local no sustituye la aceptación presencial; por decisión del propietario no se creó staging de pago.
@@ -331,6 +332,7 @@ de forma coherente; las suites locales y SQL cubren los circuitos principales.
 - Reemplazar `contacto@mesora.invalid` por el correo comercial real antes de
   publicar campañas o recibir solicitudes.
 - Acordar responsable, monitoreo y operación ante cortes de red.
+- Actualizar el video promocional con capturas de esta versión después de la aceptación del primer turno.
 ## Integración continua
 
 GitHub Actions ejecuta `npm ci`, `npm run sql:install`, `npm run verificar:sql`, `npm run verificar`,

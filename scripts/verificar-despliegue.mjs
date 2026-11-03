@@ -1,7 +1,7 @@
 // Smoke público del despliegue: rutas, recursos y aislamiento del demo.
 // No inicia sesión, envía formularios ni modifica la base de datos real.
 // No sustituye las pruebas de caja, recuperación por correo o impresora física.
-// Uso: node scripts/verificar-despliegue.mjs https://mesoraapp-benchi1.vercel.app
+// Uso: node scripts/verificar-despliegue.mjs https://mesora-benchi1.vercel.app
 import assert from 'node:assert/strict'
 import { chromium, expect } from '@playwright/test'
 

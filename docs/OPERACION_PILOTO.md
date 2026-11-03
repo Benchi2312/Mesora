@@ -9,7 +9,7 @@ del local y las pruebas presenciales antes del primer turno.
 | --- | --- |
 | Restaurante, encargado y soporte | Pendiente |
 | Primer turno acompañado: fecha/horario | Pendiente |
-| URL de producción | https://mesoraapp-benchi1.vercel.app; validar después del despliegue de la versión nueva. |
+| URL de producción | https://mesora-benchi1.vercel.app; validar tras cada despliegue de `main`. |
 | Proyecto y versión | Supabase Mesora; rama main en GitHub. El commit desplegado y sus checks se consultan en Deployments de Vercel y Actions de GitHub. |
 | Sistema de comprobantes electrónicos | Se mantiene el sistema actual del local; confirmado por el propietario el 30/10/2026. |
 | Respaldo y restauración local | 02/11/2026: dump completo de la base real restaurado correctamente en una base Supabase local aislada. El archivo está en `backups/mesora-production-20261102.dump`, excluido de Git. |
@@ -42,28 +42,20 @@ del local y las pruebas presenciales antes del primer turno.
 La restauración de `npm run verificar:sql` utiliza una base PGlite aislada.
 Solo valida ese entorno técnico de prueba.
 
-### Preparativos concretos que faltan para el respaldo real
+### Trabajo pendiente para el respaldo
 
-La organización está en Free. La guía oficial recomienda exportaciones con la
-CLI y almacenamiento fuera del servicio en ese plan. Para seguir esa vía:
-
-- Preparar Docker para `supabase db dump` y un cliente PostgreSQL para restaurar;
-  Docker, pg_dump y psql no están disponibles en el PATH del equipo revisado.
-- La CLI autenticada puede solicitar una credencial temporal al proyecto;
-  no es necesario pedir la contraseña por chat. Si la cuenta no permite esa
-  vía, configurar el acceso de conexión en el equipo o gestor seguro.
-- Elegir una ubicación privada cifrada para las copias y una copia fuera del
-  equipo; acordar responsable y frecuencia antes del primer turno.
-- Preparar un destino aislado y ejecutar la restauración completa. Revisar las
-  particularidades de Auth y claves de cifrado de la guía vigente, además de
-  los archivos de Storage y configuración que no cubra el volcado.
+La restauración completa de la base en PostgreSQL 17.6 local aislado ya se
+completó y verificó. El archivo privado está en `backups/` y excluido de Git.
+Antes del primer turno, el propietario debe copiarlo a almacenamiento cifrado
+fuera de esta computadora y definir responsable, frecuencia y retención.
+Preparar además la cobertura de objetos de Storage, proveedores Auth y secretos
+de Edge Functions, que no están dentro del dump SQL.
 
 Referencias: [respaldos por plan](https://supabase.com/docs/guides/platform/backups)
 y [exportación/restauración con CLI](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore).
-El procedimiento y script preparados están en [RESPALDOS.md](./RESPALDOS.md).
-Todavía no existe evidencia de un respaldo real creado y restaurado.
-La alternativa es un servicio administrado con respaldo recuperable, sujeto
-a la elección y condiciones del plan del propietario.
+El procedimiento y script están en [RESPALDOS.md](./RESPALDOS.md). La prueba
+local demuestra que el archivo puede restaurarse en un entorno aislado, no
+certifica el tiempo de recuperación ni restaura Storage o secretos.
 
 ## 2. Preparación del local
 
@@ -125,14 +117,14 @@ Esto no elimina registros anteriores del proveedor.
    antes de actualizar la base.
 2. Probar preview; si apunta a la base real, usar demo para mostrar y staging
    aislado para ensayos persistentes. Verificar Auth en la URL exacta.
-3. La integración de recuperación del administrador ya está en el código;
-   antes de depender de ella, configurar sus secretos de correo, redirección de
-   Auth y probar entrega real. Integrar a `main` con CI aprobada: Vercel detecta
-   el push y publica automáticamente cuando el check `build` permite asignar el
-   dominio. Mantener visibles los pendientes de respaldo/restauración y
-   aceptación del local.
+3. La integración de recuperación del administrador ya está desplegada y la
+   redirección de Auth apunta a la URL oficial; antes de depender de ella,
+   configurar los secretos del remitente y probar entrega real. Integrar a
+   `main` después de CI aprobada; Vercel detecta el push y publica automáticamente.
+   CI y despliegue son comprobaciones separadas. Mantener visibles los pendientes
+   de copia externa del respaldo y aceptación del local.
 4. Comprobar rutas públicas con `npm run verificar:despliegue --
-   https://mesoraapp-benchi1.vercel.app`; el workflow de GitHub también lo ejecuta
+   https://mesora-benchi1.vercel.app`; el workflow de GitHub también lo ejecuta
    tras el despliegue. Registrar commit y deployment. Esta comprobación no
    autentica ni crea ventas. GitHub borra la rama del PR al integrarlo; borrar
    la local con `git branch -d` después de sincronizar `main`.

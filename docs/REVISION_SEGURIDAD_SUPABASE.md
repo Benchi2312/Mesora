@@ -53,10 +53,12 @@ permisivas y la ejecución de funciones `SECURITY DEFINER`:
   `anon`, grants acotados, cero filas globales para admin de restaurante y
   lectura completa para superadmin. Se volvieron a consultar los asesores: ya
   no aparece `multiple_permissive_policies`.
-- La organización figura en el plan Free, que no incluye respaldos diarios.
-  Docker está instalado, pero faltan `pg_dump`, `psql` y la contraseña
-  PostgreSQL; no se obtuvo una copia restaurable de la base real. El dump/restore de QA
-  corresponde a PostgreSQL aislado y no sustituye el backup de Supabase.
+- La organización figura en el plan Free, sin respaldo administrado/PITR al
+  momento de la revisión. Se generó un dump completo privado de producción y se
+  restauró correctamente en PostgreSQL 17.6 aislado. El archivo se excluye de
+  Git; todavía falta una copia cifrada fuera de esta computadora y definir
+  frecuencia/retención. Storage y secretos/configuración de proveedores se
+  respaldan por separado.
 
 ## Historial Git y contenido excluido de la publicación
 
@@ -81,9 +83,8 @@ permisivas y la ejecución de funciones `SECURITY DEFINER`:
 
 ## Lista de cierre
 
-1. Obtener un respaldo restaurable y ensayar la restauración en otro entorno;
-   el plan Free no incluye respaldos gestionados y el dump manual requiere
-   contraseña PostgreSQL y herramientas locales.
+1. Copiar el respaldo restaurado a almacenamiento cifrado fuera de este equipo;
+   definir frecuencia, retención y recuperación separada de Storage/proveedores.
 2. Completar la matriz negativa para las funciones autenticadas restantes; las
    once RPC administrativas de superadmin ya rechazan al mesero en QA aislada.
 3. Completar la aceptación con Auth real, dos dispositivos, pagos concurrentes

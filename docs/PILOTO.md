@@ -1,29 +1,33 @@
 # Preparación del primer piloto de Mesora
 
-Revisión: **3 de noviembre de 2026**. Estado: versión web de Mesora publicada;
-siguen pendientes la activación de recuperación por correo, un respaldo
-restaurable y la aceptación del primer turno real.
+Revisión: **3 de noviembre de 2026**. Estado: primera versión web de Mesora
+publicada. Siguen pendientes la aceptación presencial del local, una copia del
+respaldo fuera de esta computadora, la activación final del correo de
+recuperación y el contacto comercial real. El video se actualizará después de
+aceptar la versión publicada.
 
 ## Cierre técnico y dirección elegida
 
 - CI de GitHub aprobada para el commit `8cc8a06`: instalación SQL reproducible,
   suite SQL, reglas de negocio, TypeScript, precuenta, configuración y build.
   [Ejecución verificada](https://github.com/Benchi2312/Mesora/actions/runs/41103477386).
-- El proyecto de Vercel se renombró a `mesoraapp`; su alias de producción es
-  `https://mesoraapp-benchi1.vercel.app`.
+- El proyecto de Vercel se llama `mesora`; su URL pública es
+  `https://mesora-benchi1.vercel.app`.
   Sus cuatro variables de producción ya están preparadas en Vercel: URL/key
   pública de Supabase, modo local desactivado y diagnóstico activado.
-- Supabase Auth usa `https://mesoraapp-benchi1.vercel.app` como Site URL y permite la
-  redirección exacta `/restablecer`. Las URL anteriores siguen admitidas durante
-  la transición.
+- Supabase Auth usa `https://mesora-benchi1.vercel.app` como Site URL y permite la
+  redirección exacta `/restablecer` y las rutas locales de desarrollo.
 - GitHub y Vercel conectados; `main` es la rama de producción. Node 22 y build
-  reproducible configurados. El check `build` de CI condiciona la asignación del
-  dominio y una comprobación pública se ejecuta después de cada publicación.
-- Dominio de producción: `https://mesoraapp-benchi1.vercel.app`. La versión y el
+  reproducible configurados. CI y despliegue automático se ejecutan de forma
+  independiente; el smoke público corre después de una publicación exitosa.
+- Dominio de producción: `https://mesora-benchi1.vercel.app`. La versión y el
   resultado de cada publicación quedan registrados en Deployments de Vercel
   y en los workflows CI / Verificar despliegue de GitHub.
-- La organización Supabase está en Free; se volvió a consultar backups y la
-  lista sigue vacía, con PITR desactivado. No se ha creado un respaldo real.
+- El respaldo completo de producción se restauró correctamente en una base
+  PostgreSQL local aislada. El dump privado está excluido de Git; queda pendiente
+  copiarlo a un destino cifrado fuera de esta computadora y acordar frecuencia,
+  retención y responsable. Storage y configuración de proveedores requieren
+  respaldos separados.
 
 ## Trabajo terminado
 
@@ -73,7 +77,7 @@ rollback. No dejaron ventas, pagos, anulaciones ni turnos de prueba persistidos.
 
 | Prioridad | Falta | Criterio de cierre |
 | --- | --- | --- |
-| P0 | Respaldo recuperable real | La API devolvió lista de backups vacía y PITR desactivado. El plan Free no incluye backups administrados; faltan la contraseña PostgreSQL y las herramientas locales para una exportación lógica. Restaurar y registrar responsable, frecuencia y pérdida máxima aceptable; PGlite no certifica producción. |
+| P0 | Continuidad del respaldo | Dump completo restaurado en PostgreSQL 17.6 aislado y validado. Antes del primer turno, copiar el archivo excluido de Git a almacenamiento cifrado fuera de este equipo y definir responsable, frecuencia, retención y tiempo de recuperación. La copia no incluye objetos de Storage ni secretos/configuración de proveedores. |
 | P0 | Aceptación con cuentas reales y dos dispositivos | Login por rol, contraseña temporal, pedido/cocina, precuenta, cobro concurrente, anulación con PIN y arqueo en el local. Registrar resultado y tiempos. El propietario eligió pruebas locales; no se creó staging de pago. |
 | P0 | Impresora y operación | Probar papel de 80 mm, impresora real, móvil y caja. Asignar encargado, soporte y contingencia sin internet. |
 | P0 | Activar recuperación del admin por correo | Migración aplicada, Edge Function desplegada, dominio/redirect de Auth actualizados y UI publicada; falta configurar Resend y el remitente en secretos de Supabase, probar una entrega real y que cada admin verifique su dirección. |
@@ -83,11 +87,12 @@ rollback. No dejaron ventas, pagos, anulaciones ni turnos de prueba persistidos.
 **Acuerdo del propietario (30/10/2026):** el restaurante mantendrá su sistema
 actual de facturación electrónica mientras Mesora gestiona pedidos y caja.
 Este punto queda definido; se debe conciliar ambos registros durante el turno.
-El propietario confirmó que todavía no están preparados el respaldo restaurado
-ni la validación del local. Esos requisitos continúan pendientes.
+El propietario confirmó que todavía falta completar la aceptación del local.
+El respaldo sí se creó y restauró en una base local aislada; sigue pendiente su
+copia cifrada fuera de este equipo.
 Posteriormente autorizó publicar la versión y automatizar `main`, dejando
 expresamente el correo para después. Publicar no cierra las pruebas presenciales
-ni acredita un respaldo restaurado.
+ni crea por sí solo una copia externa cifrada del respaldo.
 
 Una preview puede conectar al mismo proyecto real. **Su URL no aísla los
 datos**: usar el demo para mostrar y pruebas locales para validar cambios. No crear operaciones ficticias en producción. No crear ventas ficticias en el local operativo.
@@ -108,9 +113,9 @@ del restablecimiento que inicia el administrador desde Personal.
 | `npm run verificar:precuenta` | 24 escenarios a 390/1280 px: PDF/impresión, error de lectura, cambio entre lecturas, roles y cobro posterior. |
 | `npm run verificar:configuracion` | Validación, payload REST simulado, RPC pendientes, metadatos de diagnóstico y persistencia demo aprobados. |
 | `npm run verificar:responsive` | 438 checks en 360, 390, 768 y 1280 px aprobados; incluye solapamientos de botones y guía móvil. |
-| `npm run verificar:despliegue -- https://mesoraapp-benchi1.vercel.app` | Smoke público de 13 rutas, incluida la pantalla de verificación; sin login ni escrituras en Supabase. |
+| `npm run verificar:despliegue -- https://mesora-benchi1.vercel.app` | Smoke público de 13 rutas, incluida la pantalla de verificación; sin login ni escrituras en Supabase. |
 | `npm run verificar:sql` | Instalación vacía, permisos, migración RLS sobre policies previas, flujo SQL, 1205 pedidos y restauración aislada aprobados. Simula Auth; no prueba correo ni dos terminales concurrentes. |
-| Respaldo de producción | Dump completo restaurado en una base Supabase local aislada; archivo privado en `backups/` y excluido de Git. Aún falta una copia cifrada fuera de esta computadora y recuperación de Storage/configuración. |
+| Respaldo de producción | Dump completo restaurado en PostgreSQL 17.6 aislado; archivo privado en `backups/` y excluido de Git. Pendiente la copia cifrada fuera de este equipo y recuperación separada de Storage/configuración. |
 | `npm run build` | TypeScript y build de producción aprobados. |
 | `supabase/qa/seguridad_rpc_rollback.sql` | Anónimo rechazado, helpers privados, servicio autorizado y precio público comprobados. |
 | `supabase/qa/politicas_catalogo_rollback.sql` | Reconstituye las policies previas, comprueba la exposición conocida, aplica la migración real, valida alcance por rol y rechazo de 11 RPC admin; rollback completo en PostgreSQL aislado. |
@@ -193,7 +198,6 @@ listo para presentarse públicamente:
 | Estado | Tarea | Criterio de cierre |
 | --- | --- | --- |
 | Pendiente tras el piloto | Revisar hallazgos de código y operación | Consolidar incidencias y solicitudes del turno; priorizar y corregir los bloqueos; repetir build, QA afectado, seguridad y aceptación antes de ampliar el uso. Los riesgos técnicos conocidos de esta auditoría siguen listados arriba. |
-| Pendiente tras el piloto | Actualizar el video promocional | Grabar la versión desplegada y aceptada, actualizar guion/capturas/URL, retirar cifras o etiquetas de demo que ya no correspondan y revisar afirmaciones de producto antes de reemplazar el video actual. |
 | Pendiente antes de captar solicitudes | Contacto comercial real | Reemplazar `contacto@mesora.invalid` por el correo definitivo. |
 | Pendiente tras el piloto | Actualizar el video promocional | Grabar la versión desplegada y aceptada, actualizar guion/capturas/URL y revisar las afirmaciones del producto antes de reemplazar el video. |
 
@@ -203,7 +207,8 @@ revisión de 19 commits no encontró credenciales conocidas; `promocional/` est�
 excluido. El repositorio es público y todavía no declara una licencia. No subir
 datos de acceso, copias de respaldo ni información operativa del restaurante.
 
-La migración RLS y la nueva migración de recuperación están aplicadas a
-Supabase. La rama `main` está conectada a Vercel para despliegue automático.
-Quedan como bloqueos del primer turno: respaldo restaurable, aceptación real en
-el local, remitente verificado para recuperación y pruebas físicas de impresora.
+La migración RLS y la migración de recuperación están aplicadas a Supabase. La
+rama `main` está conectada a Vercel para despliegue automático. Antes del primer
+turno faltan la copia externa del respaldo, la aceptación real en el local, un
+remitente verificado para recuperación, el contacto real y las pruebas físicas
+de impresora. El video se actualizará después de validar esta versión.

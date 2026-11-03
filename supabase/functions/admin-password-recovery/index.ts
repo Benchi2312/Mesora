@@ -15,13 +15,13 @@ const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const FROM_EMAIL = Deno.env.get('MESORA_AUTH_FROM_EMAIL') ?? ''
 const EMAIL_API_URL = Deno.env.get('MESORA_EMAIL_API_URL') ?? 'https://api.resend.com/emails'
-const SITE_URL = (Deno.env.get('MESORA_SITE_URL') ?? 'https://mesoraapp-benchi1.vercel.app').replace(/\/$/, '')
+const SITE_URL = (Deno.env.get('MESORA_SITE_URL') ?? 'https://mesora-benchi1.vercel.app').replace(/\/$/, '')
 const RESET_URL = `${SITE_URL}/restablecer`
 const GENERIC_RESET = 'Si corresponde a una cuenta de administrador activa, enviaremos instrucciones al correo de recuperación configurado.'
 
 const ORIGINS = new Set([
   SITE_URL,
-  'https://mesoraapp-benchi1.vercel.app',
+  'https://mesora-benchi1.vercel.app',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   ...(Deno.env.get('MESORA_EXTRA_ALLOWED_ORIGINS') ?? '').split(',').map((x) => x.trim()).filter(Boolean),
