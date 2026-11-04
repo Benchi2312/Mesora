@@ -36,7 +36,7 @@ export default function VerificarCorreoRecuperacion() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-surface-950 px-4 py-12">
       <section className="card w-full max-w-md p-6 sm:p-8">
-        <div className="mb-6 grid h-12 w-12 place-items-center rounded-xl bg-brand-500 text-xl font-black text-surface-950">M</div>
+        <img src="/marca/isotipo.svg" className="mb-6 h-12 w-12" alt="" aria-hidden="true" />
         <p className="text-sm font-semibold uppercase tracking-widest text-brand-400">Mesora</p>
         <h1 className="mt-2 text-2xl font-bold text-white">Verifica tu correo</h1>
         <p className="mt-3 text-sm leading-relaxed text-zinc-400">

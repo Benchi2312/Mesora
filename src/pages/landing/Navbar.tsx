@@ -13,11 +13,7 @@ const links = [
 export function Logo({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <Link to="/" onClick={onNavigate} className="flex shrink-0 items-center gap-2.5">
-      <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-500">
-        <svg viewBox="0 0 24 24" className="h-5 w-5 text-surface-950" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M6 19V5M10 19V9M14 19V5M18 19V7" />
-        </svg>
-      </span>
+      <img src="/marca/isotipo.svg" className="h-9 w-9 shrink-0" alt="" aria-hidden="true" />
       <span className="text-xl font-extrabold tracking-tight text-white">
         Mesora
       </span>

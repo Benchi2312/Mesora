@@ -75,8 +75,8 @@ producción se consultan en GitHub Actions y Vercel.
 
 ## Mejoras posteriores y decisiones comerciales
 
-- Aprobar o ajustar el logo propuesto y después aplicarlo de forma coherente a
-  landing, favicon, acceso, correos y recibos.
+- Aplicar la identidad aprobada también a correos y recibos; la landing, el
+  favicon, el acceso y la cabecera de la aplicación ya usan la opción A.
 - Actualizar el video con la versión aceptada y sus capturas, tal como pidió
   el propietario. Mantener el video de la demo fuera de la landing final.
 - Elegir la licencia del repositorio; no se añadió una licencia sin decisión

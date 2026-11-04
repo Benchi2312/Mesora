@@ -58,7 +58,7 @@ export default function Hero() {
           <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#111418]/95 shadow-2xl shadow-black/50 ring-1 ring-white/[0.03]">
             <div className="flex items-center justify-between gap-4 border-b border-white/[0.07] px-5 py-4 sm:px-6">
               <div className="flex items-center gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-500 text-sm font-black text-surface-950">M</span>
+                <img src="/marca/isotipo.svg" className="h-10 w-10 shrink-0" alt="" aria-hidden="true" />
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Mesora · operación</p>
                   <p className="mt-1 text-base font-bold text-white">Un turno conectado</p>

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mesora · Opción A y variantes</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #0d0f12; color: #fff; font: 16px/1.5 system-ui, sans-serif; }
+    main { max-width: 1120px; margin: auto; padding: 52px 24px; }
+    h1 { font-size: clamp(32px, 5vw, 54px); margin: 0; }
+    h2 { font-size: 16px; margin: 28px 0 12px; }
+    p { color: #a5aab5; max-width: 700px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .card { min-height: 210px; border: 1px solid #333942; border-radius: 20px; padding: 26px; display: flex; flex-direction: column; justify-content: space-between; gap: 32px; }
+    .light { background: #f6f5f2; color: #0d0f12; } .dark { background: #171a20; } .orange { background: #ff9500; color: #0d0f12; }
+    .card img { max-width: 100%; height: auto; } .lockup { width: 280px; } .mark { width: 80px; }
+    .sizes { display: flex; align-items: end; flex-wrap: wrap; gap: 25px; }
+    .size { display: flex; flex-direction: column; align-items: center; gap: 10px; color: #abb1bb; font-size: 12px; }
+    a { color: #ffb341; } small { font-size: 13px; opacity: .75; }
+  </style>
+</head>
+<body><main>
+  <p>IDENTIDAD VISUAL · MESORA</p><h1>Enlace refinado</h1>
+  <p>La opción A: una M abierta que representa la conexión entre las personas y las operaciones del restaurante.</p>
+  <h2>Logo principal en distintos fondos</h2>
+  <div class="grid">
+    <div class="card dark"><img class="lockup" src="logo-oscuro.svg" alt="Logo blanco y naranja sobre fondo oscuro"><small>Fondo oscuro</small></div>
+    <div class="card light"><img class="lockup" src="logo-claro.svg" alt="Logo negro y naranja sobre fondo claro"><small>Fondo claro</small></div>
+    <div class="card orange"><img class="lockup" src="logo-monocromo.svg" alt="Logo negro monocromo sobre fondo naranja"><small>Una tinta</small></div>
+  </div>
+  <h2>El símbolo en distintas aplicaciones</h2>
+  <div class="grid">
+    <div class="card dark"><img class="mark" src="isotipo-naranja.svg" alt="Símbolo negro en placa naranja"><small>Icono de aplicación</small></div>
+    <div class="card light"><img class="mark" src="simbolo-negro.svg" alt="Símbolo negro sin fondo"><small>Negro sobre claro</small></div>
+    <div class="card dark"><img class="mark" src="simbolo-blanco.svg" alt="Símbolo blanco sin fondo"><small>Blanco sobre oscuro</small></div>
+  </div>
+  <h2>Tamaños de pantalla</h2><div class="card dark"><div class="sizes">
+    <div class="size"><img width="16" height="16" src="isotipo-naranja.svg" alt=""><span>16 px</span></div>
+    <div class="size"><img width="24" height="24" src="isotipo-naranja.svg" alt=""><span>24 px</span></div>
+    <div class="size"><img width="32" height="32" src="isotipo-naranja.svg" alt=""><span>32 px</span></div>
+    <div class="size"><img width="48" height="48" src="isotipo-naranja.svg" alt=""><span>48 px</span></div>
+    <div class="size"><img width="96" height="96" src="isotipo-naranja.svg" alt=""><span>96 px</span></div>
+  </div><small>El mismo símbolo, de favicon a icono de aplicación.</small></div>
+  <p><a href="README.md">Ver archivos y guía de uso</a></p>
+</main></body></html>
