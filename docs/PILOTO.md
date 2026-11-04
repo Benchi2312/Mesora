@@ -6,6 +6,11 @@ respaldo fuera de esta computadora, la prueba de recuperación con un admin de
 restaurante y la comprobación de recepción de consultas comerciales. El video
 se actualizará después de aceptar la versión publicada.
 
+Consultar el [estado consolidado del MVP](./ESTADO_MVP.md) y la
+[guía breve del primer turno](./GUIA_PRIMER_TURNO.md). Una consulta de solo
+lectura confirmó que ya existe un restaurante y sus cuentas iniciales;
+completar esa instalación antes de decidir si hace falta crear otra.
+
 ## Cierre técnico y dirección elegida
 
 - CI de GitHub aprobada para el commit `0900455`: instalación SQL reproducible,
@@ -85,7 +90,7 @@ rollback. No dejaron ventas, pagos, anulaciones ni turnos de prueba persistidos.
 | P0 | Aceptación con cuentas reales y dos dispositivos | Login por rol, contraseña temporal, pedido/cocina, precuenta, cobro concurrente, anulación con PIN y arqueo en el local. Registrar resultado y tiempos. El propietario eligió pruebas locales; no se creó staging de pago. |
 | P0 | Impresora y operación | Probar papel de 80 mm, impresora real, móvil y caja. Asignar encargado, soporte y contingencia sin internet. |
 | P0 | Validar recuperación del admin por correo | SMTP de Supabase configurado; el superadmin recuperó su acceso. Falta probar con el correo real de acceso de un admin de restaurante. El correo alternativo requiere Resend y verificación por separado. |
-| P0 | Contacto comercial | Configurado como `mesoratech@gmail.com` en la landing, Vercel y Supabase. Antes de una campaña, hacer una prueba de recepción desde una cuenta externa. |
+| P1, antes de campaña | Contacto comercial | Secreto configurado y prueba real aceptada con HTTP 200, `ok: true`. Falta confirmar la recepción en el buzón. Reintento y errores cubiertos por QA aislada. |
 | P1 | Seguimiento | Asignar revisión de logs y escalamiento. Habilitar protección de claves filtradas si está disponible en el plan. |
 
 **Acuerdo del propietario (30/10/2026):** el restaurante mantendrá su sistema
@@ -204,7 +209,7 @@ listo para presentarse públicamente:
 | Estado | Tarea | Criterio de cierre |
 | --- | --- | --- |
 | Pendiente tras el piloto | Revisar hallazgos de código y operación | Consolidar incidencias y solicitudes del turno; priorizar y corregir los bloqueos; repetir build, QA afectado, seguridad y aceptación antes de ampliar el uso. Los riesgos técnicos conocidos de esta auditoría siguen listados arriba. |
-| Configurado; validar recepción antes de una campaña | Contacto comercial | La landing usa `mesoratech@gmail.com`; enviar una consulta de prueba y confirmar que llega al buzón. |
+| Envío aceptado; recepción pendiente | Contacto comercial | La consulta de prueba obtuvo HTTP 200. Confirmar Recibidos/Spam de `mesoratech@gmail.com` antes de una campaña. |
 | Pendiente tras el piloto | Actualizar el video promocional | Grabar la versión desplegada y aceptada, actualizar guion/capturas/URL y revisar las afirmaciones del producto antes de reemplazar el video. |
 
 El video actual es material de la demo y no representa todavía la versión

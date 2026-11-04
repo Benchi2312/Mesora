@@ -126,14 +126,19 @@ Una preview conectada al proyecto real **no es staging aislado**.
 - SMTP configurado y entrega real al administrador probada. El correo interno
   del personal puede no recibir mensajes.
 
-En Mesora se desactivó registro y se ajustó mínimo a ocho. El dominio de Vercel es https://mesora-sistema.vercel.app. El flujo de recuperación de administradores usa un correo alternativo verificado y la Edge Function `admin-password-recovery`; los enlaces vuelven a `/restablecer`.
+En Mesora se desactivó registro y se ajustó mínimo a ocho. El dominio de Vercel
+es https://mesora-sistema.vercel.app. La recuperación al correo de acceso usa
+Supabase Auth y su SMTP configurado; el superadministrador ya completó ese
+recorrido. El correo alternativo verificado usa Resend mediante
+`admin-password-recovery` y requiere configuración adicional. Ambos enlaces
+vuelven a `/restablecer`.
 
 Estado en producción:
 
 1. `Site URL` ya es `https://mesora-sistema.vercel.app` y Redirect URLs permite el destino exacto `https://mesora-sistema.vercel.app/restablecer`.
 2. La migración `20261103032730_admin_email_recovery` está aplicada y la Edge Function `admin-password-recovery` está desplegada con `verify_jwt=false`; la función valida manualmente la sesión al configurar un correo.
-3. Para habilitar el envío, configura en Resend un dominio verificado y un remitente. Añade `RESEND_API_KEY`, `MESORA_AUTH_FROM_EMAIL` y `MESORA_SITE_URL=https://mesora-sistema.vercel.app` como secretos de Edge Functions en Supabase. No los guardes en Git ni en variables `VITE_*`.
-4. Cada administrador registra un correo real en **Admin → Datos del local → Recuperación de contraseña** y confirma el enlace. Prueba recibirlo y completar el cambio antes de depender del flujo.
+3. Para habilitar el correo alternativo, configura en Resend un dominio verificado y un remitente. `RESEND_API_KEY` ya está configurado para el contacto comercial; faltan el remitente admitido `MESORA_AUTH_FROM_EMAIL` y la validación de ese circuito. `MESORA_SITE_URL` debe ser `https://mesora-sistema.vercel.app`. No guardar secretos en Git ni en variables `VITE_*`.
+4. Si se utiliza un correo alternativo, cada administrador lo registra en **Admin → Datos del local → Recuperación de contraseña** y confirma el enlace. Probar entrega y cambio de contraseña antes de depender del flujo. La recuperación al correo de acceso real también requiere aceptación del administrador del restaurante.
 5. Los empleados no usan recuperación por correo: el administrador les restablece la clave desde **Personal**.
 
 El correo comercial visible en la landing es `mesoratech@gmail.com`; es independiente del remitente y de las credenciales de Resend usados para recuperar contraseñas.
@@ -154,14 +159,15 @@ Function crea tanto Auth como perfil; no dar de alta manualmente un segundo
 usuario para el mismo trabajador. El reset administrativo exige cambiar la
 contraseña temporal.
 
-La interfaz y Edge Function de recuperación del administrador están
-implementadas. La entrega real queda pendiente hasta configurar el proveedor y
-que cada admin verifique su dirección. El personal se restablece desde
-**Personal** por su administrador.
+Ya existe una instalación inicial; no ejecutar el alta anterior por duplicado.
+La interfaz y Edge Function de recuperación están implementadas. Está pendiente
+la aceptación del admin del restaurante con su correo real y, si se elige, la
+configuración y verificación del correo alternativo. El personal se restablece
+desde **Personal** por su administrador.
 
 ## 6. Edge Functions
 
-Revisar proyecto y desplegar las cuatro funciones:
+Revisar proyecto y desplegar las seis funciones:
 
 ```bash
 supabase login
@@ -171,11 +177,18 @@ supabase functions deploy crear-restaurante
 supabase functions deploy crear-usuario
 supabase functions deploy reset-password-personal
 supabase functions deploy admin-password-recovery
+supabase functions deploy contacto-comercial
 ```
 
 Conservar verificación JWT y controles internos de sesión/rol. Los secretos de
 servicio pertenecen al servidor. Verificar alta/reset con cuentas de aceptación;
 nunca copiar service_role al navegador para solucionar un 401.
+
+Las dos funciones públicas conservan `verify_jwt=false` según
+`supabase/config.toml`: recuperación valida la sesión en las operaciones que
+lo requieren; contacto solo admite consultas al destino configurado. Las
+funciones administrativas requieren JWT y sus controles de rol. El contacto
+se configura y verifica siguiendo [CONTACTO_COMERCIAL.md](./docs/CONTACTO_COMERCIAL.md).
 
 ## 7. Verificación
 

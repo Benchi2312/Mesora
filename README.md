@@ -12,6 +12,11 @@ o información dispersa entre varias personas.
 
 Consultas comerciales: [mesoratech@gmail.com](mailto:mesoratech@gmail.com).
 
+Documentación: [estado y pendientes del MVP](./docs/ESTADO_MVP.md) ·
+[guía del primer turno](./docs/GUIA_PRIMER_TURNO.md) ·
+[operación y contingencias](./docs/OPERACION_PILOTO.md) ·
+[propuesta de identidad](./docs/marca/README.md).
+
 El demo es gratuito, no requiere cuenta y usa datos de ejemplo. Puedes recorrer
 los roles de administración, mesero, cocina y caja, probar el flujo guiado
 **«Hazlo por mí»** y reiniciarlo cuando quieras. Las acciones del demo no
@@ -383,8 +388,9 @@ de forma coherente; las suites locales y SQL cubren los circuitos principales.
 - Probar la recuperación con el correo real de acceso del administrador del
   restaurante. Si se habilita un correo alternativo, configurar y probar
   Resend y verificar ese correo antes de depender de él.
-- Probar que el correo comercial de la landing recibe consultas y mantenerlo
-  actualizado si cambia.
+- Confirmar la recepción en el buzón comercial: la función ya obtuvo HTTP 200
+  con `ok: true` al enviar una consulta de prueba. Esto acredita aceptación por
+  Resend; aún falta confirmar Recibidos/Spam. Ver [contacto](./docs/CONTACTO_COMERCIAL.md).
 - Acordar responsable, monitoreo y operación ante cortes de red.
 - Actualizar el video promocional con capturas de esta versión después de la aceptación del primer turno.
 ## Integración continua
