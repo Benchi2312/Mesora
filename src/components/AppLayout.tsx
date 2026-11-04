@@ -20,9 +20,7 @@ export default function AppLayout({ banner }: AppLayoutProps) {
       <header className="no-print sticky top-0 z-20 border-b border-surface-800 bg-surface-900/90 shadow-sm shadow-black/30 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-lg font-black text-surface-950 shadow-lg shadow-brand-500/25">
-              M
-            </span>
+            <img src="/marca/isotipo.svg" className="h-9 w-9 shrink-0 rounded-xl shadow-lg shadow-brand-500/25" alt="" aria-hidden="true" />
             <div className="leading-tight">
               <p className="text-base font-bold tracking-tight text-zinc-100">Mesora</p>
               <p className="text-xs text-zinc-500">

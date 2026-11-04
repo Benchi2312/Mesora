@@ -93,11 +93,10 @@ export default function Login() {
         <div className="mb-8 flex flex-col items-center gap-3">
           <Link
             to="/"
-            className="grid h-14 w-14 place-items-center rounded-2xl bg-brand-500 shadow-lg shadow-brand-500/30 transition hover:scale-105 hover:bg-brand-400"
+            aria-label="Mesora, inicio"
+            className="rounded-2xl shadow-lg shadow-brand-500/30 transition hover:scale-105"
           >
-            <svg viewBox="0 0 24 24" className="h-7 w-7 text-surface-950" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M6 19V5M10 19V9M14 19V5M18 19V7" />
-            </svg>
+            <img src="/marca/isotipo.svg" className="h-14 w-14" alt="" aria-hidden="true" />
           </Link>
           <div className="text-center">
             <h1 className="text-3xl font-black tracking-tight text-zinc-100">Mesora</h1>

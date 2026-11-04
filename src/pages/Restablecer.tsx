@@ -73,11 +73,7 @@ export default function Restablecer() {
 
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3">
-          <div className="grid h-14 w-14 place-items-center rounded-2xl bg-brand-500 shadow-lg shadow-brand-500/30">
-            <svg viewBox="0 0 24 24" className="h-7 w-7 text-surface-950" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M6 19V5M10 19V9M14 19V5M18 19V7" />
-            </svg>
-          </div>
+          <img src="/marca/isotipo.svg" className="h-14 w-14 rounded-2xl shadow-lg shadow-brand-500/30" alt="" aria-hidden="true" />
           <div className="text-center">
             <h1 className="text-3xl font-black tracking-tight text-zinc-100">Mesora</h1>
             <p className="mt-1 text-sm text-zinc-500">Nueva contraseña</p>
