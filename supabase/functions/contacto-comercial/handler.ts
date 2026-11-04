@@ -130,7 +130,9 @@ export async function handleContact(req: Request): Promise<Response> {
   // La consulta ya existe en la bandeja del superadministrador.
   try {
     const jobs = await mailRpc<MailJob[]>('mesora_claim_mail_jobs', { p_limit: 1, p_job_id: jobId })
-    if (jobs.length === 0) return json(req, 200, { ok: true, correo: 'en_cola' })
+    // Otro intento ya tomó el aviso o lo entregó. El estado exacto puede
+    // cambiar en paralelo; solo confirmamos lo que sí sabemos: se registró.
+    if (jobs.length === 0) return json(req, 200, { ok: true, correo: 'registrado' })
     const result = await sendMailJob(jobs[0])
     await finishMailJob(jobs[0], result)
     if (!result.ok) await recordSystemIncident('contacto-comercial', result.errorCode ?? 'resend_unavailable')
