@@ -1,0 +1,30 @@
+name: Enviar avisos de Mesora
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: avisos-correo
+  cancel-in-progress: false
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Procesar cola de avisos
+        env:
+          MESORA_ALERTS_CRON_TOKEN: ${{ secrets.MESORA_ALERTS_CRON_TOKEN }}
+        run: |
+          test -n "$MESORA_ALERTS_CRON_TOKEN"
+          curl --fail --silent --show-error --max-time 120 \
+            -X POST 'https://yyfsewgxyyqjyzcejsqq.supabase.co/functions/v1/procesar-alertas-correo' \
+            -H "Authorization: Bearer $MESORA_ALERTS_CRON_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d '{}' \
+            -o /dev/null

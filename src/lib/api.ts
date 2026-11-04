@@ -21,6 +21,8 @@ import type {
   AuditLog,
   CategoriaProducto,
   ConfiguracionGlobal,
+  BandejaComercial,
+  ConsultaComercial,
   Cuenta,
   Mesa,
   MetodoPago,
@@ -35,6 +37,7 @@ import type {
   SuscripcionHistorial,
   TicketEstado,
   TicketPrioridad,
+  TicketTipo,
   TurnoCaja,
   Usuario,
   Zona,
@@ -49,7 +52,7 @@ import {
   validarConfiguracionGlobal,
   type DatosConfiguracionGlobal,
 } from '../domain/restaurant/configuracion'
-import { PRIORIDADES_TICKET, ESTADOS_TICKET } from '../domain/platform/soporte'
+import { PRIORIDADES_TICKET, ESTADOS_TICKET, TIPOS_TICKET } from '../domain/platform/soporte'
 import {
   mockPlanes,
   mockRestaurante,
@@ -255,6 +258,7 @@ export type DatosTicket = {
   usuarioId?: string | null
   asunto: string
   descripcion: string
+  tipo?: TicketTipo
   prioridad: TicketPrioridad
   responsable?: string | null
 }
@@ -484,6 +488,9 @@ export interface DataApi {
   crearTicket(datos: DatosTicket): Promise<Res<SoporteTicket>>
   /** Actualiza estado/prioridad/responsable de un ticket. */
   actualizarTicket(ticketId: string, cambios: CambiosTicket): Promise<Res<SoporteTicket>>
+  /** Consultas anónimas de la landing, solo superadministrador. */
+  getBandejaComercial(): Promise<Res<BandejaComercial>>
+  actualizarConsultaComercial(id: string, estado: ConsultaComercial['estado']): Promise<Res<void>>
 
   // ----------------------------------------------------------- Notificaciones
   /** Alertas administrativas agregadas. Solo super admin. */
@@ -1086,6 +1093,7 @@ const realApi: DataApi = {
     if (!PRIORIDADES_TICKET.includes(datos.prioridad)) {
       return { data: null, error: 'Prioridad de ticket no válida.' }
     }
+    if (!TIPOS_TICKET.includes(datos.tipo ?? 'error')) return { data: null, error: 'Tipo de ticket no válido.' }
     const { data, error } = await supabase
       .from('soporte_tickets')
       .insert({
@@ -1093,8 +1101,8 @@ const realApi: DataApi = {
         usuario_id: datos.usuarioId ?? null,
         asunto,
         descripcion,
+        tipo: datos.tipo ?? 'error',
         prioridad: datos.prioridad,
-        responsable: datos.responsable?.trim() || null,
       })
       .select('*')
       .single()
@@ -1125,6 +1133,15 @@ const realApi: DataApi = {
       .single()
     if (error) return { data: null, error: error.message }
     return { data: data as SoporteTicket, error: null }
+  },
+  async getBandejaComercial() {
+    const { data, error } = await supabase.rpc('mesora_commercial_inbox')
+    if (error) return { data: null, error: error.message }
+    return { data: data as BandejaComercial, error: null }
+  },
+  async actualizarConsultaComercial(id, estado) {
+    const { error } = await supabase.rpc('mesora_update_commercial_lead', { p_id: id, p_estado: estado })
+    return { data: error ? null : undefined, error: error?.message ?? null }
   },
   // --------------------------------------------------- Notificaciones (real)
   async getAlertas() {
@@ -2525,6 +2542,7 @@ function crearApiDesde(
     if (!PRIORIDADES_TICKET.includes(datos.prioridad)) {
       return { data: null, error: 'Prioridad de ticket no válida.' }
     }
+    if (!TIPOS_TICKET.includes(datos.tipo ?? 'error')) return { data: null, error: 'Tipo de ticket no válido.' }
     const operador = apiMode.operadorId
       ? (ds.usuarios.find((u) => u.id === apiMode.operadorId) ?? null)
       : null
@@ -2554,6 +2572,7 @@ function crearApiDesde(
       responsable_id: null,
       asunto,
       descripcion,
+      tipo: datos.tipo ?? 'error',
       prioridad: datos.prioridad,
       estado: 'abierto',
       responsable: operador ? null : datos.responsable?.trim() || null,
@@ -2592,6 +2611,15 @@ function crearApiDesde(
     t.updated_at = new Date().toISOString()
     persiste()
     return { data: { ...t }, error: null }
+  },
+  async getBandejaComercial() {
+    await espera()
+    const operador = apiMode.operadorId ? ds.usuarios.find((u) => u.id === apiMode.operadorId) : null
+    if (operador?.rol !== 'super_admin') return { data: null, error: 'Solo el superadministrador puede ver consultas comerciales.' }
+    return { data: { resumen: { hoy: 0, ultimos_30_dias: 0, nuevas: 0, correo_pendiente: 0, correo_fallido: 0 }, consultas: [] }, error: null }
+  },
+  async actualizarConsultaComercial() {
+    return { data: null, error: 'Las consultas comerciales solo existen en el servidor real.' }
   },
   // ------------------------------------------------- Notificaciones (mock)
   async getAlertas() {

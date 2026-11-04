@@ -10,6 +10,7 @@ const campos = 'w-full rounded-xl border border-white/10 bg-surface-950 px-4 py-
 export default function Contacto() {
   const { correo, telefono } = useLandingConfig()
   const [enviado, setEnviado] = useState(false)
+  const [correoEnCola, setCorreoEnCola] = useState(false)
   const [errorEnvio, setErrorEnvio] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [correoManual, setCorreoManual] = useState('')
@@ -24,6 +25,7 @@ export default function Contacto() {
     const form = new FormData(formElement)
     setEnviando(true)
     setEnviado(false)
+    setCorreoEnCola(false)
     setErrorEnvio('')
     setCorreoManual('')
     try {
@@ -38,6 +40,7 @@ export default function Contacto() {
         },
       })
       if (error || !data?.ok) throw error ?? new Error('No se pudo enviar la consulta.')
+      setCorreoEnCola(data.correo === 'en_cola')
       setEnviado(true)
       formElement.reset()
     } catch (fallo) {
@@ -119,8 +122,9 @@ export default function Contacto() {
               <button type="submit" aria-busy={enviando} disabled={enviando} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-6 py-3.5 font-bold text-surface-950 shadow-lg shadow-brand-500/15 transition hover:-translate-y-0.5 hover:bg-brand-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 disabled:cursor-wait disabled:opacity-70">
                 {enviando ? 'Enviando consulta…' : errorEnvio ? 'Reintentar envío' : 'Enviar consulta'} <IconArrowRight className="h-5 w-5" />
               </button>
+              <p className="text-xs leading-relaxed text-zinc-500">Usaremos estos datos solo para responder a tu consulta. La solicitud quedará registrada en la bandeja privada de Mesora.</p>
               {enviando && <p role="status" className="text-center text-sm text-zinc-300">Estamos enviando tu consulta. Espera la confirmación.</p>}
-              {enviado && <p role="status" className="text-center text-sm text-emerald-400">¡Listo! Tu consulta se envió a Mesora. Nos pondremos en contacto contigo.</p>}
+              {enviado && <p role="status" className="text-center text-sm text-emerald-400">{correoEnCola ? '¡Listo! Tu consulta quedó registrada. El aviso por correo está pendiente y se reintentará automáticamente.' : '¡Listo! Tu consulta llegó a Mesora. Nos pondremos en contacto contigo.'}</p>}
               {errorEnvio && <p role="alert" className="text-center text-sm text-red-300">{errorEnvio} <a className="underline" href={correoManual}>Abrir correo con mi consulta</a></p>}
             </form>
           ) : (

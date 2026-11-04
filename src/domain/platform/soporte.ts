@@ -1,7 +1,13 @@
 // Lógica pura de la sección "Soporte" del super admin: catálogos de prioridad
 // y estado, etiquetas y filtros. La persistencia la resuelve la API.
 
-import type { SoporteTicket, TicketEstado, TicketPrioridad } from '../../types/database'
+import type { SoporteTicket, TicketEstado, TicketPrioridad, TicketTipo } from '../../types/database'
+
+export const TIPOS_TICKET: readonly TicketTipo[] = ['error', 'consulta', 'sugerencia']
+const ETIQUETA_TIPO: Record<TicketTipo, string> = {
+  error: 'Error', consulta: 'Consulta', sugerencia: 'Sugerencia',
+}
+export const etiquetaTipoTicket = (tipo: TicketTipo): string => ETIQUETA_TIPO[tipo] ?? tipo
 
 export const PRIORIDADES_TICKET: readonly TicketPrioridad[] = ['baja', 'media', 'alta', 'urgente']
 export const ESTADOS_TICKET: readonly TicketEstado[] = [

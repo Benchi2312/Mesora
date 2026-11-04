@@ -21,6 +21,7 @@ electrónica permanece en el sistema actual del restaurante.
 | Recuperación del superadmin | Completada por el propietario | Confirmó recepción del enlace, nueva contraseña e ingreso. |
 | Recuperación del admin de restaurante | Completada por el propietario | Confirmó recepción del enlace y cambio de contraseña. El correo alternativo es una integración distinta. |
 | Contacto comercial | Envío y recepción confirmados | Función respondió HTTP 200 con `ok: true`; el propietario confirmó que la consulta llegó al buzón. Reintentos, errores y carga tienen pruebas aisladas. |
+| Bandejas y alertas | Implementadas en esta entrega; validación local aprobada | Consultas comerciales privadas con seguimiento, tickets por tipo y cola de correo para avisos. Verificar el circuito desplegado y recepción real después de publicar. |
 | Respaldo | Exportación y restauración local documentadas | Falta copia cifrada fuera del equipo, frecuencia, retención y cobertura de Storage/configuración. |
 | Repositorio | Revisión de exposición completada | 39 commits alcanzables, 472 blobs, 471 de texto; sin coincidencias de los patrones de secretos buscados. No es una garantía contra cualquier secreto o información sensible. |
 | Identidad | Opción A aprobada y publicada | Logo, favicon y cabeceras aplicados; kit vectorial en `docs/marca/kit-mesora/` y copia local verificada en `backups/`. |
@@ -34,6 +35,9 @@ electrónica permanece en el sistema actual del restaurante.
 - Función de contacto rechaza JSON `null`/arrays, limita la espera del proveedor,
   maneja fallos de red y usa idempotencia para consultas idénticas del mismo día UTC.
 - QA de contacto integrada en CI, con Resend y Supabase simulados y sin correo real.
+- Bandeja comercial para el superadmin, tipos de ticket de soporte y reintento
+  programado de avisos de correo. La respuesta de la landing distingue aviso
+  enviado de aviso pendiente.
 - Guía práctica del primer turno y kit de la marca aprobada preparados.
 - Retirado el asistente local de carga de la clave de Resend, que ya cumplió su
   función. La clave permanece en Supabase, fuera de Git.
@@ -88,8 +92,8 @@ producción se consultan en GitHub Actions y Vercel.
 - Antes de campañas: medir si las cuotas de contacto implantadas (por correo,
   por IP confiable y global) se ajustan al tráfico real. El cupo global puede
   agotarse con abuso y el canal manual debe seguir disponible.
-- Completar las pruebas HTTP con tokens Auth reales y configurar una alerta
-  externa para incidentes graves; la matriz SQL de 36 negativas y las
+- Completar las pruebas HTTP con tokens Auth reales y confirmar la entrega
+  efectiva de los nuevos avisos de incidencias y soporte. La matriz SQL y las
   notificaciones dentro del panel no sustituyen esas comprobaciones.
 
 ## Criterio de cierre

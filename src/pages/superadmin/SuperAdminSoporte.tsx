@@ -17,6 +17,8 @@ import type { CriteriosTickets } from '../../domain/platform/soporte'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 import { Campo, Modal, PieAcciones } from '../../components/ui'
+import BandejaComercial from './BandejaComercial'
+import { etiquetaTipoTicket } from '../../domain/platform/soporte'
 
 const COLOR_PRIORIDAD: Record<TicketPrioridad, string> = {
   baja: 'border-surface-600 bg-surface-800 text-zinc-400',
@@ -49,7 +51,7 @@ type TicketEditando = {
   responsable: string
 }
 
-export default function SuperAdminSoporte() {
+function BandejaTickets() {
   const [tickets, setTickets] = useState<SoporteTicket[]>([])
   const [restaurantes, setRestaurantes] = useState<Restaurante[]>([])
   const [cargando, setCargando] = useState(true)
@@ -240,7 +242,7 @@ export default function SuperAdminSoporte() {
                     </td>
                     <td className="px-4 py-3.5">
                       <p className="font-semibold text-zinc-100">{t.asunto}</p>
-                      <p className="max-w-xs truncate text-xs text-zinc-500">{t.descripcion}</p>
+                      <p className="max-w-xs truncate text-xs text-zinc-500">{etiquetaTipoTicket(t.tipo ?? 'error')} · {t.descripcion}</p>
                     </td>
                     <td className="px-4 py-3.5 text-zinc-300">
                       {nombreRestaurante(t.restaurante_id) ?? '—'}
@@ -361,6 +363,23 @@ export default function SuperAdminSoporte() {
           </form>
         </Modal>
       )}
+    </div>
+  )
+}
+
+export default function SuperAdminSoporte() {
+  const [seccion, setSeccion] = useState<'tickets' | 'comercial'>('tickets')
+  return (
+    <div>
+      <div className="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="Bandejas de Mesora">
+        <button type="button" role="tab" aria-selected={seccion === 'tickets'}
+          className={`btn min-h-11 px-4 ${seccion === 'tickets' ? 'btn-primary' : 'btn-outline'}`}
+          onClick={() => setSeccion('tickets')}>Soporte de restaurantes</button>
+        <button type="button" role="tab" aria-selected={seccion === 'comercial'}
+          className={`btn min-h-11 px-4 ${seccion === 'comercial' ? 'btn-primary' : 'btn-outline'}`}
+          onClick={() => setSeccion('comercial')}>Consultas comerciales</button>
+      </div>
+      {seccion === 'tickets' ? <BandejaTickets /> : <BandejaComercial />}
     </div>
   )
 }

@@ -102,6 +102,19 @@ certifica el tiempo de recuperación ni restaura Storage o secretos.
 
 ## 5. Diagnóstico y soporte
 
+Un administrador del restaurante abre **Soporte → Nueva solicitud**, elige
+error, consulta o sugerencia, describe el caso y ve su estado en el mismo
+apartado. El superadministrador lo recibe en **Soporte → Soporte de
+restaurantes**, asigna responsable y actualiza prioridad y estado. La creación
+del ticket también deja un aviso por correo a `mesoratech@gmail.com`, con
+reintentos automáticos si falla el proveedor. El cuerpo del ticket permanece
+en la bandeja de Mesora; el aviso por correo contiene solo un resumen.
+
+Las solicitudes de la landing llegan a **Soporte → Consultas comerciales**,
+donde el superadministrador puede marcar el seguimiento. No son tickets de un
+restaurante. Los fallos de servicios se agrupan en **Notificaciones** y generan
+un aviso externo por código y día. Ver [circuito de correo](./CONTACTO_COMERCIAL.md).
+
 La app real envía a logs PostgreSQL el prefijo `MESORA_CLIENT_ERROR`, tipo,
 ruta canónica y operación/contexto. No envía mensajes originales, formularios,
 identificadores, PIN ni tokens. Límite por pestaña: 20 intentos/10 minutos y

@@ -88,6 +88,7 @@ const ORDEN = [
   '../migrations/20261102081247_acotar_politicas_rls_piloto.sql',
   '../migrations/20261104065434_contacto_guardrails_incidentes.sql',
   '../migrations/20261104065733_confirmar_password_auth_trigger.sql',
+  '../migrations/20261104172538_bandeja_comercial_alertas.sql',
 ]
 
 const fallos = []
