@@ -1,7 +1,7 @@
 {
   "name": "mesora",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "engines": {
     "node": "22.x"
@@ -18,6 +18,7 @@
     "verificar:responsive": "node scripts/verificar-responsive.mjs",
     "verificar:despliegue": "node scripts/verificar-despliegue.mjs",
     "verificar:acceso": "node scripts/verificar-acceso.mjs",
+    "verificar:contacto": "node scripts/verificar-contacto.mjs",
     "capturas:demo": "node scripts/capturas-demo.mjs",
     "sql:install": "node scripts/build-install-sql.mjs"
   },

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { IconArrowRight, IconCheck } from './Icons'
 import SectionHeading from './SectionHeading'
@@ -12,18 +12,23 @@ export default function Contacto() {
   const [enviado, setEnviado] = useState(false)
   const [errorEnvio, setErrorEnvio] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const [correoManual, setCorreoManual] = useState('')
+  const envioEnCurso = useRef(false)
   const correoTemporal = correo?.toLowerCase().endsWith('.invalid') ?? false
 
   async function solicitarDemo(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!correo || correoTemporal || enviando) return
+    if (!correo || correoTemporal || envioEnCurso.current) return
+    envioEnCurso.current = true
     const formElement = event.currentTarget
     const form = new FormData(formElement)
     setEnviando(true)
     setEnviado(false)
     setErrorEnvio('')
+    setCorreoManual('')
     try {
       const { data, error } = await supabase.functions.invoke('contacto-comercial', {
+        signal: AbortSignal.timeout(20_000),
         body: {
           nombre: String(form.get('nombre') ?? '').trim(),
           restaurante: String(form.get('restaurante') ?? '').trim(),
@@ -44,9 +49,10 @@ export default function Contacto() {
         '',
         String(form.get('mensaje') || 'Quiero conocer Mesora para mi restaurante.'),
       ].join('\n')
-      setErrorEnvio('El envío automático no está disponible. Abrimos tu aplicación de correo para que completes el envío.')
-      window.location.href = `mailto:${correo}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`
+      setErrorEnvio('No pudimos confirmar el envío. Tus datos siguen aquí: puedes reintentar o enviarlos con tu aplicación de correo.')
+      setCorreoManual(`mailto:${correo}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`)
     } finally {
+      envioEnCurso.current = false
       setEnviando(false)
     }
   }
@@ -92,26 +98,27 @@ export default function Contacto() {
               </div>
               <div>
                 <label htmlFor="contacto-nombre" className="mb-1.5 block text-sm font-medium text-zinc-300">Tu nombre</label>
-                <input id="contacto-nombre" name="nombre" autoComplete="name" placeholder="¿Cómo te llamas?" required maxLength={100} className={campos} />
+                <input id="contacto-nombre" disabled={enviando} name="nombre" autoComplete="name" placeholder="¿Cómo te llamas?" required maxLength={100} className={campos} />
               </div>
               <div>
                 <label htmlFor="contacto-restaurante" className="mb-1.5 block text-sm font-medium text-zinc-300">Restaurante</label>
-                <input id="contacto-restaurante" name="restaurante" placeholder="Nombre del restaurante" required maxLength={120} className={campos} />
+                <input id="contacto-restaurante" disabled={enviando} name="restaurante" placeholder="Nombre del restaurante" required maxLength={120} className={campos} />
               </div>
               <div>
                 <label htmlFor="contacto-email" className="mb-1.5 block text-sm font-medium text-zinc-300">Tu correo</label>
-                <input id="contacto-email" name="email" type="email" autoComplete="email" placeholder="tucorreo@ejemplo.com" required maxLength={160} className={campos} />
+                <input id="contacto-email" disabled={enviando} name="email" type="email" autoComplete="email" placeholder="tucorreo@ejemplo.com" required maxLength={160} className={campos} />
               </div>
               <div>
                 <label htmlFor="contacto-mensaje" className="mb-1.5 block text-sm font-medium text-zinc-300">¿Qué te gustaría mejorar? <span className="font-normal text-zinc-500">(opcional)</span></label>
-                <textarea id="contacto-mensaje" name="mensaje" rows={3} maxLength={1000} placeholder="Pedidos, cocina, caja, reportes…" className={`${campos} resize-y`} />
+                <textarea id="contacto-mensaje" disabled={enviando} name="mensaje" rows={3} maxLength={1000} placeholder="Pedidos, cocina, caja, reportes…" className={`${campos} resize-y`} />
               </div>
               <div hidden aria-hidden="true"><label htmlFor="contacto-sitio-web">Deja este campo vacío</label><input id="contacto-sitio-web" name="sitio-web" tabIndex={-1} autoComplete="off" /></div>
-              <button type="submit" disabled={enviando} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-6 py-3.5 font-bold text-surface-950 shadow-lg shadow-brand-500/15 transition hover:-translate-y-0.5 hover:bg-brand-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 disabled:cursor-wait disabled:opacity-70">
-                {enviando ? 'Enviando consulta…' : 'Enviar consulta'} <IconArrowRight className="h-5 w-5" />
+              <button type="submit" aria-busy={enviando} disabled={enviando} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-6 py-3.5 font-bold text-surface-950 shadow-lg shadow-brand-500/15 transition hover:-translate-y-0.5 hover:bg-brand-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 disabled:cursor-wait disabled:opacity-70">
+                {enviando ? 'Enviando consulta…' : errorEnvio ? 'Reintentar envío' : 'Enviar consulta'} <IconArrowRight className="h-5 w-5" />
               </button>
+              {enviando && <p role="status" className="text-center text-sm text-zinc-300">Estamos enviando tu consulta. Espera la confirmación.</p>}
               {enviado && <p role="status" className="text-center text-sm text-emerald-400">¡Listo! Tu consulta se envió a Mesora. Nos pondremos en contacto contigo.</p>}
-              {errorEnvio && <p role="alert" className="text-center text-sm text-red-300">{errorEnvio} <a className="underline" href={`mailto:${correo}`}>Abrir correo</a></p>}
+              {errorEnvio && <p role="alert" className="text-center text-sm text-red-300">{errorEnvio} <a className="underline" href={correoManual}>Abrir correo con mi consulta</a></p>}
             </form>
           ) : (
             <div className="flex min-h-72 flex-col items-center justify-center px-4 text-center">

@@ -3,6 +3,9 @@
 Procedimiento actualizado el 02/11/2026. Completar con el encargado los datos
 del local y las pruebas presenciales antes del primer turno.
 
+Para el encargado: [guía breve del primer turno](./GUIA_PRIMER_TURNO.md).
+Para seguimiento: [estado y pendientes del MVP](./ESTADO_MVP.md).
+
 ## Registro de salida
 
 | Dato | Completar |
