@@ -108,4 +108,3 @@ export async function handleContact(req: Request): Promise<Response> {
     return json(req, 502, { error: 'No se pudo confirmar el envío. Puedes reintentar.' })
   }
 }
-
