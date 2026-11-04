@@ -7,7 +7,7 @@ import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 
 const NIVELES: { nivel: NivelAlerta; titulo: string; descripcion: string }[] = [
-  { nivel: 'critico', titulo: 'Críticas', descripcion: 'Requieren atención hoy' },
+  { nivel: 'critico', titulo: 'Críticas', descripcion: 'Incidencias, vencimientos y tickets urgentes' },
   { nivel: 'advertencia', titulo: 'Advertencias', descripcion: 'Suscripciones y suspensiones' },
   { nivel: 'info', titulo: 'Información', descripcion: 'Altas recientes de la plataforma' },
 ]
@@ -90,7 +90,7 @@ export default function SuperAdminNotificaciones() {
         <div className="mt-8">
           <EstadoVacio
             titulo="Sin alertas pendientes"
-            descripcion="No hay vencimientos próximos, suspensiones, altas recientes ni tickets urgentes."
+            descripcion="No hay incidencias recientes, vencimientos próximos, suspensiones, altas recientes ni tickets urgentes."
           />
         </div>
       ) : (

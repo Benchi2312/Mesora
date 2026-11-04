@@ -15,6 +15,7 @@
 //     `admin_restaurante` siempre.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { recordSystemIncident } from '../_shared/system-incidents.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -135,6 +136,7 @@ Deno.serve(async (req) => {
       const duplicado =
         errAuth?.code === 'email_exists' || /already (registered|exists)/i.test(errAuth?.message ?? '')
       if (duplicado) return json({ error: 'Ya existe una cuenta con ese correo.' }, 409)
+      await recordSystemIncident('crear-restaurante', 'auth_create_failed')
       return json({ error: `No se pudo crear la cuenta: ${errAuth?.message ?? 'error desconocido'}` }, 400)
     }
 
@@ -154,6 +156,7 @@ Deno.serve(async (req) => {
       .single()
     if (errRest || !restaurante) {
       await servicio.auth.admin.deleteUser(creado.user.id).catch(() => {})
+      await recordSystemIncident('crear-restaurante', 'restaurant_insert_failed')
       return json({ error: `No se pudo crear el restaurante: ${errRest?.message ?? ''}` }, 400)
     }
 
@@ -169,8 +172,14 @@ Deno.serve(async (req) => {
     })
     if (errPerfil) {
       // Se deshace lo hecho: no queda restaurante sin administrador ni cuenta suelta.
-      await servicio.from('restaurantes').delete().eq('id', restaurante.id).catch(() => {})
+      try {
+        const { error: rollbackError } = await servicio.from('restaurantes').delete().eq('id', restaurante.id)
+        if (rollbackError) await recordSystemIncident('crear-restaurante', 'rollback_failed')
+      } catch {
+        await recordSystemIncident('crear-restaurante', 'rollback_failed')
+      }
       await servicio.auth.admin.deleteUser(creado.user.id).catch(() => {})
+      await recordSystemIncident('crear-restaurante', 'admin_profile_insert_failed')
       return json({ error: `No se pudo crear el perfil: ${errPerfil.message}` }, 400)
     }
 
@@ -213,6 +222,7 @@ Deno.serve(async (req) => {
       200,
     )
   } catch {
+    await recordSystemIncident('crear-restaurante', 'unexpected_failure')
     return json({ error: 'Error inesperado al crear el restaurante.' }, 500)
   }
 })

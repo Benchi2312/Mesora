@@ -556,7 +556,10 @@ function TicketComanda({
             </ul>
           )}
         </div>
-        <div className="p-3 text-center text-[10px] text-zinc-600">--- Listo para imprimir ---</div>
+        <div className="p-3 text-center text-[10px] text-zinc-500">
+          <p>--- Listo para imprimir ---</p>
+          <p className="mt-1 inline-flex items-center justify-center gap-1"><img src="/marca/simbolo-recibo.svg" alt="" className="marca-recibo-oscuro h-6 w-6" />Generado con Mesora</p>
+        </div>
       </div>
     </Modal>
   )

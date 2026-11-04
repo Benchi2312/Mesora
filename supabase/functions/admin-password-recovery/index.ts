@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { recordSystemIncident } from '../_shared/system-incidents.ts'
 
 type Profile = {
   id: string
@@ -70,6 +71,7 @@ function client(requestUrl: string, key: string) {
 async function sendEmail(to: string, subject: string, text: string, href: string) {
   if (!RESEND_KEY || !FROM_EMAIL) return false
   const safeHref = escapeHtml(href)
+  const logoUrl = escapeHtml(`${SITE_URL}/marca/isotipo-email.png`)
   const response = await fetch(EMAIL_API_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
@@ -78,7 +80,7 @@ async function sendEmail(to: string, subject: string, text: string, href: string
       to: [to],
       subject,
       text: `${text}\n\n${href}\n\nSi no solicitaste este mensaje, puedes ignorarlo.`,
-      html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1b1b1b"><h1 style="color:#f28c00">Mesora</h1><p>${escapeHtml(text)}</p><p><a href="${safeHref}" style="display:inline-block;background:#f28c00;color:#111;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Continuar</a></p><p style="font-size:12px;color:#666">Si no solicitaste este mensaje, puedes ignorarlo.</p></div>`,
+      html: `<table role="presentation" style="font-family:Arial,sans-serif;width:100%;max-width:560px;margin:auto;border-collapse:collapse;color:#1b1b1b"><tr><td style="padding:18px 22px;background:#111318"><img src="${logoUrl}" width="40" height="40" alt="" style="display:inline-block;vertical-align:middle;border:0"><span style="padding-left:10px;color:#fff;font-size:22px;font-weight:bold;vertical-align:middle">Mesora</span></td></tr><tr><td style="padding:24px 22px;background:#fff"><p style="line-height:1.5">${escapeHtml(text)}</p><p><a href="${safeHref}" style="display:inline-block;background:#ff9500;color:#111318;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Continuar</a></p><p style="font-size:12px;color:#666">Si no solicitaste este mensaje, puedes ignorarlo.</p></td></tr></table>`,
     }),
   })
   await response.body?.cancel()
@@ -133,6 +135,7 @@ async function requestReset(req: Request, admin: ReturnType<typeof client>, body
   try {
     profile = await profileByEmail(admin, email)
   } catch {
+    await recordSystemIncident('admin-password-recovery', 'profile_lookup_failed')
     return json(req, 503, { error: 'No se pudo procesar la solicitud. Intenta más tarde.' })
   }
 
@@ -145,6 +148,7 @@ async function requestReset(req: Request, admin: ReturnType<typeof client>, body
     p_usuario_id: profile.id,
     p_accion: 'recuperar_password',
   })
+  if (rateError) await recordSystemIncident('admin-password-recovery', 'rate_store_unavailable')
   if (rateError || !allowed) return json(req, 200, { message: GENERIC_RESET })
 
   if (profile.rol === 'admin_restaurante' && profile.correo_recuperacion_verificado && profile.correo_recuperacion) {
@@ -164,6 +168,7 @@ async function requestReset(req: Request, admin: ReturnType<typeof client>, body
       'Recibimos una solicitud para cambiar la contraseña de tu cuenta de administrador.',
       link,
     ).catch(() => false)
+    if (!sent) await recordSystemIncident('admin-password-recovery', 'recovery_email_failed')
     if (!sent) return json(req, 200, { message: GENERIC_RESET })
     return json(req, 200, { message: GENERIC_RESET })
   }
@@ -171,6 +176,7 @@ async function requestReset(req: Request, admin: ReturnType<typeof client>, body
   // Conserva el flujo estándar de Supabase mientras el administrador aún no
   // registra un correo alternativo verificado. Para otros roles no se envía.
   const sent = await sendLoginEmailReset(admin, profile).catch(() => false)
+  if (!sent) await recordSystemIncident('admin-password-recovery', 'recovery_email_failed')
   if (!sent) return json(req, 200, { message: GENERIC_RESET })
   return json(req, 200, { message: GENERIC_RESET })
 }
@@ -183,11 +189,13 @@ async function startEmailVerification(req: Request, admin: ReturnType<typeof cli
     return json(req, 400, { error: 'Ingresa un correo real y válido para recuperar tu cuenta.' })
   }
   if (!RESEND_KEY || !FROM_EMAIL) {
+    await recordSystemIncident('admin-password-recovery', 'verification_email_unconfigured')
     return json(req, 503, { error: 'La verificación por correo aún no está habilitada. Contacta al propietario de Mesora.' })
   }
 
   const { data: duplicate, error: duplicateError } = await admin
     .from('usuarios').select('id').eq('correo_recuperacion', email).neq('id', session.profile.id).maybeSingle()
+  if (duplicateError) await recordSystemIncident('admin-password-recovery', 'verification_lookup_failed')
   if (duplicateError) return json(req, 503, { error: 'No se pudo verificar el correo. Intenta más tarde.' })
   if (duplicate) return json(req, 409, { error: 'Ese correo ya está asociado a otra cuenta.' })
 
@@ -195,6 +203,7 @@ async function startEmailVerification(req: Request, admin: ReturnType<typeof cli
     p_usuario_id: session.profile.id,
     p_accion: 'verificar_correo',
   })
+  if (rateError) await recordSystemIncident('admin-password-recovery', 'rate_store_unavailable')
   if (rateError || !allowed) return json(req, 429, { error: 'Espera un minuto antes de solicitar otro enlace.' })
 
   const token = makeToken()
@@ -206,6 +215,7 @@ async function startEmailVerification(req: Request, admin: ReturnType<typeof cli
     p_token_hash: tokenHash,
     p_expira_en: expiry,
   })
+  if (storeError) await recordSystemIncident('admin-password-recovery', 'verification_store_failed')
   if (storeError) return json(req, 503, { error: 'No se pudo preparar la verificación. Intenta más tarde.' })
 
   // El fragmento no se envía al servidor web ni queda en logs HTTP del hosting.
@@ -216,6 +226,7 @@ async function startEmailVerification(req: Request, admin: ReturnType<typeof cli
     'Confirma que puedes recibir correos en esta dirección. El enlace vence en 30 minutos.',
     link,
   ).catch(() => false)
+  if (!sent) await recordSystemIncident('admin-password-recovery', 'verification_email_failed')
   if (!sent) return json(req, 503, { error: 'El correo de verificación no pudo enviarse. Contacta al propietario de Mesora.' })
   return json(req, 200, { message: 'Te enviamos un enlace. Ábrelo en este dispositivo para confirmar el correo.' })
 }
@@ -282,6 +293,7 @@ Deno.serve(async (req: Request) => {
       default: return json(req, 400, { error: 'Acción no válida.' })
     }
   } catch {
+    await recordSystemIncident('admin-password-recovery', 'unexpected_failure')
     return json(req, 500, { error: 'No se pudo completar la operación. Intenta de nuevo.' })
   }
 })

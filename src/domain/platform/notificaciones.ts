@@ -13,6 +13,7 @@ export type TipoAlerta =
   | 'restaurante_nuevo'
   | 'administrador_nuevo'
   | 'ticket_urgente'
+  | 'incidente_sistema'
 
 export type AlertaAdministrativa = {
   id: string
@@ -41,6 +42,7 @@ export type FuenteAlertas = {
 }
 
 const ORDEN_TIPO: Record<TipoAlerta, number> = {
+  incidente_sistema: 0,
   restaurante_vencido: 1,
   ticket_urgente: 1,
   restaurante_por_vencer: 2,
@@ -50,6 +52,7 @@ const ORDEN_TIPO: Record<TipoAlerta, number> = {
 }
 
 const etiquetaTipo: Record<TipoAlerta, string> = {
+  incidente_sistema: 'Incidencia del sistema',
   restaurante_vencido: 'Suscripción vencida',
   restaurante_por_vencer: 'Suscripción por vencer',
   restaurante_suspendido: 'Restaurante suspendido',
@@ -144,6 +147,8 @@ export function calcularAlertas(fuente: FuenteAlertas, ahora: Date = new Date())
 
 function prefijo(tipo: TipoAlerta): string {
   switch (tipo) {
+    case 'incidente_sistema':
+      return 'inc'
     case 'restaurante_vencido':
       return 'venc'
     case 'restaurante_por_vencer':

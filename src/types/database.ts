@@ -449,6 +449,11 @@ export interface Database {
         Args: Record<string, never>
         Returns: unknown
       }
+      /** Solo super admin. Incidencias operativas de los últimos siete días. */
+      mesora_system_alerts: {
+        Args: Record<string, never>
+        Returns: unknown
+      }
       crear_pedido: { Args: { p_restaurante_id: string; p_mesa_id: string; p_items: { producto_id: string; cantidad: number; nota?: string }[] }; Returns: string }
       abrir_turno_caja: { Args: { p_restaurante_id: string; p_usuario_id: string; p_monto_inicial: number }; Returns: string }
       cerrar_turno_caja: {

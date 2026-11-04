@@ -1128,9 +1128,13 @@ const realApi: DataApi = {
   },
   // --------------------------------------------------- Notificaciones (real)
   async getAlertas() {
-    const { data, error } = await supabase.rpc('admin_alertas')
-    if (error) return { data: null, error: error.message }
-    return { data: (data ?? []) as AlertaAdministrativa[], error: null }
+    const [administrativas, sistema] = await Promise.all([
+      supabase.rpc('admin_alertas'),
+      supabase.rpc('mesora_system_alerts'),
+    ])
+    if (administrativas.error) return { data: null, error: administrativas.error.message }
+    if (sistema.error) return { data: null, error: sistema.error.message }
+    return { data: [...((sistema.data ?? []) as AlertaAdministrativa[]), ...((administrativas.data ?? []) as AlertaAdministrativa[])], error: null }
   },
   // --------------------------------------------------- Configuración (real)
   async getConfiguracionGlobal() {

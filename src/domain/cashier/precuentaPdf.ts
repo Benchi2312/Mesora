@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf'
 import { fmtFecha, fmtPEN } from '../../lib/format'
 import type { Precuenta } from './precuenta'
+import simboloMesoraPrint from '../../assets/simbolo-mesora-print.png?inline'
 
 export function descargarPrecuentaPdf(precuenta: Precuenta, local: {
   nombre: string; direccion?: string | null; ruc?: string | null; telefono?: string | null
@@ -44,7 +45,13 @@ export function descargarPrecuentaPdf(precuenta: Precuenta, local: {
   texto('Propina no incluida. Verifica el consumo antes de pagar.', 8)
   texto('Importes al momento de emisión; nuevos pedidos pueden modificar el total.', 8)
   y += 4
-  texto('Generado con Mesora', 8, false, true)
+  if (y > alto - 15) { doc.addPage(); y = 15 }
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  const marca = 'Generado con Mesora'
+  const marcaX = ancho / 2 - (5 + 1.5 + doc.getTextWidth(marca)) / 2
+  doc.addImage(simboloMesoraPrint, 'PNG', marcaX, y - 4, 5, 5)
+  doc.text(marca, marcaX + 6.5, y)
   const mesa = precuenta.mesaNombre.replace(/[^a-z0-9_-]+/gi, '-').slice(0, 60)
   doc.save(`precuenta-${mesa}-${precuenta.fecha.slice(0, 10)}.pdf`)
 }

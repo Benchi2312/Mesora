@@ -12,7 +12,7 @@ try {
     create role service_role nologin bypassrls;
     create schema auth;
     grant usage on schema public, auth to anon, authenticated, service_role;
-    create table auth.users (id uuid primary key, email text, last_sign_in_at timestamptz, created_at timestamptz default now());
+    create table auth.users (id uuid primary key, email text, encrypted_password text, last_sign_in_at timestamptz, created_at timestamptz default now());
     create function auth.uid() returns uuid stable language sql as $$
       select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
     $$;
@@ -80,6 +80,8 @@ try {
     rollback;
   `)
   console.log('SQL QA: recuperación admin, permisos privados, límite y token de un solo uso aprobados')
+  await pg.exec(readFileSync(new URL('../supabase/qa/password_temporal_rollback.sql', import.meta.url), 'utf8'))
+  console.log('SQL QA: contraseña temporal confirmada solo tras cambio real en Auth')
   await pg.exec(readFileSync(new URL('../supabase/qa/seguridad_rpc_rollback.sql', import.meta.url), 'utf8'))
   console.log('SQL QA: permisos de anónimo, autenticado y servicio correctos')
   const pruebaPoliticas = readFileSync(new URL('../supabase/qa/politicas_catalogo_rollback.sql', import.meta.url), 'utf8')
@@ -89,6 +91,8 @@ try {
   assert.ok(pruebaPoliticas.includes('/* APLICAR_MIGRACION_RLS */'), 'Falta el punto de inyección de la migración RLS')
   await pg.exec(pruebaPoliticas.replace('/* APLICAR_MIGRACION_RLS */', migracionPoliticas))
   console.log('SQL QA: permisos RLS de catálogo, mesas y configuración global correctos')
+  await pg.exec(readFileSync(new URL('../supabase/qa/matriz_roles_rollback.sql', import.meta.url), 'utf8'))
+  console.log('SQL QA: matriz de roles y aislamiento entre restaurantes aprobados')
   await pg.exec(readFileSync(new URL('../supabase/qa/flujo_piloto_rollback.sql', import.meta.url), 'utf8'))
   console.log('SQL QA: circuito completo de restaurante y arqueo aprobado')
   await pg.exec(`
@@ -153,6 +157,8 @@ try {
     rollback;
   `)
   console.log('SQL QA: 1205 pedidos pendientes sin truncar el total')
+  await pg.exec(readFileSync(new URL('../supabase/qa/contacto_guardrails_rollback.sql', import.meta.url), 'utf8'))
+  console.log('SQL QA: cuotas de contacto, aislamiento privado e incidencias de superadmin aprobados')
   const copia = await pg.dumpDataDir('gzip')
   const restaurada = new PGlite({ extensions: { pgcrypto }, loadDataDir: copia })
   try {
