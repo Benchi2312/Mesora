@@ -101,7 +101,7 @@ export default function Precuenta({ mesa, onVolver }: {
             <footer className="space-y-2 border-t border-dashed border-zinc-300 pt-3 text-center text-xs">
               <p>Propina no incluida. Verifica el consumo antes de pagar.</p>
               <p>Importes al momento de emisión; nuevos pedidos pueden modificar el total.</p>
-              <p className="text-zinc-600">Generado con Mesora</p>
+              <p className="inline-flex items-center justify-center gap-1 text-zinc-600"><img src="/marca/simbolo-recibo.svg" alt="" className="h-6 w-6" />Generado con Mesora</p>
             </footer>
           </article>
           <div className="no-print flex flex-col gap-3 lg:sticky lg:top-20">

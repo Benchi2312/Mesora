@@ -12,4 +12,7 @@ están en el [kit de marca](./kit-mesora/README.md).
 
 La [propuesta anterior](./propuesta.html) se conserva como referencia histórica.
 La selección visual no constituye una búsqueda registral ni garantiza la
-disponibilidad de la marca.
+disponibilidad de la marca. La
+[revisión preliminar del nombre](./REVISION_PRELIMINAR_NOMBRE.md) encontró usos
+de «Mesora» en otros productos para restaurantes; conviene aclararlos antes
+de ampliar la promoción.

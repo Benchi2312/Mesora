@@ -18,14 +18,14 @@
 --   - Si algo falla, los comentarios de bloque indican donde revisar.
 --   - Generado por npm run sql:install. Edita los fuentes, no este archivo.
 --
--- Contenido: 28 archivos · sha256(cuerpo) = e770803429ed
--- Orden: 00_schema_base.sql → ../migrations/20261022120000_password_recovery.sql → ../migrations/20261103032730_admin_email_recovery.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql → ../migrations/20261031075708_reporte_ventas_dashboard.sql → ../migrations/20261029052901_datos_local_dominio.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql → ../migrations/20261030173318_seguridad_rpc_piloto.sql → ../migrations/20261030173320_consultas_pendientes_piloto.sql → ../migrations/20261030173503_diagnostico_piloto.sql → ../migrations/20261030173925_indice_mesas_zona.sql → ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
+-- Contenido: 30 archivos · sha256(cuerpo) = cd72e92ea98f
+-- Orden: 00_schema_base.sql → ../migrations/20261022120000_password_recovery.sql → ../migrations/20261103032730_admin_email_recovery.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql → ../migrations/20261031075708_reporte_ventas_dashboard.sql → ../migrations/20261029052901_datos_local_dominio.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql → ../migrations/20261030173318_seguridad_rpc_piloto.sql → ../migrations/20261030173320_consultas_pendientes_piloto.sql → ../migrations/20261030173503_diagnostico_piloto.sql → ../migrations/20261030173925_indice_mesas_zona.sql → ../migrations/20261102081247_acotar_politicas_rls_piloto.sql → ../migrations/20261104065434_contacto_guardrails_incidentes.sql → ../migrations/20261104065733_confirmar_password_auth_trigger.sql
 -- =============================================================================
 
 
 
 -- #############################################################################
--- # 1/28 · 00_schema_base.sql
+-- # 1/30 · 00_schema_base.sql
 -- #############################################################################
 
 -- -- Mesora: schema base para instalaciones NUEVAS.
@@ -197,7 +197,7 @@ $$;
 
 
 -- #############################################################################
--- # 2/28 · ../migrations/20261022120000_password_recovery.sql
+-- # 2/30 · ../migrations/20261022120000_password_recovery.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -276,7 +276,7 @@ grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
--- # 3/28 · ../migrations/20261103032730_admin_email_recovery.sql
+-- # 3/30 · ../migrations/20261103032730_admin_email_recovery.sql
 -- #############################################################################
 
 -- -- Recuperación por correo verificado para administradores de restaurante.
@@ -433,7 +433,7 @@ comment on table private.admin_recovery_rate_limits is 'Límites por usuario par
 
 
 -- #############################################################################
--- # 4/28 · 00_seguridad_rpcs.sql
+-- # 4/30 · 00_seguridad_rpcs.sql
 -- #############################################################################
 
 -- -- Mesora · Control de acceso en el SERVIDOR (ejecutar tras 00_schema_base.sql).
@@ -544,7 +544,7 @@ grant execute on function public.validar_acceso_restaurante(uuid) to authenticat
 
 
 -- #############################################################################
--- # 5/28 · migracion_items_anulables.sql
+-- # 5/30 · migracion_items_anulables.sql
 -- #############################################################################
 
 -- -- Mesora · Edición y anulación de ítems de una comanda.
@@ -891,7 +891,7 @@ $$;
 
 
 -- #############################################################################
--- # 6/28 · migracion_productos_es_bebida.sql
+-- # 6/30 · migracion_productos_es_bebida.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -930,7 +930,7 @@ select r.nombre as restaurante,
 
 
 -- #############################################################################
--- # 7/28 · ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql
+-- # 7/30 · ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql
 -- #############################################################################
 
 -- -- Conserva la clasificación de cocina/barra al momento de vender y entrega
@@ -1086,7 +1086,7 @@ grant execute on function public.reporte_ventas_restaurante(uuid, timestamptz, t
 
 
 -- #############################################################################
--- # 8/28 · ../migrations/20261031075708_reporte_ventas_dashboard.sql
+-- # 8/30 · ../migrations/20261031075708_reporte_ventas_dashboard.sql
 -- #############################################################################
 
 -- -- Conserva la clasificación de cocina/barra al momento de vender y entrega
@@ -1273,7 +1273,7 @@ grant execute on function public.reporte_ventas_restaurante(uuid, timestamptz, t
 
 
 -- #############################################################################
--- # 9/28 · ../migrations/20261029052901_datos_local_dominio.sql
+-- # 9/30 · ../migrations/20261029052901_datos_local_dominio.sql
 -- #############################################################################
 
 -- -- Datos del local: dominio opcional para identificar al personal.
@@ -1309,7 +1309,7 @@ grant update (dominio) on public.restaurantes to authenticated;
 
 
 -- #############################################################################
--- # 10/28 · pin_autorizacion.sql
+-- # 10/30 · pin_autorizacion.sql
 -- #############################################################################
 
 -- -- Mesora · PIN de autorización + anulación de cobros.
@@ -1569,7 +1569,7 @@ $$;
 
 
 -- #############################################################################
--- # 11/28 · rpc_crear_pedido.sql
+-- # 11/30 · rpc_crear_pedido.sql
 -- #############################################################################
 
 -- -- Mesora · RPC: crear pedido (comanda) de forma atómica.
@@ -1700,7 +1700,7 @@ $$;
 
 
 -- #############################################################################
--- # 12/28 · rpc_cerrar_cuenta.sql
+-- # 12/30 · rpc_cerrar_cuenta.sql
 -- #############################################################################
 
 -- -- Mesora · RPC: cerrar cuenta y registrar el pago en una sola transacción.
@@ -2023,7 +2023,7 @@ $$;
 
 
 -- #############################################################################
--- # 13/28 · rpc_anular_cuenta.sql
+-- # 13/30 · rpc_anular_cuenta.sql
 -- #############################################################################
 
 -- -- Mesora · Anulación de cobros (void de una boleta ya emitida).
@@ -2239,7 +2239,7 @@ comment on function public.anular_cuenta(uuid, uuid, text, text) is
 
 
 -- #############################################################################
--- # 14/28 · caja_turnos.sql
+-- # 14/30 · caja_turnos.sql
 -- #############################################################################
 
 -- -- Mesora · Caja por turnos: tabla `caja_turnos` + RPC de apertura y cierre.
@@ -2535,7 +2535,7 @@ $$;
 
 
 -- #############################################################################
--- # 15/28 · 01_rls_completo.sql
+-- # 15/30 · 01_rls_completo.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3436,7 +3436,7 @@ select c.relname as tabla,
 
 
 -- #############################################################################
--- # 16/28 · admin_super_restaurante.sql
+-- # 16/30 · admin_super_restaurante.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3643,7 +3643,7 @@ select a.attname as columna,
 
 
 -- #############################################################################
--- # 17/28 · usuarios_super_admin.sql
+-- # 17/30 · usuarios_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3870,7 +3870,7 @@ select c.relname as tabla,
 
 
 -- #############################################################################
--- # 18/28 · estadisticas_super_admin.sql
+-- # 18/30 · estadisticas_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4088,7 +4088,7 @@ select p.proname,
 
 
 -- #############################################################################
--- # 19/28 · soporte.sql
+-- # 19/30 · soporte.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4222,7 +4222,7 @@ select
 
 
 -- #############################################################################
--- # 20/28 · suscripciones_super_admin.sql
+-- # 20/30 · suscripciones_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4637,7 +4637,7 @@ select
 
 
 -- #############################################################################
--- # 21/28 · auditoria.sql
+-- # 21/30 · auditoria.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4994,7 +4994,7 @@ select
 
 
 -- #############################################################################
--- # 22/28 · configuracion_global.sql
+-- # 22/30 · configuracion_global.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -5282,7 +5282,7 @@ select
 
 
 -- #############################################################################
--- # 23/28 · seguridad_piloto.sql
+-- # 23/30 · seguridad_piloto.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -5419,7 +5419,7 @@ grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
--- # 24/28 · ../migrations/20261030173318_seguridad_rpc_piloto.sql
+-- # 24/30 · ../migrations/20261030173318_seguridad_rpc_piloto.sql
 -- #############################################################################
 
 -- -- Cierra la API de funciones a anónimos y preserva el acceso autenticado real.
@@ -5462,7 +5462,7 @@ alter default privileges in schema public revoke execute on functions from publi
 
 
 -- #############################################################################
--- # 25/28 · ../migrations/20261030173320_consultas_pendientes_piloto.sql
+-- # 25/30 · ../migrations/20261030173320_consultas_pendientes_piloto.sql
 -- #############################################################################
 
 -- -- Consultas acotadas a lo pendiente. JSON evita truncar el agregado por el
@@ -5554,7 +5554,7 @@ $$;
 
 
 -- #############################################################################
--- # 26/28 · ../migrations/20261030173503_diagnostico_piloto.sql
+-- # 26/30 · ../migrations/20261030173503_diagnostico_piloto.sql
 -- #############################################################################
 
 -- -- Diagnóstico mínimo: únicamente categorías y rutas normalizadas, sin mensajes,
@@ -5580,7 +5580,7 @@ grant execute on function public.registrar_error_cliente(text,text,text) to auth
 
 
 -- #############################################################################
--- # 27/28 · ../migrations/20261030173925_indice_mesas_zona.sql
+-- # 27/30 · ../migrations/20261030173925_indice_mesas_zona.sql
 -- #############################################################################
 
 -- -- Cubre también la FK compuesta que garantiza zona y mesa del mismo local.
@@ -5588,7 +5588,7 @@ create index if not exists idx_mesas_zona_restaurante on public.mesas(zona_id, r
 
 
 -- #############################################################################
--- # 28/28 · ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
+-- # 28/30 · ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
 -- #############################################################################
 
 -- -- Acota las políticas de catálogo/mesas a usuarios autenticados y separa
@@ -5699,3 +5699,365 @@ grant select (precio_plan_mensual, correo_soporte, telefono_soporte)
   on public.configuracion_global to anon;
 
 commit;
+
+
+-- #############################################################################
+-- # 29/30 · ../migrations/20261104065434_contacto_guardrails_incidentes.sql
+-- #############################################################################
+
+-- -- Protección del contacto comercial y registro de fallos operativos.
+-- Las tablas privadas solo guardan huellas SHA-256 y códigos de fallo; no
+-- contienen correos, direcciones IP ni contenido de consultas.
+
+create schema if not exists private;
+
+create table if not exists private.mesora_contact_limits (
+  bucket text primary key,
+  attempts integer not null default 0 check (attempts >= 0),
+  expires_at timestamptz not null
+);
+create index if not exists mesora_contact_limits_expires_idx
+  on private.mesora_contact_limits (expires_at);
+alter table private.mesora_contact_limits enable row level security;
+revoke all on private.mesora_contact_limits from public, anon, authenticated;
+
+create table if not exists private.mesora_system_incidents (
+  id bigint generated always as identity primary key,
+  source text not null,
+  code text not null,
+  day date not null,
+  occurrences integer not null default 1 check (occurrences > 0),
+  first_seen timestamptz not null default now(),
+  last_seen timestamptz not null default now(),
+  unique (source, code, day)
+);
+create index if not exists mesora_system_incidents_last_seen_idx
+  on private.mesora_system_incidents (last_seen desc);
+alter table private.mesora_system_incidents enable row level security;
+revoke all on private.mesora_system_incidents from public, anon, authenticated;
+
+-- Un bloqueo transaccional serializa las solicitudes concurrentes para que
+-- ninguna pueda superar los contadores al leerlos simultáneamente.
+create or replace function public.mesora_contact_can_send(
+  p_email_hash text,
+  p_ip_hash text
+) returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_now timestamptz := clock_timestamp();
+  v_day text := to_char(v_now at time zone 'UTC', 'YYYYMMDD');
+  v_hour text := to_char(v_now at time zone 'UTC', 'YYYYMMDDHH24');
+  v_global text := 'global:' || v_day;
+  v_email text := 'email:' || p_email_hash || ':' || v_day;
+  v_ip text := case when p_ip_hash is null then null else 'ip:' || p_ip_hash || ':' || v_hour end;
+  v_attempts integer;
+  v_limit_code text;
+begin
+  if p_email_hash is null or p_email_hash !~ '^[0-9a-f]{64}$'
+     or (p_ip_hash is not null and p_ip_hash !~ '^[0-9a-f]{64}$') then
+    raise exception 'Huella inválida' using errcode = '22023';
+  end if;
+
+  perform pg_catalog.pg_advisory_xact_lock(511407070041::bigint);
+  delete from private.mesora_contact_limits where expires_at < v_now;
+
+  select attempts into v_attempts from private.mesora_contact_limits where bucket = v_global;
+  if coalesce(v_attempts, 0) >= 50 then
+    v_limit_code := 'contact_global_limit_reached';
+  end if;
+  if v_limit_code is null then
+    select attempts into v_attempts from private.mesora_contact_limits where bucket = v_email;
+    if coalesce(v_attempts, 0) >= 3 then v_limit_code := 'contact_rate_limited'; end if;
+  end if;
+  if v_limit_code is null and v_ip is not null then
+    select attempts into v_attempts from private.mesora_contact_limits where bucket = v_ip;
+    if coalesce(v_attempts, 0) >= 10 then v_limit_code := 'contact_rate_limited'; end if;
+  end if;
+  if v_limit_code is not null then
+    -- Una sola incidencia por categoría y día; las denegaciones posteriores
+    -- no disparan otro RPC ni crean una fila por petición abusiva.
+    insert into private.mesora_system_incidents
+      (source, code, day, occurrences, first_seen, last_seen)
+    values
+      ('contacto-comercial', v_limit_code, (v_now at time zone 'UTC')::date, 1, v_now, v_now)
+    on conflict (source, code, day) do nothing;
+    return false;
+  end if;
+
+  insert into private.mesora_contact_limits as lim (bucket, attempts, expires_at)
+  values (v_global, 1, v_now + interval '2 days'),
+         (v_email, 1, v_now + interval '2 days')
+  on conflict (bucket) do update set attempts = lim.attempts + 1;
+  if v_ip is not null then
+    insert into private.mesora_contact_limits as lim (bucket, attempts, expires_at)
+    values (v_ip, 1, v_now + interval '2 hours')
+    on conflict (bucket) do update set attempts = lim.attempts + 1;
+  end if;
+  return true;
+end;
+$$;
+
+revoke all on function public.mesora_contact_can_send(text, text) from public, anon, authenticated;
+grant execute on function public.mesora_contact_can_send(text, text) to service_role;
+
+create or replace function public.mesora_record_incident(
+  p_source text,
+  p_code text
+) returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if p_source not in ('contacto-comercial', 'admin-password-recovery', 'crear-restaurante')
+     or p_code is null or p_code !~ '^[a-z0-9_]{3,60}$' then
+    raise exception 'Código de incidente inválido' using errcode = '22023';
+  end if;
+
+  insert into private.mesora_system_incidents as inc
+    (source, code, day, occurrences, first_seen, last_seen)
+  values
+    (p_source, p_code, (clock_timestamp() at time zone 'UTC')::date, 1, clock_timestamp(), clock_timestamp())
+  on conflict (source, code, day) do update
+     set occurrences = inc.occurrences + 1,
+         last_seen = clock_timestamp();
+end;
+$$;
+
+revoke all on function public.mesora_record_incident(text, text) from public, anon, authenticated;
+grant execute on function public.mesora_record_incident(text, text) to service_role;
+
+-- Solo el propietario ve las incidencias. No se muestran PII ni excepciones.
+create or replace function public.mesora_system_alerts()
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_result jsonb;
+begin
+  if not (select public.soy_super_admin()) then
+    raise exception 'Solo el super administrador puede ver las incidencias.' using errcode = '42501';
+  end if;
+
+  select coalesce(pg_catalog.jsonb_agg(
+    pg_catalog.jsonb_build_object(
+      'id', 'inc-' || id,
+      'tipo', 'incidente_sistema',
+      'nivel', case when code in ('contact_rate_limited', 'contact_global_limit_reached')
+        then 'advertencia' else 'critico' end,
+      'titulo', case source
+        when 'contacto-comercial' then case when code in ('contact_rate_limited', 'contact_global_limit_reached')
+          then 'Límite de consultas alcanzado' else 'Fallo en el contacto comercial' end
+        when 'admin-password-recovery' then 'Fallo en la recuperación de acceso'
+        else 'Fallo en el alta de restaurante' end,
+      'detalle', 'Código ' || code || ' · ' || occurrences || ' intento(s) en el día.',
+      'fecha', last_seen,
+      'restaurante_id', null,
+      'restaurante_nombre', null,
+      'referencia_id', null
+    ) order by last_seen desc
+  ), '[]'::jsonb) into v_result
+  from (
+    select id, source, code, occurrences, last_seen
+    from private.mesora_system_incidents
+    where last_seen >= clock_timestamp() - interval '7 days'
+    order by last_seen desc
+    limit 30
+  ) recent;
+
+  return v_result;
+end;
+$$;
+
+revoke all on function public.mesora_system_alerts() from public, anon;
+grant execute on function public.mesora_system_alerts() to authenticated;
+
+
+-- #############################################################################
+-- # 30/30 · ../migrations/20261104065733_confirmar_password_auth_trigger.sql
+-- #############################################################################
+
+-- -- Solo una contrasena cambiada en Supabase Auth puede desmarcar la clave temporal.
+-- Se guarda una huella del hash de Auth cuando se activa la obligacion; la huella
+-- no sirve para iniciar sesion y vive fuera del esquema expuesto.
+
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+
+create table if not exists private.password_temporal_huellas (
+  usuario_id uuid primary key references public.usuarios(id) on delete cascade,
+  huella_auth text,
+  marcada_at timestamptz not null default now(),
+  reset_en_curso boolean not null default false,
+  constraint password_temporal_huella_largo check (huella_auth is null or length(huella_auth) = 64)
+);
+alter table private.password_temporal_huellas enable row level security;
+revoke all on table private.password_temporal_huellas from public, anon, authenticated;
+
+-- Cuando el servidor marca debe_cambiar_password, captura la version actual
+-- del hash de Auth. Un cliente no puede leer ni alterar esta tabla privada.
+create or replace function private.mesora_registrar_password_temporal()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public, private, auth, extensions, pg_temp
+as $$
+declare
+  v_hash text;
+begin
+  if new.debe_cambiar_password then
+    select au.encrypted_password into v_hash
+      from auth.users au where au.id = new.id;
+    if not found then
+      raise exception 'No se encontro la identidad de Auth del usuario';
+    end if;
+    insert into private.password_temporal_huellas(usuario_id, huella_auth, marcada_at)
+      values (new.id, case when v_hash is null then null
+                           else encode(extensions.digest(v_hash, 'sha256'), 'hex') end, now())
+      on conflict (usuario_id) do update
+        set huella_auth = excluded.huella_auth,
+            marcada_at = excluded.marcada_at;
+  else
+    delete from private.password_temporal_huellas where usuario_id = new.id;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function private.mesora_registrar_password_temporal() from public, anon, authenticated;
+
+drop trigger if exists usuarios_password_temporal_huella on public.usuarios;
+create trigger usuarios_password_temporal_huella
+  after insert or update of debe_cambiar_password on public.usuarios
+  for each row execute function private.mesora_registrar_password_temporal();
+
+-- Usuarios que ya estaban obligados antes de instalar esta migracion.
+insert into private.password_temporal_huellas(usuario_id, huella_auth)
+select u.id,
+       case when au.encrypted_password is null then null
+            else encode(extensions.digest(au.encrypted_password, 'sha256'), 'hex') end
+  from public.usuarios u
+  join auth.users au on au.id = u.id
+ where u.debe_cambiar_password
+on conflict (usuario_id) do update
+  set huella_auth = excluded.huella_auth,
+      marcada_at = now();
+
+-- El reset administrativo ocurre en dos servicios distintos (PostgREST y
+-- Supabase Auth). El marcador impide que el nuevo hash de la clave temporal se
+-- confunda con el cambio personal del trabajador entre ambas operaciones.
+create or replace function public.mesora_preparar_reset_password_personal(p_usuario_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = pg_catalog, public, private, auth, extensions, pg_temp
+as $$
+begin
+  if not exists (
+    select 1 from public.usuarios u
+     where u.id = p_usuario_id and u.rol in ('mesero', 'cocina', 'cajero')
+     for update
+  ) then
+    raise exception 'No se encontro al trabajador para restablecer';
+  end if;
+
+  update public.usuarios set debe_cambiar_password = true where id = p_usuario_id;
+  update private.password_temporal_huellas
+     set reset_en_curso = true
+   where usuario_id = p_usuario_id;
+end;
+$$;
+
+create or replace function public.mesora_finalizar_reset_password_personal(p_usuario_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = pg_catalog, public, private, auth, extensions, pg_temp
+as $$
+declare
+  v_huella_anterior text;
+  v_huella_actual text;
+  v_en_curso boolean;
+begin
+  select h.huella_auth, h.reset_en_curso
+    into v_huella_anterior, v_en_curso
+    from private.password_temporal_huellas h
+   where h.usuario_id = p_usuario_id for update;
+  if not found or not v_en_curso then
+    raise exception 'No hay un restablecimiento de personal en curso';
+  end if;
+  select case when au.encrypted_password is null then null
+              else encode(extensions.digest(au.encrypted_password, 'sha256'), 'hex') end
+    into v_huella_actual
+    from auth.users au where au.id = p_usuario_id;
+  if not found or v_huella_actual is null
+     or v_huella_actual is not distinct from v_huella_anterior then
+    raise exception 'Auth aun no actualizo la contrasena temporal';
+  end if;
+
+  -- El trigger reemplaza la huella vieja por la nueva; el marcador permanece
+  -- activo hasta la siguiente instruccion, dentro de esta misma transaccion.
+  update public.usuarios set debe_cambiar_password = true where id = p_usuario_id;
+  update private.password_temporal_huellas
+     set reset_en_curso = false
+   where usuario_id = p_usuario_id;
+end;
+$$;
+
+revoke all on function public.mesora_preparar_reset_password_personal(uuid) from public, anon, authenticated;
+revoke all on function public.mesora_finalizar_reset_password_personal(uuid) from public, anon, authenticated;
+grant execute on function public.mesora_preparar_reset_password_personal(uuid) to service_role;
+grant execute on function public.mesora_finalizar_reset_password_personal(uuid) to service_role;
+
+-- La RPC conserva su firma para la app, pero ahora compara con Auth antes de
+-- levantar la obligacion. Ni un request directo a /rpc puede confirmarla sin
+-- que la contrasena en Auth haya cambiado desde el ultimo reset administrativo.
+create or replace function public.confirmar_cambio_password()
+returns void
+language plpgsql
+security definer
+set search_path = pg_catalog, public, private, auth, extensions, pg_temp
+as $$
+declare
+  v_debe_cambiar boolean;
+  v_huella_anterior text;
+  v_huella_actual text;
+  v_en_curso boolean;
+begin
+  if auth.uid() is null then
+    raise exception 'Se requiere una sesion valida';
+  end if;
+
+  select u.debe_cambiar_password into v_debe_cambiar
+    from public.usuarios u where u.id = auth.uid() for update;
+  if not found then
+    raise exception 'No se encontro el perfil del usuario';
+  end if;
+  if not v_debe_cambiar then return; end if;
+
+  select h.huella_auth, h.reset_en_curso into v_huella_anterior, v_en_curso
+    from private.password_temporal_huellas h where h.usuario_id = auth.uid();
+  if not found then
+    raise exception 'Falta el registro del cambio obligatorio de contrasena';
+  end if;
+  if v_en_curso then
+    raise exception 'El restablecimiento administrativo sigue en curso';
+  end if;
+  select case when au.encrypted_password is null then null
+              else encode(extensions.digest(au.encrypted_password, 'sha256'), 'hex') end
+    into v_huella_actual
+    from auth.users au where au.id = auth.uid();
+  if not found or v_huella_actual is null
+     or v_huella_actual is not distinct from v_huella_anterior then
+    raise exception 'Primero cambia tu contrasena en Supabase Auth';
+  end if;
+
+  update public.usuarios set debe_cambiar_password = false where id = auth.uid();
+end;
+$$;
+revoke all on function public.confirmar_cambio_password() from public, anon;
+grant execute on function public.confirmar_cambio_password() to authenticated;

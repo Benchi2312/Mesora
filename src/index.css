@@ -184,6 +184,10 @@ body {
   }
 }
 
+.marca-recibo-oscuro {
+  filter: invert(1);
+}
+
 @media print {
   body * {
     visibility: hidden;
@@ -191,13 +195,22 @@ body {
   .boleta-print,
   .boleta-print * {
     visibility: visible;
+    color: #18181b !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-color: #52525b !important;
   }
   .boleta-print {
     position: absolute;
     left: 0;
     top: 0;
+    width: 100%;
+    max-width: 80mm;
     margin: 0;
-    box-shadow: none;
+    background: #fff !important;
+  }
+  .marca-recibo-oscuro {
+    filter: none !important;
   }
 
   .precuenta-print,

@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
     if (!cuerpo) return json({ error: 'Cuerpo inválido.' }, 400)
 
     const trabajadorId = texto(cuerpo.trabajador_id, 64)
-    if (!trabajadorId) return json({ error: 'Falta el trabajador a resetting.' }, 400)
+    if (!trabajadorId) return json({ error: 'Falta indicar el trabajador.' }, 400)
 
     const { data: trabajador } = await servicio
       .from('usuarios')
@@ -136,16 +136,23 @@ Deno.serve(async (req) => {
       )
     }
 
-    // 5 — Contraseña nueva + cierre de las sesiones activas del trabajador.
+    // 5 — Bloquear el acceso antes de actualizar Auth. Mientras el reset está
+    // en curso, el trabajador no puede confirmar el cambio con una llamada RPC.
     const password = generarPasswordTemporal(12)
+    const { error: errPreparar } = await servicio.rpc('mesora_preparar_reset_password_personal', {
+      p_usuario_id: trabajador.id,
+    })
+    if (errPreparar) {
+      return json({ error: `No se pudo preparar el restablecimiento: ${errPreparar.message}` }, 500)
+    }
 
     const { error: errAuth } = await servicio.auth.admin.updateUserById(trabajador.id, {
       password,
     })
     if (errAuth) {
       return json(
-        { error: `No se pudo cambiar la contraseña: ${errAuth.message ?? 'error desconocido'}` },
-        400,
+        { error: `No se pudo cambiar la contraseña: ${errAuth.message ?? 'error desconocido'}. Reintenta el restablecimiento; la cuenta sigue protegida.` },
+        500,
       )
     }
 
@@ -158,15 +165,15 @@ Deno.serve(async (req) => {
       // Sin sesiones revocadas: el usuario puede tener que volver a entrar.
     }
 
-    // 6 — Queda marcado para cambiar la contraseña al entrar.
-    const { error: errFlag } = await servicio
-      .from('usuarios')
-      .update({ debe_cambiar_password: true })
-      .eq('id', trabajador.id)
+    // 6 — Guardar la huella de la nueva clave temporal y desbloquear la
+    // confirmación personal en una sola transacción SQL.
+    const { error: errFlag } = await servicio.rpc('mesora_finalizar_reset_password_personal', {
+      p_usuario_id: trabajador.id,
+    })
     if (errFlag) {
       return json(
         {
-          error: `La contraseña se restableció, pero no se pudo marcar el cambio obligatorio: ${errFlag.message}`,
+          error: `La contraseña se restableció, pero no se pudo finalizar el cambio obligatorio: ${errFlag.message}. Reintenta el restablecimiento.`,
           password_temporal: password,
         },
         500,

@@ -18,6 +18,7 @@ import { numeroBoletaDeCuenta } from '../../domain/cashier/boleta'
 import { estadoPedidoLabel, fmtFecha, fmtPEN } from '../../lib/format'
 import { Spinner } from '../../components/LoadingScreen'
 import Precuenta from '../../components/Precuenta'
+import simboloMesoraPrint from '../../assets/simbolo-mesora-print.png?inline'
 
 const TASA_IGV = 0.18
 
@@ -734,7 +735,10 @@ function descargarBoletaPdf(params: {
   // --- Pie
   doc.text(texto('Gracias por su preferencia', 9.5, 'bold'), cX, y, { align: 'center' })
   y += 5
-  doc.text(texto('Generado con Mesora', 7.5), cX, y, { align: 'center' })
+  const marca = texto('Generado con Mesora', 7.5)
+  const marcaX = cX - (5 + 1.5 + doc.getTextWidth(marca)) / 2
+  doc.addImage(simboloMesoraPrint, 'PNG', marcaX, y - 4, 5, 5)
+  doc.text(marca, marcaX + 6.5, y)
 
   doc.save(nombreArchivoBoleta(mesa, fechaIso))
 }
@@ -880,7 +884,7 @@ function Boleta({
         {/* Pie */}
         <div className="border-t border-dashed border-surface-700 p-4 text-center text-xs">
           <p className="font-medium text-zinc-300">Gracias por su preferencia</p>
-          <p className="mt-1 text-[10px] text-zinc-600">Generado con Mesora</p>
+          <p className="mt-1 inline-flex items-center justify-center gap-1 text-[10px] text-zinc-500"><img src="/marca/simbolo-recibo.svg" alt="" className="marca-recibo-oscuro h-6 w-6" />Generado con Mesora</p>
         </div>
       </div>
 

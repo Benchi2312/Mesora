@@ -122,7 +122,8 @@ Esto no elimina registros anteriores del proveedor.
    aislado para ensayos persistentes. Verificar Auth en la URL exacta.
 3. La integración de recuperación del administrador ya está desplegada y la
    redirección de Auth apunta a la URL oficial. SMTP está configurado y el
-   superadmin recuperó el acceso; falta probar el admin del restaurante. El
+   superadmin recuperó el acceso y el propietario confirmó el cambio de
+   contraseña del admin del restaurante. El
    correo alternativo requiere secretos de Resend y prueba propia. Integrar a
    `main` después de CI aprobada; Vercel detecta el push y publica automáticamente.
    CI y despliegue son comprobaciones separadas. Mantener visibles los pendientes

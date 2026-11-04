@@ -374,10 +374,10 @@ Implementado. Última verificación registrada (`npm run verificar`: 510 checks;
 - **Modo local** (solo desarrollo, activación explícita con VITE_MESORA_MODO_LOCAL=true): login y roles simulados sobre un dataset de prueba, persistencia en localStorage y botón de reset en /login. Sin esa variable, la app falla cerrada si Supabase no está configurado.
 - **Modo demo** (`/demo`): las 4 vistas sin login, con recorrido guiado que escribe por ti ("Hazlo por mí"), persistencia en `localStorage` y botón para vaciarlo.
 - **Rendimiento**: code-splitting por ruta; la landing y el login no descargan el panel.
-- **Instalador generado**: `supabase/TODO_EN_UNO.sql` (28 piezas SQL ordenadas, 19 tablas con RLS y grants). Instalación vacía, restauración aislada, políticas y recuperación del administrador verificadas con `npm run verificar:sql`.
+- **Instalador generado**: `supabase/TODO_EN_UNO.sql` (30 piezas SQL ordenadas, 19 tablas operativas con RLS y grants). Instalación vacía, restauración aislada, políticas, recuperación y controles de acceso verificados con `npm run verificar:sql`.
 - **Seguridad del piloto**: funciones de negocio sin EXECUTE anónimo, search_path fijo, registro público desactivado y contraseña mínima de ocho caracteres en el proyecto revisado.
 - **Revisión RLS (2 nov 2026)**: la migración aplicada limita la configuración global al superadmin y deja públicos solo el precio y el contacto que muestra la landing; también separa políticas de catálogo/mesas. Ver [informe de seguridad](./docs/REVISION_SEGURIDAD_SUPABASE.md).
-- **Diagnóstico**: categorías de API/render/JavaScript/promesas en logs PostgreSQL, sin mensajes originales, PIN ni tokens. Requiere sesión; límite por pestaña de 20 intentos/10 minutos y deduplicación de 60 segundos. Desactivar con `VITE_MESORA_DIAGNOSTICO=false` y reconstruir. No incluye alertas automáticas.
+- **Diagnóstico**: categorías de API/render/JavaScript/promesas en logs PostgreSQL, sin mensajes originales, PIN ni tokens. Requiere sesión; límite por pestaña de 20 intentos/10 minutos y deduplicación de 60 segundos. Desactivar con `VITE_MESORA_DIAGNOSTICO=false` y reconstruir. Los fallos de funciones y correo generan incidentes resumidos en Notificaciones del superadministrador; requieren abrir el panel, sin aviso externo automático.
 
 Todo el acceso a datos pasa por `getApi()` (capa real/local/mock), por lo que las
 vistas funcionan igual en los tres modos. Las reglas de negocio están
@@ -390,14 +390,15 @@ de forma coherente; las suites locales y SQL cubren los circuitos principales.
 - Completar la aceptación punta a punta en el local con cuentas de prueba: cuentas por
   rol, pedidos y cocina, cobros/anulación con PIN, arqueo, impresora y dos
   dispositivos. La batería local no sustituye la aceptación presencial; por decisión del propietario no se creó staging de pago.
-- Probar la recuperación con el correo real de acceso del administrador del
-  restaurante. Si se habilita un correo alternativo, configurar y probar
-  Resend y verificar ese correo antes de depender de él.
-- Confirmar la recepción en el buzón comercial: la función ya obtuvo HTTP 200
-  con `ok: true` al enviar una consulta de prueba. Esto acredita aceptación por
-  Resend; aún falta confirmar Recibidos/Spam. Ver [contacto](./docs/CONTACTO_COMERCIAL.md).
+- La recuperación con el correo real del administrador del restaurante y la
+  recepción del formulario comercial fueron confirmadas por el propietario.
+  Si se habilita un correo alternativo, configurar y probar Resend y verificar
+  ese correo antes de depender de él. Ver [contacto](./docs/CONTACTO_COMERCIAL.md).
 - Acordar responsable, monitoreo y operación ante cortes de red.
 - Actualizar el video promocional con capturas de esta versión después de la aceptación del primer turno.
+- Aclarar las coincidencias del nombre «Mesora» en otros productos de
+  restaurantes antes de ampliar la promoción; ver la
+  [revisión preliminar de marca](./docs/marca/REVISION_PRELIMINAR_NOMBRE.md).
 ## Integración continua
 
 GitHub Actions ejecuta `npm ci`, `npm run sql:install`, `npm run verificar:sql`, `npm run verificar`,

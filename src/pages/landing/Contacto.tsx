@@ -40,7 +40,7 @@ export default function Contacto() {
       if (error || !data?.ok) throw error ?? new Error('No se pudo enviar la consulta.')
       setEnviado(true)
       formElement.reset()
-    } catch {
+    } catch (fallo) {
       const asunto = `Demostración de Mesora — ${form.get('restaurante')}`
       const cuerpo = [
         `Nombre: ${form.get('nombre')}`,
@@ -49,7 +49,10 @@ export default function Contacto() {
         '',
         String(form.get('mensaje') || 'Quiero conocer Mesora para mi restaurante.'),
       ].join('\n')
-      setErrorEnvio('No pudimos confirmar el envío. Tus datos siguen aquí: puedes reintentar o enviarlos con tu aplicación de correo.')
+      const codigo = (fallo as { context?: { status?: number } } | null)?.context?.status
+      setErrorEnvio(codigo === 429
+        ? 'Recibimos demasiadas consultas. Espera antes de volver a enviarla o usa tu aplicación de correo.'
+        : 'No pudimos confirmar el envío. Tus datos siguen aquí: puedes reintentar o enviarlos con tu aplicación de correo.')
       setCorreoManual(`mailto:${correo}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`)
     } finally {
       envioEnCurso.current = false
