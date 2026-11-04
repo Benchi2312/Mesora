@@ -1,4 +1,6 @@
 import { recordSystemIncident } from '../_shared/system-incidents.ts'
+import { finishMailJob, mailRpc, sendMailJob } from '../_shared/mesora-mail.ts'
+import type { MailJob } from '../_shared/mesora-mail.ts'
 
 const SITE_URL = (Deno.env.get('MESORA_SITE_URL') ?? 'https://mesora-sistema.vercel.app').replace(/\/$/, '')
 const ALLOWED_ORIGINS = new Set([
@@ -13,8 +15,6 @@ const ALLOWED_ORIGINS = new Set([
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-const TO_EMAIL = Deno.env.get('MESORA_CONTACT_TO_EMAIL') ?? 'mesoratech@gmail.com'
-const FROM_EMAIL = Deno.env.get('MESORA_CONTACT_FROM_EMAIL') ?? 'Mesora <onboarding@resend.dev>'
 const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function cors(req: Request) {
@@ -62,12 +62,6 @@ async function reserveContact(req: Request, email: string): Promise<boolean> {
   return result
 }
 
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  })[char]!)
-}
-
 export async function handleContact(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors(req) })
   if (req.method !== 'POST') return json(req, 405, { error: 'Método no permitido.' })
@@ -111,46 +105,38 @@ export async function handleContact(req: Request): Promise<Response> {
     return json(req, 503, { error: 'El formulario no está disponible en este momento. Intenta más tarde.' })
   }
 
-  const subject = `Consulta comercial Mesora — ${restaurante}`
-  const text = [
-    'Nueva consulta desde la landing de Mesora',
-    `Nombre: ${nombre}`,
-    `Restaurante: ${restaurante}`,
-    `Correo: ${email}`,
-    '',
-    mensaje || 'Quiere conocer Mesora para su restaurante.',
-  ].join('\n')
-  const safe = { nombre: escapeHtml(nombre), restaurante: escapeHtml(restaurante), email: escapeHtml(email), mensaje: escapeHtml(mensaje || 'Quiere conocer Mesora para su restaurante.') }
-  const logoUrl = escapeHtml(`${SITE_URL}/marca/isotipo-email.png`)
-  // Reintentos idénticos durante el mismo día conservan la clave de Resend.
-  // El hash evita incluir datos personales en la cabecera de idempotencia.
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([
-    FROM_EMAIL, TO_EMAIL, nombre, restaurante, email, mensaje, new Date().toISOString().slice(0, 10),
-  ])))
-  const idempotencyKey = `contacto-${Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')}`
+  // Reintentos idénticos del mismo día conservan una sola consulta y un solo
+  // aviso. La huella nunca revela el contenido del formulario.
+  const submissionKey = await keyedHash(JSON.stringify([
+    nombre, restaurante, email.toLowerCase(), mensaje, new Date().toISOString().slice(0, 10),
+  ]))
+  let jobId: string
   try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      signal: AbortSignal.timeout(12_000),
-      headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
-      body: JSON.stringify({
-        from: FROM_EMAIL,
-        to: [TO_EMAIL],
-        reply_to: email,
-        subject,
-        text,
-        html: `<table role="presentation" style="font-family:Arial,sans-serif;width:100%;max-width:600px;margin:auto;border-collapse:collapse;color:#202124"><tr><td style="padding:18px 22px;background:#111318"><img src="${logoUrl}" width="40" height="40" alt="" style="display:inline-block;vertical-align:middle;border:0"><span style="padding-left:10px;color:#fff;font-size:22px;font-weight:bold;vertical-align:middle">Mesora</span></td></tr><tr><td style="padding:24px 22px;background:#fff"><h1 style="margin:0 0 18px;font-size:20px">Nueva consulta comercial</h1><p><b>Nombre:</b> ${safe.nombre}</p><p><b>Restaurante:</b> ${safe.restaurante}</p><p><b>Correo:</b> ${safe.email}</p><p style="white-space:pre-wrap;line-height:1.5">${safe.mensaje}</p></td></tr></table>`,
-      }),
+    const registered = await mailRpc<{ lead_id: string; job_id: string }>('mesora_register_commercial_lead', {
+      p_submission_key: submissionKey,
+      p_nombre: nombre,
+      p_restaurante: restaurante,
+      p_email: email,
+      p_mensaje: mensaje,
     })
-    if (!response.ok) {
-      await response.body?.cancel()
-      await recordSystemIncident('contacto-comercial', 'resend_rejected')
-      return json(req, 502, { error: 'No se pudo entregar la consulta al servicio de correo.' })
-    }
-    await response.body?.cancel()
-    return json(req, 200, { ok: true })
+    jobId = registered.job_id
+    if (!jobId) throw new Error('mail_job_missing')
   } catch {
-    await recordSystemIncident('contacto-comercial', 'resend_unavailable')
-    return json(req, 502, { error: 'No se pudo confirmar el envío. Puedes reintentar.' })
+    await recordSystemIncident('contacto-comercial', 'lead_store_unavailable')
+    return json(req, 503, { error: 'No se pudo guardar la consulta. Intenta nuevamente.' })
+  }
+
+  // Entrega inmediata; si Resend falla, el trabajo programado reintenta.
+  // La consulta ya existe en la bandeja del superadministrador.
+  try {
+    const jobs = await mailRpc<MailJob[]>('mesora_claim_mail_jobs', { p_limit: 1, p_job_id: jobId })
+    if (jobs.length === 0) return json(req, 200, { ok: true, correo: 'en_cola' })
+    const result = await sendMailJob(jobs[0])
+    await finishMailJob(jobs[0], result)
+    if (!result.ok) await recordSystemIncident('contacto-comercial', result.errorCode ?? 'resend_unavailable')
+    return json(req, result.ok ? 200 : 202, { ok: true, correo: result.ok ? 'enviado' : 'en_cola' })
+  } catch {
+    await recordSystemIncident('contacto-comercial', 'mail_queue_unavailable')
+    return json(req, 202, { ok: true, correo: 'en_cola' })
   }
 }

@@ -41,7 +41,7 @@ try {
           await held
           return route.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"fixture"}' })
         }
-        return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
+        return route.fulfill({ status: calls === 2 ? 200 : 202, contentType: 'application/json', body: calls === 2 ? '{"ok":true,"correo":"enviado"}' : '{"ok":true,"correo":"en_cola"}' })
       }
       if (url.startsWith(endpoint)) return route.fulfill({ status: 200, contentType: 'application/json', body: 'null' })
       if (url.startsWith(origin)) return route.continue()
@@ -67,14 +67,20 @@ try {
     const manual = await page.getByRole('link', { name: 'Abrir correo con mi consulta' }).getAttribute('href')
     assert(decodeURIComponent(manual).includes('Pedido & cocina'))
     await page.getByRole('button', { name: 'Reintentar envío' }).click()
-    await expect(page.getByRole('status')).toContainText('Tu consulta se envió')
+    await expect(page.getByRole('status')).toContainText('Tu consulta llegó a Mesora')
     await expect(page.getByLabel('Tu nombre', { exact: true })).toHaveValue('')
     assert.equal(calls, 2)
+    await page.getByLabel('Tu nombre', { exact: true }).fill('Ana QA')
+    await page.getByLabel('Restaurante', { exact: true }).fill('Local QA')
+    await page.getByLabel('Tu correo', { exact: true }).fill('ana@example.invalid')
+    await page.getByRole('button', { name: 'Enviar consulta', exact: true }).click()
+    await expect(page.getByRole('status')).toContainText('pendiente y se reintentará automáticamente')
+    assert.equal(calls, 3)
     assert.deepEqual(errors, [])
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Sin desborde horizontal')
     await page.close()
   }
-  console.log('Contacto aprobado a 360 y 1280 px: carga, doble envío, fallo, respaldo manual, reintento y éxito.')
+  console.log('Contacto aprobado a 360 y 1280 px: carga, doble envío, fallo, respaldo manual, reintento, éxito y correo pendiente.')
 } finally {
   await browser?.close()
   await server.close()

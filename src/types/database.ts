@@ -287,6 +287,24 @@ export type AuditLog = {
 
 export type TicketPrioridad = 'baja' | 'media' | 'alta' | 'urgente'
 export type TicketEstado = 'abierto' | 'en_progreso' | 'resuelto' | 'cerrado'
+export type TicketTipo = 'error' | 'consulta' | 'sugerencia'
+
+export type ConsultaComercial = {
+  id: string
+  nombre: string
+  restaurante: string
+  email: string
+  mensaje: string
+  estado: 'nuevo' | 'en_seguimiento' | 'cerrado'
+  correo_estado: 'enviado' | 'pendiente' | 'fallido'
+  created_at: string
+  updated_at: string
+}
+
+export type BandejaComercial = {
+  resumen: { hoy: number; ultimos_30_dias: number; nuevas: number; correo_pendiente: number; correo_fallido: number }
+  consultas: ConsultaComercial[]
+}
 
 /** Ticket de soporte de la plataforma (solo super admin). */
 export type SoporteTicket = {
@@ -296,6 +314,7 @@ export type SoporteTicket = {
   usuario_id: string | null
   asunto: string
   descripcion: string
+  tipo: TicketTipo
   prioridad: TicketPrioridad
   estado: TicketEstado
   responsable_id: string | null
@@ -454,6 +473,8 @@ export interface Database {
         Args: Record<string, never>
         Returns: unknown
       }
+      mesora_commercial_inbox: { Args: Record<string, never>; Returns: unknown }
+      mesora_update_commercial_lead: { Args: { p_id: string; p_estado: ConsultaComercial['estado'] }; Returns: void }
       crear_pedido: { Args: { p_restaurante_id: string; p_mesa_id: string; p_items: { producto_id: string; cantidad: number; nota?: string }[] }; Returns: string }
       abrir_turno_caja: { Args: { p_restaurante_id: string; p_usuario_id: string; p_monto_inicial: number }; Returns: string }
       cerrar_turno_caja: {

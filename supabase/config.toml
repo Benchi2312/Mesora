@@ -396,6 +396,9 @@ verify_jwt = false
 [functions.contacto-comercial]
 verify_jwt = false
 
+[functions.procesar-alertas-correo]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

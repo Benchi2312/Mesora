@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import { getApi } from '../../lib/api'
-import type { SoporteTicket, TicketPrioridad } from '../../types/database'
+import type { SoporteTicket, TicketPrioridad, TicketTipo } from '../../types/database'
 import { fmtFecha } from '../../lib/format'
 import {
   PRIORIDADES_TICKET,
+  TIPOS_TICKET,
   etiquetaEstadoTicket,
   etiquetaPrioridadTicket,
+  etiquetaTipoTicket,
   ticketAbierto,
 } from '../../domain/platform/soporte'
 import { Spinner } from '../../components/LoadingScreen'
@@ -27,9 +29,9 @@ const COLOR_ESTADO: Record<SoporteTicket['estado'], string> = {
   cerrado: 'border-surface-600 bg-surface-800 text-zinc-400',
 }
 
-type FormTicket = { asunto: string; descripcion: string; prioridad: TicketPrioridad }
+type FormTicket = { asunto: string; descripcion: string; tipo: TicketTipo; prioridad: TicketPrioridad }
 
-const FORM_VACIO: FormTicket = { asunto: '', descripcion: '', prioridad: 'media' }
+const FORM_VACIO: FormTicket = { asunto: '', descripcion: '', tipo: 'error', prioridad: 'media' }
 
 /**
  * Soporte del restaurante: el admin reporta incidencias a la plataforma y sigue
@@ -81,6 +83,7 @@ export default function SoporteTab() {
       usuarioId: yoId,
       asunto: form.asunto,
       descripcion: form.descripcion,
+      tipo: form.tipo,
       prioridad: form.prioridad,
     })
     setEnviando(false)
@@ -89,7 +92,7 @@ export default function SoporteTab() {
       return
     }
     setModal(false)
-    setAviso(`Incidencia ${res.data?.codigo} reportada. Nuestro equipo le dará seguimiento.`)
+    setAviso(`Solicitud ${res.data?.codigo} enviada. Nuestro equipo le dará seguimiento.`)
     await cargar()
   }
 
@@ -113,8 +116,8 @@ export default function SoporteTab() {
         <span className="flex items-start gap-2.5">
           <IconoInfo className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            ¿Algo no funciona o necesitas un cambio? Reporta la incidencia acá y el equipo de Mesora la
-            atenderá. Vas a poder seguir su estado desde esta sección.
+            Reporta un error, haz una consulta o sugiere una mejora. El equipo de Mesora recibe el
+            ticket y puedes seguir su estado aquí. No incluyas contraseñas ni PIN.
           </span>
         </span>
       </div>
@@ -124,13 +127,13 @@ export default function SoporteTab() {
           <h2 className="text-lg font-bold tracking-tight text-zinc-100">Soporte</h2>
           <p className="mt-0.5 text-sm text-zinc-500">
             {tickets.length === 0
-              ? 'Aún no reportaste ninguna incidencia.'
+              ? 'Aún no enviaste ninguna solicitud.'
               : `${tickets.filter((t) => ticketAbierto(t.estado)).length} de ${tickets.length} siguen abiertas.`}
           </p>
         </div>
         <button type="button" onClick={abrirNuevo} className="btn btn-primary min-h-11 px-4">
           <IconoMas />
-          Reportar incidencia
+          Nueva solicitud
         </button>
       </div>
 
@@ -138,8 +141,8 @@ export default function SoporteTab() {
 
       {tickets.length === 0 ? (
         <EstadoVacio
-          titulo="No hay incidencias reportadas"
-          descripcion="Cuando algo necesite la ayuda del equipo de Mesora, repórtalo y aparecerá acá con su estado."
+          titulo="No hay solicitudes de soporte"
+          descripcion="Envía un error, una consulta o una sugerencia; aquí podrás seguir su estado."
         />
       ) : (
         <ul className="card divide-y divide-zinc-800/70 p-0 sm:p-0">
@@ -147,6 +150,7 @@ export default function SoporteTab() {
             <li key={t.id} className="px-4 py-3.5 sm:px-5">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-xs font-semibold text-brand-400">{t.codigo}</span>
+                <span className="text-xs text-zinc-400">{etiquetaTipoTicket(t.tipo ?? 'error')}</span>
                 <span
                   className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold ${COLOR_PRIORIDAD[t.prioridad]}`}
                 >
@@ -170,7 +174,7 @@ export default function SoporteTab() {
       )}
 
       {modal && (
-        <Modal titulo="Reportar incidencia" onCerrar={() => setModal(false)}>
+        <Modal titulo="Nueva solicitud de soporte" onCerrar={() => setModal(false)}>
           <form
             onSubmit={(e) => {
               e.preventDefault()
@@ -199,6 +203,19 @@ export default function SoporteTab() {
                 value={form.descripcion}
                 onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
               />
+            </Campo>
+
+            <Campo etiqueta="Tipo de solicitud" htmlFor="sop-tipo" error={null}>
+              <select
+                id="sop-tipo"
+                className="input"
+                value={form.tipo}
+                onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value as TicketTipo }))}
+              >
+                {TIPOS_TICKET.map((tipo) => (
+                  <option key={tipo} value={tipo}>{etiquetaTipoTicket(tipo)}</option>
+                ))}
+              </select>
             </Campo>
 
             <Campo etiqueta="Prioridad" htmlFor="sop-prio" error={null}>

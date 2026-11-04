@@ -5,6 +5,14 @@ La función entrega las consultas a `mesoratech@gmail.com` con Resend y deja el
 correo de quien consulta como `reply_to`. La clave del proveedor se mantiene
 como secreto de Supabase y nunca se incluye en el frontend ni en Git.
 
+Cada consulta válida queda en la bandeja privada **Super Admin → Soporte →
+Consultas comerciales**. El superadministrador puede marcarla como nueva,
+en seguimiento o cerrada; el correo es un aviso adicional, no el registro
+principal. Los tickets de los administradores de restaurantes viven en la otra
+pestaña de Soporte. Son errores, consultas o sugerencias y se avisan al mismo
+buzón. Los incidentes técnicos se registran en Notificaciones y se envía un
+aviso por código y día UTC.
+
 ## Activación en producción
 
 Estado comprobado el 04/11/2026: `RESEND_API_KEY` existe en el proyecto Mesora.
@@ -27,10 +35,34 @@ puede guardar el remitente definitivo en el secreto `MESORA_CONTACT_FROM_EMAIL`.
 El destino se puede cambiar con `MESORA_CONTACT_TO_EMAIL`; por defecto es
 `mesoratech@gmail.com`.
 
-Si el proveedor falla o no confirma el envío, el formulario conserva los datos,
-ofrece **Reintentar envío** y un enlace para abrir manualmente la aplicación de
-correo con la consulta preparada. Nunca la abre por su cuenta. El estado de
-carga, el éxito y los errores se anuncian a los lectores de pantalla.
+Si la consulta se guarda pero el proveedor falla, el formulario confirma que
+quedó registrada e indica que el correo está pendiente. El proceso programado
+reintenta el aviso. Si no se puede guardar, conserva los datos, ofrece
+**Reintentar envío** y el enlace de correo manual. Nunca abre otra aplicación
+por su cuenta. El estado de carga, el éxito y los errores se anuncian a los
+lectores de pantalla.
+
+## Cola de avisos
+
+La migración `20261104172538_bandeja_comercial_alertas.sql` crea las tablas
+privadas de consultas y avisos. El formulario intenta enviar de inmediato; el
+workflow `avisos-correo.yml` llama cada diez minutos a la función
+`procesar-alertas-correo` para reintentar los avisos pendientes. Usa un token
+aleatorio dedicado: `MESORA_ALERTS_CRON_TOKEN` debe estar tanto en los secretos
+de Edge Functions como en los secretos del repositorio GitHub. No es una clave
+de Resend ni una credencial de base de datos. La función exige ese token en
+`Authorization: Bearer`, no acepta CORS del navegador y limita el lote a diez
+avisos. Tras ocho intentos fallidos el aviso queda visible como fallido en la
+bandeja comercial; un operador debe revisar el proveedor y el código de error.
+La programación de GitHub puede sufrir retrasos, por lo que el intervalo de
+diez minutos es una frecuencia objetivo, no un plazo garantizado.
+
+Para comprobar el circuito, revisar el resultado de **GitHub Actions → Enviar
+avisos de Mesora**, la bandeja comercial y el registro de entregas de Resend.
+No basta con una respuesta HTTP para asegurar que el destinatario recibió el
+correo. Los datos de contacto se conservan en `private`; la interfaz solo usa
+RPC que exige el rol de superadministrador. La retención y el borrado de datos
+de contactos todavía deben definirse antes de ampliar campañas.
 
 ## Reintentos y límites
 
@@ -71,9 +103,10 @@ También aparecen códigos estructurados `mesora:incident` en los logs de Edge
 Functions; si la base no responde, ese log sirve de respaldo. Los errores
 esperados de validación y el rechazo por cuota no generan incidencias críticas.
 
-Este aviso requiere abrir el panel; todavía no hay aviso externo inmediato por
-correo o teléfono. Durante el lanzamiento, revisar Notificaciones y los logs
-de Supabase al inicio y al cierre de cada turno. Los códigos `resend_rejected`,
+El aviso por correo externo se genera para el primer incidente de cada código
+en el día; el panel mantiene el historial agregado. Durante el lanzamiento,
+revisar Notificaciones y los logs de Supabase al inicio y al cierre de cada
+turno. Los códigos `resend_rejected`,
 `resend_unavailable` y `rate_store_unavailable` indican que hay que revisar la
 función, las cuotas del proveedor y la conexión a la base. No repetir envíos
 reales solo para comprobar la alerta.

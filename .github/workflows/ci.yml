@@ -24,6 +24,8 @@ jobs:
       - run: npm run verificar:acceso
       - run: npm run verificar:contacto
       - run: npx --yes deno test --allow-env supabase/functions/contacto-comercial/index_test.ts
+      - run: npx --yes deno check supabase/functions/procesar-alertas-correo/index.ts
+      - run: npx --yes deno test --allow-env supabase/functions/procesar-alertas-correo/index_test.ts
       - run: npx --yes deno check supabase/functions/admin-password-recovery/index.ts
       - run: npm run verificar:precuenta
       - run: npm run verificar:configuracion
