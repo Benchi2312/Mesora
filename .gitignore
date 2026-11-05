@@ -52,3 +52,8 @@ _*.txt
 /promocional/
 *.dump
 .vercel
+
+# Legal and video drafts are local until the owner approves them for release.
+/docs/AVISO_PRIVACIDAD_BORRADOR.md
+/docs/CONDICIONES_SERVICIO_BORRADOR.md
+/docs/VIDEO_PROMOCIONAL_GUION.md

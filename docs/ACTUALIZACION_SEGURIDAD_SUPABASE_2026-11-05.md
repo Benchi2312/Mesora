@@ -66,3 +66,28 @@ sin grants directos. No se agregaron políticas solo para ocultar el aviso.
 La guía oficial recomienda preferir `SECURITY INVOKER` cuando basta y, si se
 requiere `SECURITY DEFINER`, restringir su ejecución y validar el acceso en el
 cuerpo. Ver [Database Functions](https://supabase.com/docs/guides/database/functions).
+
+## Revisión adicional de funciones — 05/11/2026
+
+La revisión de catálogo encontró 52 funciones `SECURITY DEFINER` en `public`;
+52 fijan `search_path`, 35 son ejecutables por `authenticated` y ninguna por
+`anon`. Esas 35 incluyen las RPC operativas y helpers que necesita RLS, por lo
+que no se revocaron en bloque.
+
+Se encontró y cerró una consulta cruzada concreta: `suscripcion_vigente(uuid)`
+permitía a cualquier sesión autenticada consultar el estado de una suscripción
+si conocía el UUID del restaurante. La migración
+`20261105055856_limitar_consulta_vigencia_suscripcion` limita el resultado al
+superadmin o a una cuenta activa del restaurante consultado. El permiso de
+ejecución se conserva porque las policies de escritura necesitan el helper.
+La matriz local confirma que Admin A ve su estado, no ve el estado de B y Admin
+B solo ve el suyo. La misma migración quedó registrada en el historial del
+proyecto; la definición, `search_path`, permisos y ausencia de ejecución por
+`anon` se comprobaron después de aplicarla.
+
+Supabase aún muestra 35 advertencias de `SECURITY DEFINER` ejecutables por
+`authenticated`; son un aviso de revisión de cada RPC y no implican por sí
+solas que sean accesibles sin sesión o sin validación. Se mantienen también las
+nueve alertas informativas de RLS sin policies en tablas deliberadamente
+cerradas y el aviso de protección de contraseñas filtradas, que requiere un
+plan compatible.

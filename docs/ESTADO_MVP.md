@@ -17,13 +17,13 @@ electrónica permanece en el sistema actual del restaurante.
 | Área | Estado comprobado | Evidencia y límite |
 | --- | --- | --- |
 | Publicación | GitHub público, `main` conectado a Vercel | Repo `Benchi2312/Mesora`; revisar CI y despliegue para cada publicación. |
-| Instalación inicial | Ya existe | Consulta agregada de solo lectura: un restaurante, un superadmin, un admin y un empleado. No se publican nombres ni correos personales. Esto no certifica configuración ni capacitación. |
+| Instalación inicial | Lista para crear el restaurante piloto | El 05/11/2026 se retiraron el restaurante y las dos cuentas de prueba; quedó activa únicamente la cuenta de superadministración. Crea el negocio y su admin desde ese panel. |
 | Recuperación del superadmin | Completada por el propietario | Confirmó recepción del enlace, nueva contraseña e ingreso. |
 | Recuperación del admin de restaurante | Completada por el propietario | Confirmó recepción del enlace y cambio de contraseña. El correo alternativo es una integración distinta. |
 | Contacto comercial | Envío y recepción confirmados | Función respondió HTTP 200 con `ok: true`; el propietario confirmó que la consulta llegó al buzón. Reintentos, errores y carga tienen pruebas aisladas. |
 | Bandejas y alertas | Desplegadas en producción | Consultas comerciales con seguimiento, conversaciones de soporte y cola de avisos. La recepción del formulario comercial fue confirmada por el propietario; falta una conversación real de soporte entre ambas cuentas. |
 | Borrado de soporte | Corregido en producción | Se revocó el privilegio SQL directo de `DELETE` para `anon` y `authenticated`; comprobación de privilegios devuelve `false`. |
-| Respaldo | Exportación y restauración local documentadas | Falta copia cifrada fuera del equipo, frecuencia, retención y cobertura de Storage/configuración. |
+| Respaldo | Copia limpia posterior al reset restaurada en PostgreSQL 17.6 aislado; cifrado DPAPI y descifrado/hash verificados | Las copias locales anteriores aún conservan datos de prueba y requieren purga; también falta ubicación cifrada portable, frecuencia/retención y cobertura de Storage/configuración. |
 | Repositorio | Revisión de exposición completada | 39 commits alcanzables, 472 blobs, 471 de texto; sin coincidencias de los patrones de secretos buscados. No es una garantía contra cualquier secreto o información sensible. |
 | Identidad | Opción A aprobada y publicada | Logo, favicon y cabeceras aplicados; kit vectorial en `docs/marca/kit-mesora/` y copia local verificada en `backups/`. |
 
@@ -69,14 +69,21 @@ producción se consultan en GitHub Actions y Vercel.
 
 ## Pendientes que necesitan al propietario o al local
 
-1. Completar la configuración del restaurante existente: menú, precios, roles,
-   suscripción, PIN y datos del local. Inventariar los datos antes de decidir
-   cualquier limpieza; no volver a crear la instalación por duplicado.
-2. Elegir destino externo cifrado del respaldo y responsable; completar su
-   frecuencia, retención y recuperación de servicios complementarios.
+1. Crear el nuevo restaurante desde el superadmin y completar menú, precios,
+   roles, suscripción, PIN y datos del local. Se eliminó el tenant de prueba y
+   sus dos usuarios; no se borró la cuenta de superadministración.
+2. Purgar las copias locales previas al reset que todavía guardan datos de
+   prueba; elegir destino externo cifrado y responsable; completar frecuencia,
+   retención y recuperación de servicios complementarios.
 3. Ejecutar la [guía del primer turno](./GUIA_PRIMER_TURNO.md) con impresora,
    dispositivos y personal reales; registrar conciliación e incidencias.
 4. Asignar encargado y contacto de soporte durante el primer turno.
+5. Completar y publicar condiciones del servicio y aviso de privacidad cuando
+   el titular confirme identidad legal, RUC/documento, domicilio, canales
+   oficiales, planes, precios y conservación. Los borradores requieren revisión
+   legal y no están publicados.
+6. Confirmar que nombre y logo pueden usarse comercialmente; la revisión
+   preliminar no sustituye una búsqueda registral en Indecopi.
 
 ## Mejoras posteriores y decisiones comerciales
 

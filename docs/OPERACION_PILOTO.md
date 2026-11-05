@@ -15,8 +15,8 @@ Para seguimiento: [estado y pendientes del MVP](./ESTADO_MVP.md).
 | URL de producción | https://mesora-sistema.vercel.app; validar tras cada despliegue de `main`. |
 | Proyecto y versión | Supabase Mesora; rama main en GitHub. El commit desplegado y sus checks se consultan en Deployments de Vercel y Actions de GitHub. |
 | Sistema de comprobantes electrónicos | Se mantiene el sistema actual del local; confirmado por el propietario el 30/10/2026. |
-| Respaldo y restauración local | 02/11/2026: dump completo de la base real restaurado correctamente en una base Supabase local aislada. El archivo está en `backups/mesora-production-20261102.dump`, excluido de Git. |
-| Responsable y copia fuera de esta computadora | Pendiente |
+| Respaldo y restauración local | 05/11/2026: dump actualizado restaurado en PostgreSQL 17.6 aislado y copia cifrada DPAPI validada. Detalle en `RESPALDOS.md`. |
+| Responsable y copia fuera de esta computadora | Pendiente; DPAPI depende del perfil actual y no sustituye una copia portable externa. |
 | Frecuencia, retención y pérdida máxima aceptable | Pendiente |
 | Restauración del servicio y tiempo real de recuperación | Pendiente; la prueba local no mide el RTO ni valida un proyecto remoto nuevo. |
 | Dispositivos e impresora aprobados | Pendiente |
@@ -26,11 +26,10 @@ Para seguimiento: [estado y pendientes del MVP](./ESTADO_MVP.md).
 1. Revisar cobertura y disponibilidad en Supabase. En la consulta realizada no
    había backups físicos listados y PITR estaba desactivado. Acordar mecanismo
    y coste con el propietario antes de habilitarlo.
-2. Se generó un dump completo con `pg_dump` 17.6 y se restauró en una base
-   Supabase local temporal. El artefacto queda en `backups/`, está excluido de
-   Git y se verificó con `pg_restore --list`. Antes del turno real, copiarlo a
-   un destino cifrado fuera de esta computadora y acordar responsable,
-   frecuencia y retención.
+2. El 05/11/2026 se generó un dump PostgreSQL 17.6 y se restauró en una base
+   local nueva y aislada. La copia cifrada se descifró y su hash coincidió con
+   el original. El archivo protegido queda en `%LOCALAPPDATA%\Mesora\Respaldos\`;
+   no se incluye en Git. Aún falta una copia portable fuera del equipo.
 3. El dump cubre la base PostgreSQL; no incluye objetos binarios de Storage,
    configuración del proveedor Auth, secretos de Edge Functions ni despliegues
    de Vercel. Definir respaldo y recuperación por separado para esos servicios.
@@ -47,12 +46,12 @@ Solo valida ese entorno técnico de prueba.
 
 ### Trabajo pendiente para el respaldo
 
-La restauración completa de la base en PostgreSQL 17.6 local aislado ya se
-completó y verificó. El archivo privado está en `backups/` y excluido de Git.
-Antes del primer turno, el propietario debe copiarlo a almacenamiento cifrado
-fuera de esta computadora y definir responsable, frecuencia y retención.
-Preparar además la cobertura de objetos de Storage, proveedores Auth y secretos
-de Edge Functions, que no están dentro del dump SQL.
+La restauración de la base en PostgreSQL 17.6 local aislado se completó y la
+copia local quedó cifrada con DPAPI. El propietario aún debe elegir una
+ubicación externa portable, custodiar la clave de recuperación, asignar un
+responsable, frecuencia y retención, y cubrir objetos de Storage, parámetros de
+Auth/Vercel y secretos de Edge Functions. No usar esta copia como única forma de
+recuperación fuera del equipo actual.
 
 Referencias: [respaldos por plan](https://supabase.com/docs/guides/platform/backups)
 y [exportación/restauración con CLI](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore).

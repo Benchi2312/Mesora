@@ -1,15 +1,18 @@
 # Preparación del primer piloto de Mesora
 
-Revisión: **3 de noviembre de 2026**. Estado: primera versión web de Mesora
-publicada. Siguen pendientes la aceptación presencial del local, una copia del
-respaldo fuera de esta computadora, la prueba de recuperación con un admin de
-restaurante y la comprobación de recepción de consultas comerciales. El video
-se actualizará después de aceptar la versión publicada.
+Revisión: **5 de noviembre de 2026**. Estado: Mesora 0.1.0 está publicada. El
+propietario confirmó la recuperación del superadmin y del admin y la recepción
+de una consulta comercial. Se retiraron el restaurante y las cuentas de prueba;
+el superadmin `mesoratech@gmail.com` quedó activo para crear el restaurante
+piloto. La base limpia se restauró en PostgreSQL local aislado y quedó una copia
+cifrada local. Antes del turno real siguen pendientes una copia portable
+externa, condiciones y privacidad oficiales, y la aceptación presencial con
+impresora, dispositivos y personal del local. El video se actualizará al final.
 
 Consultar el [estado consolidado del MVP](./ESTADO_MVP.md) y la
 [guía breve del primer turno](./GUIA_PRIMER_TURNO.md). Una consulta de solo
-lectura confirmó que ya existe un restaurante y sus cuentas iniciales;
-completar esa instalación antes de decidir si hace falta crear otra.
+lectura confirmó que el estado actual está preparado para un alta nueva desde el
+superadmin. La limpieza conserva solo esa cuenta y los parámetros globales.
 
 ## Cierre técnico y dirección elegida
 

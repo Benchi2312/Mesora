@@ -118,7 +118,9 @@ comment on function public.soy_super_admin() is
   'El usuario autenticado es super_admin. Helper de RLS: da lectura global de restaurantes y usuarios, nunca escritura.';
 
 -- ¿La suscripción del restaurante está activa Y no vencida? Misma regla que el
--- punto 4 y 5 de validar_acceso_restaurante, expresada como booleano.
+-- punto 4 y 5 de validar_acceso_restaurante, expresada como booleano. La RPC se
+-- concede a authenticated porque las policies la necesitan; limita el estado
+-- visible al superadmin o a un miembro activo del restaurante consultado.
 create or replace function public.suscripcion_vigente(p_restaurante_id uuid)
 returns boolean
 language sql
@@ -130,13 +132,23 @@ as $$
     select 1
       from public.restaurantes r
      where r.id = p_restaurante_id
+       and (
+         public.soy_super_admin()
+         or exists (
+           select 1
+             from public.usuarios u
+            where u.id = auth.uid()
+              and u.restaurante_id = r.id
+              and coalesce(u.activo, true)
+         )
+       )
        and coalesce(r.suscripcion_activa, false)
        and (r.fecha_vencimiento is null or r.fecha_vencimiento >= now())
   );
 $$;
 
 comment on function public.suscripcion_vigente(uuid) is
-  'El restaurante existe, tiene suscripción activa y no está vencido (null = indefinida). Helper de RLS: una policy no puede lanzar excepción.';
+  'El superadmin o un miembro activo del restaurante consultado puede conocer si su suscripción está vigente (null = indefinida). Helper de RLS: una policy no puede lanzar excepción.';
 
 -- ¿El usuario de la sesión tiene alguno de estos roles? No exige pertenencia al
 -- restaurante: es la mitad "rol" de la condición, y se combina con

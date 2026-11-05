@@ -95,6 +95,7 @@ const ORDEN = [
   '../migrations/20261105042814_indexar_foreign_keys_soporte.sql',
   '../migrations/20261105050740_fijar_actor_historial_suscripciones.sql',
   '../migrations/20261105050911_revoke_direct_access_internal_tables.sql',
+  '../migrations/20261105055856_limitar_consulta_vigencia_suscripcion.sql',
 ]
 
 const fallos = []

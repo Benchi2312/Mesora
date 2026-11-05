@@ -32,6 +32,10 @@ begin
     (v_admin_a), (v_admin_b), (v_mesero), (v_cocina), (v_cajero);
   insert into public.restaurantes(id, nombre) values
     (v_a, 'QA permisos A'), (v_b, 'QA permisos B');
+  update public.restaurantes
+     set suscripcion_activa = true,
+         fecha_vencimiento = now() + interval '30 days'
+   where id in (v_a, v_b);
   insert into public.usuarios(id, restaurante_id, rol, nombre) values
     (v_admin_a, v_a, 'admin_restaurante', 'Admin A'),
     (v_admin_b, v_b, 'admin_restaurante', 'Admin B'),
@@ -98,6 +102,14 @@ begin
      or public.puedo_escribir_en(v_b, array['admin_restaurante']) then
     raise exception 'Los helpers RLS reconocen un restaurante ajeno';
   end if;
+  if not public.suscripcion_vigente(v_a) or public.suscripcion_vigente(v_b) then
+    raise exception 'La vigencia de otro restaurante se pudo consultar';
+  end if;
+  perform set_config('request.jwt.claim.sub', v_admin_b::text, true);
+  if not public.suscripcion_vigente(v_b) or public.suscripcion_vigente(v_a) then
+    raise exception 'El helper de suscripción no respetó el restaurante de Admin B';
+  end if;
+  perform set_config('request.jwt.claim.sub', v_admin_a::text, true);
   if jsonb_array_length(public.mesas_por_cobrar(v_a)) <> 0 then
     raise exception 'La consulta propia de mesas pendientes fallo';
   end if;

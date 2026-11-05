@@ -1,20 +1,41 @@
-# Respaldo real y prueba de recuperacion
+# Respaldo real y prueba de recuperación
 
-Estado al 03/11/2026: se creó `backups/mesora-production-20261102.dump`, una
-exportación privada de la base real en formato custom, y se restauró con éxito
-en un PostgreSQL 17.6 aislado. `pg_restore --list` y una restauración completa
-terminaron correctamente. El archivo está excluido de Git. Falta copiarlo a
-almacenamiento cifrado fuera de este equipo y definir responsable, frecuencia y
-retención. Este dump no incluye objetos de
-Storage, secretos de Edge Functions ni configuración completa de Auth/hosting.
+Los respaldos del 02 y 03/11 se usaron para pruebas. Aunque la base de
+producción ya quedó limpia, las copias locales anteriores siguen en el equipo
+(excluidas de Git) y conservan el estado previo, incluidos los datos de prueba.
+La copia limpia posterior al reset es independiente. La purga de esos archivos
+locales y la copia portable externa siguen pendientes.
 
-El 03/11/2026, antes de retirar los datos de prueba, se generó otro volcado en
-`%LOCALAPPDATA%\Mesora\Respaldos\antes-limpieza-20261103-201714` y se restauró
-en PostgreSQL 17.6 aislado. Contenía dos restaurantes y nueve usuarios. Este
-volcado usa `--no-owner --no-acl`: conserva datos y esquema, pero no propietarios
-ni concesiones de permisos. Mantener también el respaldo anterior y respaldar
-por separado los roles y permisos. Ninguna de estas pruebas sustituye una
-restauración integral de Auth, Storage, secretos y configuración del servicio.
+## Actualizacion del 05/11/2026
+
+Después de retirar los datos de prueba se generó un dump PostgreSQL en formato
+custom desde la URL local del proyecto Mesora. Se restauro en una base nueva y
+aislada con PostgreSQL 17.6: 20 tablas publicas, cero restaurantes y un perfil
+de superadmin. Los informes solo contienen conteos. Las copias anteriores con
+el tenant de prueba siguen en el equipo; su borrado automático fue bloqueado y
+la purga manual queda pendiente.
+
+La copia se cifró con Windows DPAPI CurrentUser, se descifró en memoria y su
+SHA-256 coincidió con el original. El archivo protegido y su manifiesto están
+en:
+
+```text
+%LOCALAPPDATA%\Mesora\Respaldos\clean-20261105\
+```
+
+Este cifrado protege la copia en el perfil actual; **no es un respaldo externo
+ni se puede descifrar automaticamente desde otra cuenta o equipo**. La clave
+de recuperacion depende del perfil de Windows. Queda pendiente acordar una
+segunda ubicacion cifrada y una forma portable de custodiar su clave antes del
+primer turno real.
+
+Los scripts [`cifrar-respaldo-local.ps1`](../scripts/respaldos/cifrar-respaldo-local.ps1)
+y [`descifrar-respaldo-local.ps1`](../scripts/respaldos/descifrar-respaldo-local.ps1)
+protegen y recuperan dumps con ese mecanismo. La restauracion incluye
+estructura y datos PostgreSQL; `--no-owner --no-acl` no conserva propietarios
+ni permisos, y el dump no incluye archivos de Storage, secretos de Edge
+Functions ni toda la configuracion de Auth/Vercel. La copia se restauro
+localmente; esto no prueba la recuperacion de un nuevo proyecto Supabase.
 
 ## Exportacion preparada para Windows
 
