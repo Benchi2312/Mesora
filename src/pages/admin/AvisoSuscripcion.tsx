@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 
 const DIA = 86_400_000
@@ -17,6 +18,7 @@ function tiempoRestante(milisegundos: number): string {
 
 export default function AvisoSuscripcion() {
   const { restaurante } = useCurrentContext()
+  const { pathname } = useLocation()
   const [ahora, setAhora] = useState(Date.now)
 
   useEffect(() => {
@@ -25,6 +27,8 @@ export default function AvisoSuscripcion() {
   }, [])
 
   const fecha = restaurante?.fecha_vencimiento
+  // El demo no representa una suscripción real ni debe desplazar sus controles.
+  if (pathname === '/demo' || pathname.startsWith('/demo/')) return null
   if (!restaurante || !restaurante.suscripcion_activa) return null
   if (!fecha) return (
     <section aria-label="Estado de la suscripción" className="mb-6 rounded-2xl border border-surface-700 bg-surface-900 px-4 py-4 sm:px-5">
