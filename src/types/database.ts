@@ -122,6 +122,8 @@ export type Mesa = {
   zona_id: string
   nombre: string
   estado: EstadoMesa
+  /** Mesero responsable actual; las comandas anteriores conservan su autor original. */
+  mesero_responsable_id?: string | null
   created_at: string
 }
 
@@ -211,6 +213,14 @@ export type Cuenta = {
   motivo_anulacion?: string | null
   /** Total devuelto al cliente (todos los métodos). El arqueo solo descuenta el efectivo. */
   monto_reembolsado?: number | null
+  /** Datos congelados al emitir la boleta para que una reimpresión sea idéntica. */
+  mesero_id_snapshot?: string | null
+  mesero_nombre_snapshot?: string | null
+  mesa_nombre_snapshot?: string | null
+  restaurante_nombre_snapshot?: string | null
+  restaurante_direccion_snapshot?: string | null
+  restaurante_ruc_snapshot?: string | null
+  restaurante_telefono_snapshot?: string | null
 }
 
 /**
@@ -490,6 +500,9 @@ export interface Database {
       mesora_update_commercial_lead: { Args: { p_id: string; p_estado: ConsultaComercial['estado'] }; Returns: void }
       mesora_update_commercial_followup: { Args: { p_id: string; p_responsable: string; p_nota_interna: string; p_proximo_contacto: string | null }; Returns: void }
       crear_pedido: { Args: { p_restaurante_id: string; p_mesa_id: string; p_items: { producto_id: string; cantidad: number; nota?: string }[] }; Returns: string }
+      asignar_mesa_mesero: { Args: { p_restaurante_id: string; p_mesa_id: string; p_mesero_id: string }; Returns: undefined }
+      mover_consumo_mesa: { Args: { p_restaurante_id: string; p_mesa_origen_id: string; p_mesa_destino_id: string }; Returns: undefined }
+      reimprimir_boleta: { Args: { p_restaurante_id: string; p_cuenta_id: string; p_pin?: string | null }; Returns: unknown }
       abrir_turno_caja: { Args: { p_restaurante_id: string; p_usuario_id: string; p_monto_inicial: number }; Returns: string }
       cerrar_turno_caja: {
         Args: {

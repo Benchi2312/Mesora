@@ -16,6 +16,7 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [intento, setIntento] = useState(0)
+  const [nombreMeseros, setNombreMeseros] = useState<Map<string, string>>(() => new Map())
 
   useEffect(() => {
     const rid = restaurante?.id
@@ -28,7 +29,7 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
     ;(async () => {
       try {
         const api = getApi()
-        const [zRes, mRes] = await Promise.all([api.getZonas(rid), api.getMesas(rid)])
+        const [zRes, mRes, meserosRes] = await Promise.all([api.getZonas(rid), api.getMesas(rid), api.getMeseros(rid)])
 
         if (!activo) return
         if (zRes.error || mRes.error) {
@@ -37,6 +38,7 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
         }
         setZonas(zRes.data ?? [])
         setMesas(mRes.data ?? [])
+        setNombreMeseros(new Map((meserosRes.data ?? []).filter((u) => u.activo !== false).map((u) => [u.id, u.nombre])))
         setError(null)
       } catch {
         if (activo) setError('No se pudo conectar para cargar las mesas. Inténtalo de nuevo.')
@@ -99,7 +101,7 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
             </h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               {ms.map((mesa) => (
-                <MesaButton key={mesa.id} mesa={mesa} onSelect={onSelectMesa} />
+                <MesaButton key={mesa.id} mesa={mesa} meseroNombre={mesa.mesero_responsable_id ? nombreMeseros.get(mesa.mesero_responsable_id) : undefined} onSelect={onSelectMesa} />
               ))}
             </div>
           </section>
@@ -113,7 +115,7 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {sinZona.map((mesa) => (
-              <MesaButton key={mesa.id} mesa={mesa} onSelect={onSelectMesa} />
+              <MesaButton key={mesa.id} mesa={mesa} meseroNombre={mesa.mesero_responsable_id ? nombreMeseros.get(mesa.mesero_responsable_id) : undefined} onSelect={onSelectMesa} />
             ))}
           </div>
         </section>
@@ -122,7 +124,7 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
   )
 }
 
-function MesaButton({ mesa, onSelect }: { mesa: Mesa; onSelect: MesaGridProps['onSelectMesa'] }) {
+function MesaButton({ mesa, meseroNombre, onSelect }: { mesa: Mesa; meseroNombre?: string; onSelect: MesaGridProps['onSelectMesa'] }) {
   const ocupada = mesa.estado === 'ocupada'
   return (
     <button
@@ -141,6 +143,7 @@ function MesaButton({ mesa, onSelect }: { mesa: Mesa; onSelect: MesaGridProps['o
       <span className="text-xs uppercase tracking-wider text-zinc-500">
         {ocupada ? 'Ocupada' : 'Libre'}
       </span>
+      {meseroNombre ? <span className="max-w-full truncate text-[11px] text-zinc-500">{meseroNombre}</span> : null}
     </button>
   )
 }

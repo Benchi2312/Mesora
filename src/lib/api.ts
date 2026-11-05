@@ -144,6 +144,18 @@ export type MesaPorCobrar = {
   pedidos: number
 }
 
+/** Datos originales guardados para reimprimir un recibo interno ya cobrado. */
+export type BoletaReimpresion = {
+  cuenta: Cuenta
+  restauranteNombre: string
+  direccion: string | null
+  ruc: string | null
+  telefono: string | null
+  mesaNombre: string
+  meseroNombre: string | null
+  items: ItemResumen[]
+}
+
 /** Ítems que siguen vigentes: los anulados no suman ni se muestran. */
 export function itemsVigentes(items: readonly ItemResumen[]): ItemResumen[] {
   return items.filter((it) => it.anulado !== true)
@@ -335,6 +347,10 @@ export interface DataApi {
   /** Solo productos disponibles. */
   getProductos(rid: string, opciones?: { incluirAgotados?: boolean }): Promise<Res<Producto[]>>
   getMeseros(rid: string): Promise<Res<UsuarioResumen[]>>
+  /** Reasigna la responsabilidad de una mesa ocupada sin cambiar autores históricos. */
+  asignarMesaMesero(rid: string, mesaId: string, meseroId: string): Promise<Res<null>>
+  /** Mueve solo comandas aún no cobradas de una mesa a otra mesa libre. */
+  moverConsumoMesa(rid: string, origenId: string, destinoId: string): Promise<Res<null>>
   /** Meseros + cocina del restaurante (personal), para el panel de admin. */
   getPersonal(rid: string): Promise<Res<UsuarioResumen[]>>
   getPedidosDeMesa(rid: string, mesaId: string): Promise<Res<PedidoResumen[]>>
@@ -422,6 +438,8 @@ export interface DataApi {
    * porque alimenta el reporte de ventas, que no debe contar anuladas.
    */
   getCuentasDelDia(rid: string): Promise<Res<Cuenta[]>>
+  /** Valida el rol/PIN en el servidor y devuelve el recibo original para reimpresión. */
+  getBoletaReimpresion(rid: string, cuentaId: string, pin?: string | null): Promise<Res<BoletaReimpresion>>
   /**
    * Detalle de pagos de las cuentas del restaurante (pago dividido). Lo usa el
    * arqueo de caja: conMethods divididas, solo el efectivo suma en la gaveta.
@@ -638,6 +656,22 @@ const realApi: DataApi = {
       .eq('rol', 'mesero')
       .order('nombre')
     return { data, error: error?.message ?? null }
+  },
+  async asignarMesaMesero(rid, mesaId, meseroId) {
+    const { error } = await supabase.rpc('asignar_mesa_mesero', {
+      p_restaurante_id: rid,
+      p_mesa_id: mesaId,
+      p_mesero_id: meseroId,
+    })
+    return { data: null, error: error?.message ?? null }
+  },
+  async moverConsumoMesa(rid, origenId, destinoId) {
+    const { error } = await supabase.rpc('mover_consumo_mesa', {
+      p_restaurante_id: rid,
+      p_mesa_origen_id: origenId,
+      p_mesa_destino_id: destinoId,
+    })
+    return { data: null, error: error?.message ?? null }
   },
   async getPersonal(rid) {
     const { data, error } = await supabase
@@ -967,6 +1001,14 @@ const realApi: DataApi = {
       .order('pagado_at', { ascending: false })
       .limit(200)
     return { data: (data ?? []) as Cuenta[], error: error?.message ?? null }
+  },
+  async getBoletaReimpresion(rid, cuentaId, pin = null) {
+    const { data, error } = await supabase.rpc('reimprimir_boleta', {
+      p_restaurante_id: rid,
+      p_cuenta_id: cuentaId,
+      p_pin: pin,
+    })
+    return { data: data as BoletaReimpresion | null, error: error?.message ?? null }
   },
   async getPagosDeCuentas(rid) {
     const { data, error } = await supabase
@@ -1664,8 +1706,7 @@ function errorDeAcceso(ds: Dataset, rid: string, usuarioId: string): string | nu
  */
 const locksPorMesa = new Map<string, Promise<void>>()
 
-function conLockDeMesa<T>(rid: string, mesaId: string, tarea: () => Promise<T>): Promise<T> {
-  const clave = `${rid}:${mesaId}`
+function conLockClave<T>(clave: string, tarea: () => Promise<T>): Promise<T> {
   const anterior = locksPorMesa.get(clave) ?? Promise.resolve()
   // La cadena no se rompe si una tarea falla: la siguiente entra igual, como una
   // transacción abortada que libera el lock en Postgres sin romper a la cola.
@@ -1678,6 +1719,20 @@ function conLockDeMesa<T>(rid: string, mesaId: string, tarea: () => Promise<T>):
   const turno: Promise<void> = mio.then(liberar, liberar)
   locksPorMesa.set(clave, turno)
   return mio
+}
+
+function conLockDeMesa<T>(rid: string, mesaId: string, tarea: () => Promise<T>): Promise<T> {
+  return conLockClave(`${rid}:${mesaId}`, tarea)
+}
+
+/** Adquiere los locks de varias mesas en orden fijo, como los FOR UPDATE del servidor. */
+function conLocksDeMesas<T>(rid: string, mesaIds: string[], tarea: () => Promise<T>): Promise<T> {
+  const claves = [...new Set(mesaIds)].sort().map((id) => `${rid}:${id}`)
+  const adquirir = (indice: number): Promise<T> =>
+    indice >= claves.length
+      ? tarea()
+      : conLockClave(claves[indice], () => adquirir(indice + 1))
+  return adquirir(0)
 }
 
 /**
@@ -1828,6 +1883,14 @@ async function cerrarCuentaDivididaConLock(
   if (!ds.mesas.some((m) => m.id === mesaId && m.restaurante_id === rid)) {
     return { data: null, error: 'La mesa no pertenece al restaurante' }
   }
+  const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+  if (!actor || !['mesero', 'admin_restaurante'].includes(actor.rol)) {
+    return { data: null, error: 'Sin permiso para cerrar cuentas en este restaurante' }
+  }
+  const mesaActual = ds.mesas.find((m) => m.id === mesaId && m.restaurante_id === rid)
+  if (actor.rol === 'mesero' && mesaActual?.mesero_responsable_id && mesaActual.mesero_responsable_id !== actor.id) {
+    return { data: null, error: 'Esta mesa esta asignada a otro mesero.' }
+  }
   const aCobrar = pedidoIds.filter((id) =>
     ds.pedidos.some((x) => x.id === id && x.restaurante_id === rid && x.mesa_id === mesaId && x.estado !== 'anulado'),
   )
@@ -1871,6 +1934,13 @@ async function cerrarCuentaDivididaConLock(
     numero: siguienteNumeroBoleta(ds, rid),
     propina: redondear(propina),
     vuelto: resumen.vuelto,
+    mesero_id_snapshot: apiMode.operadorId ?? null,
+    mesero_nombre_snapshot: ds.usuarios.find((u) => u.id === apiMode.operadorId)?.nombre ?? null,
+    mesa_nombre_snapshot: ds.mesas.find((m) => m.id === mesaId)?.nombre ?? null,
+    restaurante_nombre_snapshot: ds.restaurantes.find((r) => r.id === rid)?.nombre ?? null,
+    restaurante_direccion_snapshot: ds.restaurantes.find((r) => r.id === rid)?.direccion ?? null,
+    restaurante_ruc_snapshot: ds.restaurantes.find((r) => r.id === rid)?.ruc ?? null,
+    restaurante_telefono_snapshot: ds.restaurantes.find((r) => r.id === rid)?.telefono ?? null,
   }
   ds.cuentas.push(cuenta)
   // El detalle del pago dividido se guarda parte por parte: el arqueo de caja
@@ -1901,7 +1971,10 @@ async function cerrarCuentaDivididaConLock(
     }
   }
   const mesa = ds.mesas.find((m) => m.id === mesaId)
-  if (mesa) mesa.estado = 'libre'
+  if (mesa) {
+    mesa.estado = 'libre'
+    mesa.mesero_responsable_id = null
+  }
   persiste()
   // Se devuelve la cuenta guardada: la boleta sale del mismo dato que la caja.
   return { data: cuenta, error: null }
@@ -2007,6 +2080,75 @@ function crearApiDesde(
     await espera()
     return { data: ds.usuarios.filter((u) => u.restaurante_id === rid && u.rol === 'mesero'), error: null }
   },
+  async asignarMesaMesero(rid, mesaId, meseroId) {
+    const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
+    if (acceso) return { data: null, error: acceso }
+    return conLockDeMesa(rid, mesaId, async () => {
+    await espera(250)
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+    if (!actor || !['mesero', 'admin_restaurante'].includes(actor.rol)) {
+      return { data: null, error: 'Solo el mesero responsable o el administrador puede pasar esta mesa.' }
+    }
+    const mesa = ds.mesas.find((m) => m.id === mesaId && m.restaurante_id === rid)
+    if (!mesa || mesa.estado !== 'ocupada') return { data: null, error: 'La mesa no está ocupada.' }
+    const destino = ds.usuarios.find((u) => u.id === meseroId && u.restaurante_id === rid && u.rol === 'mesero' && u.activo !== false)
+    if (!destino) return { data: null, error: 'El mesero elegido no está activo en este restaurante.' }
+    const pedidosAbiertos = pedidosAbiertosDeMesa(ds, rid, mesaId).filter((p) => totalDePedidos(ds, [p.id]) > 0.004)
+    if (pedidosAbiertos.length === 0) return { data: null, error: 'La mesa no tiene consumo pendiente para transferir.' }
+    if (actor.rol === 'mesero') {
+      if (mesa.mesero_responsable_id && mesa.mesero_responsable_id !== actor.id) {
+        return { data: null, error: 'Esta mesa está asignada a otro mesero.' }
+      }
+      if (!mesa.mesero_responsable_id && pedidosAbiertos.some((p) => p.mesero_id !== actor.id)) {
+        return { data: null, error: 'Solo el administrador puede asignar esta mesa porque tiene comandas de otro mesero.' }
+      }
+    }
+    mesa.mesero_responsable_id = destino.id
+    persiste()
+    return { data: null, error: null }
+    })
+  },
+  async moverConsumoMesa(rid, origenId, destinoId) {
+    const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
+    if (acceso) return { data: null, error: acceso }
+    if (origenId === destinoId) return { data: null, error: 'Elige una mesa distinta.' }
+    return conLocksDeMesas(rid, [origenId, destinoId], async () => {
+      await espera(300)
+      const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+      if (!actor || !['mesero', 'admin_restaurante'].includes(actor.rol)) {
+        return { data: null, error: 'Solo el mesero responsable o el administrador puede mover este consumo.' }
+      }
+      const origen = ds.mesas.find((m) => m.id === origenId && m.restaurante_id === rid)
+      const destino = ds.mesas.find((m) => m.id === destinoId && m.restaurante_id === rid)
+      if (!origen || !destino) return { data: null, error: 'Una de las mesas no pertenece al restaurante.' }
+      if (origen.estado !== 'ocupada') return { data: null, error: 'La mesa de origen ya no está ocupada.' }
+      if (destino.estado !== 'libre' || pedidosAbiertosDeMesa(ds, rid, destinoId).some((p) => totalDePedidos(ds, [p.id]) > 0.004)) {
+        return { data: null, error: 'La mesa de destino debe estar libre y sin consumo pendiente.' }
+      }
+      const pedidos = pedidosAbiertosDeMesa(ds, rid, origenId).filter((p) => totalDePedidos(ds, [p.id]) > 0.004)
+      if (pedidos.length === 0) return { data: null, error: 'La mesa no tiene consumo pendiente para mover.' }
+      if (actor.rol === 'mesero') {
+        if (origen.mesero_responsable_id && origen.mesero_responsable_id !== actor.id) {
+          return { data: null, error: 'Esta mesa está asignada a otro mesero.' }
+        }
+        if (!origen.mesero_responsable_id && pedidos.some((p) => p.mesero_id !== actor.id)) {
+          return { data: null, error: 'Solo el administrador puede mover esta mesa porque tiene comandas de otro mesero.' }
+        }
+      }
+      const ahora = new Date().toISOString()
+      for (const pedido of pedidos) {
+        pedido.mesa_id = destinoId
+        pedido.updated_at = ahora
+      }
+      const responsable = origen.mesero_responsable_id ?? (actor.rol === 'mesero' ? actor.id : pedidos[0]?.mesero_id ?? null)
+      origen.estado = 'libre'
+      origen.mesero_responsable_id = null
+      destino.estado = 'ocupada'
+      destino.mesero_responsable_id = responsable
+      persiste()
+      return { data: null, error: null }
+    })
+  },
   async getPersonal(rid) {
     await espera()
     return {
@@ -2045,9 +2187,22 @@ function crearApiDesde(
   async crearPedido(rid, mesaId, items) {
     const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
     if (acceso) return { data: null, error: acceso }
+    return conLockDeMesa(rid, mesaId, async () => {
     await espera(350)
-    if (!ds.mesas.some((m) => m.id === mesaId && m.restaurante_id === rid)) {
+    const mesaActual = ds.mesas.find((m) => m.id === mesaId && m.restaurante_id === rid)
+    if (!mesaActual) {
       return { data: null, error: 'La mesa no pertenece al restaurante' }
+    }
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+    if (!actor || !['mesero', 'admin_restaurante'].includes(actor.rol)) {
+      return { data: null, error: 'Sin permiso para crear pedidos en este restaurante' }
+    }
+    if (actor.rol === 'mesero' && mesaActual.mesero_responsable_id && mesaActual.mesero_responsable_id !== actor.id) {
+      return { data: null, error: 'Esta mesa está asignada a otro mesero.' }
+    }
+    const pedidosPrevios = pedidosAbiertosDeMesa(ds, rid, mesaId).filter((p) => totalDePedidos(ds, [p.id]) > 0.004)
+    if (actor.rol === 'mesero' && !mesaActual.mesero_responsable_id && pedidosPrevios.some((p) => p.mesero_id !== actor.id)) {
+      return { data: null, error: 'Esta mesa tiene comandas de otro mesero. Pide al administrador que asigne la mesa.' }
     }
     if (items.length === 0) return { data: null, error: 'El pedido no tiene ítems' }
     const id = crypto.randomUUID()
@@ -2056,7 +2211,7 @@ function crearApiDesde(
       id,
       restaurante_id: rid,
       mesa_id: mesaId,
-      mesero_id: apiMode.operadorId,
+      mesero_id: actor.id,
       estado: 'pendiente',
       observacion: null,
       created_at: ahora,
@@ -2076,9 +2231,13 @@ function crearApiDesde(
       })
     }
     const mesa = ds.mesas.find((m) => m.id === mesaId)
-    if (mesa) mesa.estado = 'ocupada'
+    if (mesa) {
+      mesa.estado = 'ocupada'
+      if (actor.rol === 'mesero' && !mesa.mesero_responsable_id) mesa.mesero_responsable_id = actor.id
+    }
     persiste()
     return { data: id, error: null }
+    })
   },
   async editarItem(rid, pedidoId, itemId, cambios) {
     const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
@@ -2093,6 +2252,11 @@ function crearApiDesde(
     const r = buscarItemComanda(ds, rid, pedidoId, itemId)
     if ('error' in r) return { data: null, error: r.error }
     const { item, pedido } = r
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId)
+    const mesa = ds.mesas.find((m) => m.id === pedido.mesa_id && m.restaurante_id === rid)
+    if (actor?.rol === 'mesero' && ((mesa?.mesero_responsable_id && mesa.mesero_responsable_id !== actor.id) || (!mesa?.mesero_responsable_id && pedido.mesero_id !== actor.id))) {
+      return { data: null, error: 'Esta mesa está asignada a otro mesero.' }
+    }
     if (item.anulado === true) return { data: null, error: 'El ítem está anulado' }
     if (pedido.estado === 'anulado') return { data: null, error: 'La comanda está anulada' }
     if (idsPedidosCobradosEn(ds, rid).has(pedidoId)) {
@@ -2111,6 +2275,11 @@ function crearApiDesde(
     const r = buscarItemComanda(ds, rid, pedidoId, itemId)
     if ('error' in r) return { data: null, error: r.error }
     const { item, pedido } = r
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId)
+    const mesaActual = ds.mesas.find((m) => m.id === pedido.mesa_id && m.restaurante_id === rid)
+    if (actor?.rol === 'mesero' && ((mesaActual?.mesero_responsable_id && mesaActual.mesero_responsable_id !== actor.id) || (!mesaActual?.mesero_responsable_id && pedido.mesero_id !== actor.id))) {
+      return { data: null, error: 'Esta mesa está asignada a otro mesero.' }
+    }
     // Idempotente: anular dos veces el mismo ítem no es un error.
     if (item.anulado === true) return { data: null, error: null }
     if (pedido.estado === 'anulado') return { data: null, error: 'La comanda está anulada' }
@@ -2137,6 +2306,7 @@ function crearApiDesde(
     if (pedidosAbiertosDeMesa(ds, rid, pedido.mesa_id).length === 0) {
       const mesa = ds.mesas.find((m) => m.id === pedido.mesa_id && m.restaurante_id === rid)
       if (mesa) mesa.estado = 'libre'
+      if (mesa) mesa.mesero_responsable_id = null
     }
     persiste()
     return { data: null, error: null }
@@ -2212,11 +2382,16 @@ function crearApiDesde(
     return { data: null, error: null }
   },
   async liberarMesa(rid, mesaId) {
-    await espera(200)
-    const mesa = ds.mesas.find((m) => m.id === mesaId && m.restaurante_id === rid)
-    if (mesa) mesa.estado = 'libre'
-    persiste()
-    return { data: null, error: null }
+    return conLockDeMesa(rid, mesaId, async () => {
+      await espera(200)
+      const mesa = ds.mesas.find((m) => m.id === mesaId && m.restaurante_id === rid)
+      if (mesa) {
+        mesa.estado = 'libre'
+        mesa.mesero_responsable_id = null
+      }
+      persiste()
+      return { data: null, error: null }
+    })
   },
   async getMetricasAdmin(rid) {
     await espera(250)
@@ -2365,6 +2540,47 @@ function crearApiDesde(
         .filter((c) => c.restaurante_id === rid && c.estado !== 'pendiente' && c.pagado_at)
         .filter((c) => String(c.pagado_at) >= inicioDia)
         .sort((a, b) => String(b.pagado_at).localeCompare(String(a.pagado_at))),
+      error: null,
+    }
+  },
+  async getBoletaReimpresion(rid, cuentaId, pin = null) {
+    const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
+    if (acceso) return { data: null, error: acceso }
+    await espera(250)
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+    if (!actor || !['admin_restaurante', 'cajero'].includes(actor.rol)) {
+      return { data: null, error: 'Solo el administrador o el cajero pueden reimprimir boletas.' }
+    }
+    if (actor.rol === 'cajero') {
+      if (!pinDeRestaurante(ds, rid)) {
+        return { data: null, error: 'El administrador debe configurar un PIN de autorización antes de permitir reimpresiones desde caja.' }
+      }
+      const errorPin = errorDePin(ds, rid, pin)
+      if (errorPin) return { data: null, error: errorPin }
+    }
+    const cuenta = ds.cuentas.find((c) => c.id === cuentaId && c.restaurante_id === rid)
+    if (!cuenta || cuenta.estado !== 'pagada') return { data: null, error: 'Solo se puede reimprimir una boleta pagada.' }
+    const pedidosIds = ds.cuentaPedidos.filter((cp) => cp.cuenta_id === cuenta.id).map((cp) => cp.pedido_id)
+    const items = ds.items
+      .filter((it) => pedidosIds.includes(it.pedido_id) && it.anulado !== true)
+      .map((it) => ({ ...it, es_bebida: esBebidaEn(ds, rid, it.producto_id) }))
+    if (items.length === 0) return { data: null, error: 'La boleta no tiene ítems disponibles para reimprimir.' }
+    const restaurante = ds.restaurantes.find((r) => r.id === rid)
+    const mesa = ds.mesas.find((m) => m.id === cuenta.mesa_id && m.restaurante_id === rid)
+    const mesero = cuenta.mesero_id_snapshot
+      ? ds.usuarios.find((u) => u.id === cuenta.mesero_id_snapshot)?.nombre
+      : ds.usuarios.find((u) => u.id === ds.pedidos.find((p) => pedidosIds.includes(p.id))?.mesero_id)?.nombre ?? null
+    return {
+      data: {
+        cuenta,
+        restauranteNombre: cuenta.restaurante_nombre_snapshot ?? restaurante?.nombre ?? 'Restaurante',
+        direccion: cuenta.restaurante_direccion_snapshot ?? restaurante?.direccion ?? null,
+        ruc: cuenta.restaurante_ruc_snapshot ?? restaurante?.ruc ?? null,
+        telefono: cuenta.restaurante_telefono_snapshot ?? restaurante?.telefono ?? null,
+        mesaNombre: cuenta.mesa_nombre_snapshot ?? mesa?.nombre ?? 'Mesa',
+        meseroNombre: cuenta.mesero_nombre_snapshot ?? mesero ?? '—',
+        items,
+      },
       error: null,
     }
   },

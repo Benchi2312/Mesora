@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getApi, itemsVigentes, totalItems, type ItemResumen, type PedidoResumen } from '../../lib/api'
+import { getApi, itemsVigentes, totalItems, type ItemResumen, type PedidoResumen, type UsuarioResumen } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import type { Mesa } from '../../types/database'
 import { estadoPedidoLabel, fmtFecha, fmtPEN } from '../../lib/format'
@@ -8,6 +8,9 @@ import EstadoVacio from '../../components/EstadoVacio'
 import { Campo, ConfirmDialog, IconoLapiz, Modal } from '../../components/ui'
 import { CampoPin, usePinAutorizacion } from '../../components/pin'
 import Precuenta from '../../components/Precuenta'
+import type { Zona } from '../../types/database'
+
+type OperacionMesa = 'pasar-mesero' | 'mover-consumo' | null
 
 const CANTIDAD_MAXIMA = 99
 const NOTA_MAXIMA = 120
@@ -15,6 +18,7 @@ const NOTA_MAXIMA = 120
 interface MesaOcupadaProps {
   mesa: Mesa
   onVolver: () => void
+  onConsumoMovido: (mensaje: string) => void
   onAgregarPedido: () => void
   onCerrarCuenta: () => void
 }
@@ -30,10 +34,11 @@ type EnEdicion = { pedidoId: string; item: ItemResumen }
 export default function MesaOcupada({
   mesa,
   onVolver,
+  onConsumoMovido,
   onAgregarPedido,
   onCerrarCuenta,
 }: MesaOcupadaProps) {
-  const { restaurante } = useCurrentContext()
+  const { restaurante, usuario } = useCurrentContext()
   const [pedidos, setPedidos] = useState<PedidoResumen[]>([])
   const [items, setItems] = useState<ItemResumen[]>([])
   const [cargando, setCargando] = useState(true)
@@ -44,10 +49,48 @@ export default function MesaOcupada({
   const [anulando, setAnulando] = useState<EnEdicion | null>(null)
   const [anulandoEnCurso, setAnulandoEnCurso] = useState(false)
   const [errorAnulacion, setErrorAnulacion] = useState<string | null>(null)
+  const [meseros, setMeseros] = useState<UsuarioResumen[]>([])
+  const [mesasLibres, setMesasLibres] = useState<Mesa[]>([])
+  const [zonas, setZonas] = useState<Zona[]>([])
+  const [meseroResponsableId, setMeseroResponsableId] = useState<string | null>(mesa.mesero_responsable_id ?? null)
+  const [operacionMesa, setOperacionMesa] = useState<OperacionMesa>(null)
+  const [meseroSeleccionado, setMeseroSeleccionado] = useState('')
+  const [mesaSeleccionada, setMesaSeleccionada] = useState('')
+  const [guardandoOperacion, setGuardandoOperacion] = useState(false)
+  const [errorOperacion, setErrorOperacion] = useState<string | null>(null)
+  const [cargandoOpcionesMesa, setCargandoOpcionesMesa] = useState(false)
   // Si el restaurante configuró PIN, el mesero tiene que pedirlo antes de anular:
   // es el número de quien autoriza. El campo solo aparece si hace falta (y el
   // backend lo valida igual, por si alguien lo salta desde la consola).
   const { pin, setPin, requierePin } = usePinAutorizacion(anulando ? restaurante?.id : null)
+  const meseroResponsable = meseros.find((m) => m.id === meseroResponsableId)
+  const asignadaAOtro = usuario?.rol === 'mesero' && Boolean(meseroResponsableId) && meseroResponsableId !== usuario?.id
+
+  useEffect(() => {
+    const rid = restaurante?.id
+    if (!rid) return
+    let activo = true
+    setCargandoOpcionesMesa(true)
+    void Promise.all([getApi().getMeseros(rid), getApi().getMesas(rid), getApi().getZonas(rid)]).then(([uRes, mRes, zRes]) => {
+      if (!activo) return
+      if (uRes.error || mRes.error || zRes.error) {
+        setErrorOperacion(uRes.error ?? mRes.error ?? zRes.error ?? 'No se pudieron cargar las opciones de mesa.')
+        return
+      }
+      const listaMeseros = (uRes.data ?? []).filter((u) => u.activo !== false)
+      const listaMesas = mRes.data ?? []
+      setMeseros(listaMeseros)
+      setMesasLibres(listaMesas.filter((m) => m.id !== mesa.id && m.estado === 'libre'))
+      setZonas(zRes.data ?? [])
+      setMeseroResponsableId(listaMesas.find((m) => m.id === mesa.id)?.mesero_responsable_id ?? mesa.mesero_responsable_id ?? null)
+      setErrorOperacion(null)
+    }).catch(() => {
+      if (activo) setErrorOperacion('No se pudieron cargar las opciones de mesa. Inténtalo de nuevo.')
+    }).finally(() => {
+      if (activo) setCargandoOpcionesMesa(false)
+    })
+    return () => { activo = false }
+  }, [restaurante?.id, mesa.id, mesa.mesero_responsable_id])
 
   /** Evita escribir estado si la pantalla ya se cerró (o si cambió la mesa). */
   const vivo = useRef(true)
@@ -142,6 +185,53 @@ export default function MesaOcupada({
     }
   }
 
+  async function confirmarOperacionMesa() {
+    if (!restaurante || !operacionMesa) return
+    setGuardandoOperacion(true)
+    setErrorOperacion(null)
+    try {
+      const api = getApi()
+      if (operacionMesa === 'pasar-mesero') {
+        const destino = meseros.find((m) => m.id === meseroSeleccionado)
+        if (!destino) {
+          setErrorOperacion('Elige el mesero que recibirá la mesa.')
+          return
+        }
+        const res = await api.asignarMesaMesero(restaurante.id, mesa.id, destino.id)
+        if (res.error) {
+          setErrorOperacion(res.error)
+          return
+        }
+        setMeseroResponsableId(destino.id)
+        setOperacionMesa(null)
+        setMeseroSeleccionado('')
+        setFlash(`Mesa asignada a ${destino.nombre}. Las comandas anteriores conservan su mesero original.`)
+        await cargar(true)
+        return
+      }
+
+      const destino = mesasLibres.find((m) => m.id === mesaSeleccionada)
+      if (!destino) {
+        setErrorOperacion('Elige una mesa libre para recibir el consumo.')
+        return
+      }
+      const res = await api.moverConsumoMesa(restaurante.id, mesa.id, destino.id)
+      if (res.error) {
+        setErrorOperacion(res.error)
+        return
+      }
+      const zona = zonas.find((z) => z.id === destino.zona_id)?.nombre
+      const ubicacion = zona ? `${destino.nombre} · ${zona}` : destino.nombre
+      setOperacionMesa(null)
+      setMesaSeleccionada('')
+      onConsumoMovido(`Consumo movido de ${mesa.nombre} a ${ubicacion}. Cocina verá las comandas bajo la mesa nueva.`)
+    } catch {
+      setErrorOperacion('No se pudo completar la operación. Actualiza las mesas antes de volver a intentarlo.')
+    } finally {
+      setGuardandoOperacion(false)
+    }
+  }
+
   if (verPrecuenta) {
     return <Precuenta mesa={mesa} onVolver={() => { setVerPrecuenta(false); void cargar(false) }} />
   }
@@ -160,6 +250,7 @@ export default function MesaOcupada({
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">Mesa abierta</p>
           <h1 className="text-xl font-extrabold tracking-tight text-zinc-100">{mesa.nombre}</h1>
+          <p className="mt-1 text-xs text-zinc-500">Responsable: {meseroResponsable?.nombre ?? (meseroResponsableId ? 'Mesero inactivo' : 'Sin asignar')}</p>
         </div>
         {hayPedidos && (
           <div className="text-right">
@@ -178,6 +269,11 @@ export default function MesaOcupada({
       )}
       {flash && (
         <div className="aviso mb-4 border-ok-500/40 bg-ok-500/10 text-ok-500">{flash}</div>
+      )}
+      {asignadaAOtro && (
+        <div role="status" className="aviso mb-4 border-brand-500/30 bg-brand-500/10 text-brand-300">
+          Esta mesa ahora está asignada a {meseroResponsable?.nombre ?? 'otro mesero'}. Puedes consultar el consumo, pero el responsable debe gestionar las comandas.
+        </div>
       )}
 
       {cargando ? (
@@ -216,6 +312,7 @@ export default function MesaOcupada({
                       key={it.id}
                       item={it}
                       onEditar={() => setEditando({ pedidoId: p.id, item: it })}
+                      editable={!asignadaAOtro}
                     />
                   ))}
                 </ul>
@@ -233,6 +330,7 @@ export default function MesaOcupada({
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <button
           type="button"
+          disabled={asignadaAOtro}
           onClick={onAgregarPedido}
           className="min-h-14 touch-manipulation rounded-xl border-2 border-brand-500/50 bg-brand-500/10 px-4 py-3.5 text-base font-semibold text-brand-400 transition hover:border-brand-500 hover:bg-brand-500/15 active:scale-[0.98]"
         >
@@ -250,10 +348,28 @@ export default function MesaOcupada({
           type="button"
           data-guia="cerrar-cuenta"
           onClick={onCerrarCuenta}
-          disabled={!hayPedidos}
+          disabled={!hayPedidos || asignadaAOtro}
           className="min-h-14 touch-manipulation rounded-xl bg-brand-500 px-4 py-3.5 text-base font-semibold text-surface-950 transition hover:bg-brand-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {hayPedidos ? `Cerrar cuenta · ${fmtPEN(total)}` : 'Cerrar cuenta'}
+        </button>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          disabled={!hayPedidos || asignadaAOtro || cargandoOpcionesMesa}
+          onClick={() => { setErrorOperacion(null); setOperacionMesa('pasar-mesero') }}
+          className="btn btn-outline min-h-12 px-4 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Pasar a otro mesero
+        </button>
+        <button
+          type="button"
+          disabled={!hayPedidos || asignadaAOtro || cargandoOpcionesMesa || mesasLibres.length === 0}
+          onClick={() => { setErrorOperacion(null); setOperacionMesa('mover-consumo') }}
+          className="btn btn-outline min-h-12 px-4 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Mover consumo a otra mesa
         </button>
       </div>
       <p className="mt-2 text-center text-xs text-zinc-500">
@@ -305,12 +421,63 @@ export default function MesaOcupada({
           }}
         />
       )}
+
+      {operacionMesa && (
+        <Modal
+          titulo={operacionMesa === 'pasar-mesero' ? 'Pasar mesa a otro mesero' : 'Mover consumo a otra mesa'}
+          onCerrar={() => { if (!guardandoOperacion) setOperacionMesa(null) }}
+        >
+          {operacionMesa === 'pasar-mesero' ? (
+            <>
+              <p className="text-sm leading-relaxed text-zinc-300">
+                La mesa seguirá siendo la misma. El nuevo responsable recibirá las próximas comandas; los pedidos y ventas anteriores conservan el mesero que los registró.
+              </p>
+              <label className="label mt-4" htmlFor="mesa-nuevo-mesero">Mesero que recibe</label>
+              <select id="mesa-nuevo-mesero" value={meseroSeleccionado} onChange={(e) => setMeseroSeleccionado(e.target.value)} className="input">
+                <option value="">Selecciona un mesero</option>
+                {meseros.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+              </select>
+              {meseros.length === 0 ? <p className="mt-2 text-xs text-zinc-500">No hay meseros activos disponibles.</p> : null}
+            </>
+          ) : (
+            <>
+              <p className="text-sm leading-relaxed text-zinc-300">
+                Moveremos las comandas aún no cobradas a una mesa libre. Los pagos ya emitidos y su historial no cambian.
+              </p>
+              <label className="label mt-4" htmlFor="mesa-destino-consumo">Mesa libre</label>
+              <select id="mesa-destino-consumo" value={mesaSeleccionada} onChange={(e) => setMesaSeleccionada(e.target.value)} className="input">
+                <option value="">Selecciona una mesa</option>
+                {mesasLibres.map((m) => {
+                  const zona = zonas.find((z) => z.id === m.zona_id)?.nombre
+                  return <option key={m.id} value={m.id}>{m.nombre}{zona ? ` · ${zona}` : ''}</option>
+                })}
+              </select>
+              {mesasLibres.length === 0 ? <p className="mt-2 text-xs text-zinc-500">No hay mesas libres para recibir el consumo.</p> : null}
+            </>
+          )}
+          {errorOperacion ? <div role="alert" className="aviso mt-4 border-danger-500/40 bg-danger-500/10 text-danger-500">{errorOperacion}</div> : null}
+          {guardandoOperacion ? (
+            <div role="status" aria-live="polite" className="aviso mt-4 border-brand-500/30 bg-brand-500/10 text-brand-300"><Spinner className="mr-2 h-4 w-4 align-middle" />Guardando el cambio de mesa…</div>
+          ) : null}
+          <div className="mt-6 flex flex-wrap justify-end gap-2">
+            <button type="button" disabled={guardandoOperacion} onClick={() => setOperacionMesa(null)} className="btn btn-outline min-h-11 px-4">Cancelar</button>
+            <button
+              type="button"
+              disabled={guardandoOperacion || (operacionMesa === 'pasar-mesero' ? !meseroSeleccionado : !mesaSeleccionada)}
+              onClick={() => void confirmarOperacionMesa()}
+              className="btn min-h-11 px-4"
+            >
+              {guardandoOperacion ? 'Guardando…' : operacionMesa === 'pasar-mesero' ? 'Pasar mesa' : 'Mover consumo'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
 
 /** Fila de un ítem: los vigentes se pueden tocar, los anulados se muestran tachados. */
-function FilaItem({ item, onEditar }: { item: ItemResumen; onEditar: () => void }) {
+function FilaItem({ item, onEditar, editable = true }: { item: ItemResumen; onEditar: () => void; editable?: boolean }) {
   const anulado = item.anulado === true
   const importe = item.cantidad * item.precio_unitario
 
@@ -333,14 +500,16 @@ function FilaItem({ item, onEditar }: { item: ItemResumen; onEditar: () => void 
       </span>
       <span className="flex shrink-0 items-center gap-1">
         <span className="text-zinc-400">{fmtPEN(importe)}</span>
-        <button
-          type="button"
-          onClick={onEditar}
-          aria-label={`Editar ${item.nombre_producto}`}
-          className="grid h-9 w-9 touch-manipulation place-items-center rounded-lg text-zinc-500 transition hover:bg-surface-800 hover:text-brand-400"
-        >
-          <IconoLapiz />
-        </button>
+        {editable ? (
+          <button
+            type="button"
+            onClick={onEditar}
+            aria-label={`Editar ${item.nombre_producto}`}
+            className="grid h-9 w-9 touch-manipulation place-items-center rounded-lg text-zinc-500 transition hover:bg-surface-800 hover:text-brand-400"
+          >
+            <IconoLapiz />
+          </button>
+        ) : null}
       </span>
     </li>
   )

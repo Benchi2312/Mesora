@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getApi } from '../../lib/api'
+import type { BoletaReimpresion } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import { fmtHora, fmtPEN } from '../../lib/format'
 import { METODOS_PAGO_LABEL } from '../../domain/cashier/pagos'
@@ -9,6 +10,7 @@ import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 import { IconoInfo, Modal } from '../../components/ui'
 import { AvisoPin, CampoPin, usePinAutorizacion } from '../../components/pin'
+import { Boleta } from '../mesero/CerrarCuenta'
 
 /**
  * Boletas del día con la opción de anular un cobro.
@@ -26,12 +28,17 @@ import { AvisoPin, CampoPin, usePinAutorizacion } from '../../components/pin'
  * supabase/rpc_anular_cuenta.sql).
  */
 export default function CobrosTab() {
-  const { restaurante } = useCurrentContext()
+  const { restaurante, usuario } = useCurrentContext()
   const rid = restaurante?.id
   const [cuentas, setCuentas] = useState<Cuenta[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [anulando, setAnulando] = useState<Cuenta | null>(null)
+  const [reimprimiendo, setReimprimiendo] = useState<Cuenta | null>(null)
+  const [boleta, setBoleta] = useState<BoletaReimpresion | null>(null)
+  const [pinReimpresion, setPinReimpresion] = useState('')
+  const [errorReimpresion, setErrorReimpresion] = useState<string | null>(null)
+  const [cargandoReimpresion, setCargandoReimpresion] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
 
   const cargar = useCallback(
@@ -55,6 +62,22 @@ export default function CobrosTab() {
 
   const anuladas = cuentas.filter((c) => c.estado === 'anulada')
   const vigentes = cuentas.filter((c) => c.estado === 'pagada')
+  const esCajero = usuario?.rol === 'cajero'
+
+  async function confirmarReimpresion() {
+    if (!rid || !reimprimiendo) return
+    setCargandoReimpresion(true)
+    setErrorReimpresion(null)
+    const resultado = await getApi().getBoletaReimpresion(rid, reimprimiendo.id, pinReimpresion)
+    setCargandoReimpresion(false)
+    if (resultado.error || !resultado.data) {
+      setErrorReimpresion(resultado.error ?? 'No se pudo cargar el recibo original.')
+      return
+    }
+    setBoleta(resultado.data)
+    setReimprimiendo(null)
+    setPinReimpresion('')
+  }
 
   return (
     <div className="space-y-5">
@@ -126,16 +149,29 @@ export default function CobrosTab() {
                     </td>
                     <td className="py-2.5 text-right">
                       {c.estado === 'pagada' ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFlash(null)
-                            setAnulando(c)
-                          }}
-                          className="btn btn-danger-ghost min-h-11 px-3"
-                        >
-                          Anular
-                        </button>
+                        <div className="inline-flex flex-wrap justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setErrorReimpresion(null)
+                              setPinReimpresion('')
+                              setReimprimiendo(c)
+                            }}
+                            className="btn btn-outline min-h-11 px-3"
+                          >
+                            Reimprimir
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFlash(null)
+                              setAnulando(c)
+                            }}
+                            className="btn btn-danger-ghost min-h-11 px-3"
+                          >
+                            Anular
+                          </button>
+                        </div>
                       ) : (
                         <span className="text-xs text-zinc-500">
                           {c.monto_reembolsado != null ? `devuelto ${fmtPEN(c.monto_reembolsado)}` : ''}
@@ -160,6 +196,62 @@ export default function CobrosTab() {
             await cargar(true)
           }}
         />
+      )}
+
+      {reimprimiendo && (
+        <Modal titulo="Reimprimir boleta" onCerrar={() => setReimprimiendo(null)}>
+          <p className="text-sm leading-relaxed text-zinc-300">
+            Se volverá a imprimir el recibo interno original de <strong>{fmtPEN(reimprimiendo.total)}</strong>. No crea otro cobro ni otro número de boleta.
+          </p>
+          {esCajero ? (
+            <>
+              <CampoPin pin={pinReimpresion} onChange={setPinReimpresion} etiqueta="PIN del administrador" error={errorReimpresion} />
+              <p className="mt-2 text-xs text-zinc-500">Si el restaurante aún no tiene PIN, el administrador debe configurarlo en Configuración.</p>
+            </>
+          ) : errorReimpresion ? (
+            <div role="alert" className="aviso mt-4 border-danger-500/40 bg-danger-500/10 text-danger-500">{errorReimpresion}</div>
+          ) : null}
+          {!esCajero && errorReimpresion ? (
+            <div role="alert" className="aviso mt-4 border-danger-500/40 bg-danger-500/10 text-danger-500">{errorReimpresion}</div>
+          ) : null}
+          {cargandoReimpresion ? (
+            <div role="status" aria-live="polite" className="aviso mt-4 border-brand-500/30 bg-brand-500/10 text-brand-300">
+              <Spinner className="mr-2 h-4 w-4 align-middle" /> Validando autorización y recuperando el recibo original…
+            </div>
+          ) : null}
+          <div className="mt-6 flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={() => setReimprimiendo(null)} className="btn btn-outline min-h-11 px-4">Cancelar</button>
+            <button
+              type="button"
+              disabled={cargandoReimpresion || (esCajero && pinReimpresion.length < 4)}
+              onClick={() => void confirmarReimpresion()}
+              className="btn min-h-11 px-4"
+            >
+              {cargandoReimpresion ? 'Validando…' : 'Continuar a la boleta'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {boleta && (
+        <Modal titulo={`Reimpresión · ${boleta.cuenta.numero ?? 'boleta'}`} onCerrar={() => setBoleta(null)} ancho="max-w-4xl">
+          <p className="mb-4 text-sm text-zinc-400">Duplicado del recibo original. Esta acción no registra un nuevo pago.</p>
+          <Boleta
+            cuenta={boleta.cuenta}
+            restauranteNombre={boleta.restauranteNombre}
+            direccion={boleta.direccion}
+            ruc={boleta.ruc}
+            telefono={boleta.telefono}
+            mesaNombre={boleta.mesaNombre}
+            meseroNombre={boleta.meseroNombre ?? undefined}
+            items={boleta.items}
+            esCopia
+            onListo={() => {
+              setBoleta(null)
+              setFlash(`Boleta ${boleta.cuenta.numero ?? ''} lista para imprimir. No se registró un nuevo cobro.`)
+            }}
+          />
+        </Modal>
       )}
     </div>
   )

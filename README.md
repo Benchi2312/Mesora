@@ -38,7 +38,8 @@ tiempo y luego cuesta reconstruir qué se consumió, cobró o vendió. Mesora re
 ese recorrido para que cada rol trabaje con la misma información.
 
 - **Salón:** organiza zonas y mesas, registra pedidos y permite consultar el
-  consumo de cada cuenta.
+  consumo de cada cuenta. El mesero puede entregar una mesa a otro responsable o
+  trasladar su consumo a una mesa libre, sin cambiar quién registró cada comanda.
 - **Cocina:** recibe comandas y actualiza su avance para que el equipo de salón
   pueda seguir el estado.
 - **Caja:** reúne cobros, pagos y turnos; facilita el arqueo y el cierre de
@@ -78,10 +79,10 @@ Las instrucciones de instalación, arquitectura y verificación están más abaj
 
 | Rol | Puede |
 | --- | --- |
-| `mesero` | ver mesas, tomar comandas, editar/anular ítems, cobrar |
+| `mesero` | ver mesas, tomar comandas, pasar mesas, mover consumo, editar/anular ítems y cobrar |
 | `cocina` | ver y avanzar comandas (pendiente → en preparación → listo) |
-| `cajero` | abrir/cerrar turno de caja, cobrar mesas y ver el arqueo |
-| `admin_restaurante` | todo lo anterior + dashboard, zonas, mesas, menú, personal y reportes |
+| `cajero` | abrir/cerrar turno, cobrar, ver el arqueo y reimprimir boletas con PIN del administrador |
+| `admin_restaurante` | todo lo anterior + dashboard, zonas, mesas, menú, personal, reportes y reimpresión sin PIN |
 | `super_admin` | restaurantes, suscripciones, tickets de soporte, consultas comerciales, auditoría y configuración global |
 
 El rol se lee de la tabla `usuarios` (`usuarios.id` = `auth.users.id`), no del
@@ -376,9 +377,9 @@ Implementado. Última verificación registrada (`npm run verificar`: 510 checks;
 `npm run verificar:responsive`: sistema en 4 viewports y landing en 16 anchos):
 
 - Auth (email/password), lectura de rol desde `usuarios`, rutas protegidas por rol y bloqueo por suscripción vencida.
-- **Vista Mesero**: grilla de mesas por zona, toma de pedido desde el menú (categorías, promociones, notas por ítem), envío de comanda atómica (`crear_pedido`), **varias comandas por mesa** con pantalla intermedia que acumula el total, y cierre de cuenta con método de pago, pago dividido, propina y boleta imprimible (`cerrar_cuenta`), con **edición y anulación de ítems** desde la comanda abierta.
+- **Vista Mesero**: grilla de mesas por zona con responsable visible, toma de pedido desde el menú (categorías, promociones, notas por ítem), envío de comanda atómica (`crear_pedido`), **varias comandas por mesa** con pantalla intermedia que acumula el total, entrega de la mesa a otro mesero y traslado del consumo a una mesa libre, y cierre de cuenta con método de pago, pago dividido, propina y boleta imprimible (`cerrar_cuenta`), con **edición y anulación de ítems** desde la comanda abierta.
 - **Vista Cocina**: comandas en columnas por estado (pendientes / en preparación / listos) con cronómetro de espera, avance de estado y separación cocina/barra por `es_bebida`. Cada dispositivo puede activar un aviso sonoro para nuevas comandas pendientes; la primera carga es silenciosa y el navegador requiere activar audio desde la pantalla.
-- **Vista Admin**: dashboard de ventas (hoy/mes, ticket promedio, top productos, ventas por mesero, métodos de pago y horarios pico) y sección **Ventas** con filtros por periodo/estado, detalle de consumo por cuenta, pagos divididos, anulaciones, ranking de productos/bebidas, meseros y mesas. Es un reporte interno: la facturación electrónica continúa en el sistema fiscal del restaurante. También incluye **Caja por turnos** con arqueo y aviso (no bloqueo) de mesas sin cobrar, **Cobros** con anulación y PIN, gestión de zonas, mesas, categorías y productos, personal y datos del local. Export CSV y reportes imprimibles.
+- **Vista Admin**: dashboard de ventas (hoy/mes, ticket promedio, top productos, ventas por mesero, métodos de pago y horarios pico) y sección **Ventas** con filtros por periodo/estado, detalle de consumo por cuenta, pagos divididos, anulaciones, ranking de productos/bebidas, meseros y mesas. Es un reporte interno: la facturación electrónica continúa en el sistema fiscal del restaurante. También incluye **Caja por turnos** con arqueo y aviso (no bloqueo) de mesas sin cobrar, **Cobros** con anulación, reimpresión de boletas y PIN requerido para cajeros, gestión de zonas, mesas, categorías y productos, personal y datos del local. Las reimpresiones conservan el número original, quedan marcadas como copia y no crean un pago nuevo. Export CSV y reportes imprimibles.
 - **Vista Super Admin**: restaurantes, administradores, usuarios, suscripciones, estadísticas, auditoría, notificaciones, soporte de restaurantes, consultas comerciales y configuración global. Los avisos de tickets, contactos e incidencias se envían al correo comercial mediante una cola con reintentos.
 - **Modo local** (solo desarrollo, activación explícita con VITE_MESORA_MODO_LOCAL=true): login y roles simulados sobre un dataset de prueba, persistencia en localStorage y botón de reset en /login. Sin esa variable, la app falla cerrada si Supabase no está configurado.
 - **Modo demo** (`/demo`): las 4 vistas sin login, con recorrido guiado que escribe por ti ("Hazlo por mí"), persistencia en `localStorage` y botón para vaciarlo.

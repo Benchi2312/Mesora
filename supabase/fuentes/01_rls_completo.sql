@@ -420,18 +420,10 @@ create policy zonas_delete_admin on public.zonas
 -- =============================================================================
 -- 4 · mesas
 -- =============================================================================
--- QUIÉN LEE: cualquiera del restaurante.
--- QUIÉN ESCRIBE:
---   * el admin, para el catálogo (crear, renombrar, mover de zona, borrar);
---   * mesero, admin y cajero para el `estado`, que es lo único que cambia sin
---     ser el admin: el mesero libera la mesa cuando el cliente se va sin pagar
---     (CerrarCuenta.tsx → api.liberarMesa), y la RPC cerrar_cuenta la libera
---     ella misma.
--- NOTA (riesgo aceptado, no resuelto): RLS no puede filtrar columnas, así que el
--- `update` que la policy del mesero habilita también le permitiría renombrar una
--- mesa o cambiarle la zona con un update directo. No es dinero ni documento, y
--- el arreglo limpio es una RPC `liberar_mesa(rid, mesa_id)`; queda anotado en
--- ESTADO_Y_CAMBIOS.md §9 en vez de romper la app cambiando el frontend.
+-- QUIEN LEE: cualquiera del restaurante.
+-- QUIEN ESCRIBE: admin, mesero y cajero pueden actualizar las columnas de
+-- operacion permitidas por los privilegios SQL; crear y borrar mesas es del admin.
+-- mesero_responsable_id queda reservado a las RPC autorizadas.
 alter table public.mesas enable row level security;
 
 drop policy if exists mesas_select on public.mesas;
@@ -454,9 +446,8 @@ create policy mesas_delete_admin on public.mesas
   for delete to authenticated
   using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
 
--- La policy única de UPDATE permite al admin administrar la mesa y al mesero o
--- cajero cambiar su estado. Se conserva el límite conocido de columnas descrito
--- arriba; la API directa aún no restringe el UPDATE únicamente a `estado`.
+-- RLS valida pertenencia, rol y suscripcion; los privilegios de columna limitan
+-- el UPDATE a los campos que Mesora necesita exponer desde la API.
 drop policy if exists mesas_update_estado on public.mesas;
 -- La policy mesas_update_operacion anterior cubre esos tres roles.
 
@@ -723,7 +714,8 @@ grant select on public.caja_turnos to authenticated;
 
 -- Escritura directa desde el cliente, que es la que existe:
 grant insert, update, delete on public.zonas to authenticated;
-grant insert, update, delete on public.mesas to authenticated;
+grant insert, delete on public.mesas to authenticated;
+grant update (nombre, zona_id, estado) on public.mesas to authenticated;
 grant insert, update, delete on public.categorias_productos to authenticated;
 grant insert, update, delete on public.productos to authenticated;
 grant insert, update, delete on public.usuarios to authenticated;

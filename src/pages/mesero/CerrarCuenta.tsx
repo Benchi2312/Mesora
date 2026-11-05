@@ -617,6 +617,7 @@ function descargarBoletaPdf(params: {
   propina: number
   vuelto: number
   total: number
+  esCopia?: boolean
 }) {
   const {
     restauranteNombre,
@@ -633,6 +634,7 @@ function descargarBoletaPdf(params: {
     propina,
     vuelto,
     total,
+    esCopia = false,
   } = params
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' })
@@ -661,6 +663,10 @@ function descargarBoletaPdf(params: {
   y += 7
   doc.text(texto('RECIBO INTERNO DE PAGO', 11, 'bold'), cX, y, { align: 'center' })
   y += 4.5
+  if (esCopia) {
+    doc.text(texto('COPIA - REIMPRESION', 8, 'bold'), cX, y, { align: 'center' })
+    y += 4
+  }
   doc.text(texto(`N° ${numero}`, 9), cX, y, { align: 'center' })
   y += 5
   doc.text(texto('No sustituye al comprobante electrónico del local.', 7), cX, y, { align: 'center' })
@@ -743,7 +749,7 @@ function descargarBoletaPdf(params: {
   doc.save(nombreArchivoBoleta(mesa, fechaIso))
 }
 
-interface BoletaProps {
+export interface BoletaProps {
   cuenta: Cuenta
   restauranteNombre?: string
   direccion?: string | null
@@ -753,9 +759,10 @@ interface BoletaProps {
   meseroNombre?: string
   items: ItemResumen[]
   onListo: () => void
+  esCopia?: boolean
 }
 
-function Boleta({
+export function Boleta({
   cuenta,
   restauranteNombre,
   direccion,
@@ -765,6 +772,7 @@ function Boleta({
   meseroNombre,
   items,
   onListo,
+  esCopia = false,
 }: BoletaProps) {
   const { base, igv } = inferirBaseImponible(cuenta.total)
   const numero = numeroBoletaDeCuenta(cuenta)
@@ -798,6 +806,7 @@ function Boleta({
       propina,
       vuelto,
       total: totalAPagar,
+      esCopia,
     })
   }
 
@@ -819,6 +828,7 @@ function Boleta({
           <p className="mt-3 text-xs font-bold uppercase tracking-widest text-zinc-300">
             Recibo interno de pago
           </p>
+          {esCopia ? <p className="mt-1 text-[11px] font-bold uppercase tracking-widest text-brand-400">Copia · Reimpresión</p> : null}
           <p className="mt-0.5 font-mono text-xs text-brand-400">Nº {numero}</p>
           <p className="mt-2 text-[11px] text-zinc-500">No sustituye al comprobante electrónico del local.</p>
         </div>

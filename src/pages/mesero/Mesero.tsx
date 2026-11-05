@@ -44,6 +44,12 @@ export default function Mesero() {
     setTick((t) => t + 1)
   }
 
+  function consumoMovido(mensaje: string) {
+    setFlash(mensaje)
+    setVista('mesas')
+    setTick((t) => t + 1)
+  }
+
   return (
     <div>
       <PageHeader
@@ -73,7 +79,8 @@ export default function Mesero() {
         <MesaOcupada
           key={`ocupada-${mesa.id}-${tick}`}
           mesa={mesa}
-          onVolver={() => setVista('mesas')}
+          onVolver={() => { setVista('mesas'); setTick((t) => t + 1) }}
+          onConsumoMovido={consumoMovido}
           onAgregarPedido={() => {
             setOrigen('mesaOcupada')
             setVista('pedido')

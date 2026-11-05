@@ -96,6 +96,9 @@ const ORDEN = [
   '../migrations/20261105050740_fijar_actor_historial_suscripciones.sql',
   '../migrations/20261105050911_revoke_direct_access_internal_tables.sql',
   '../migrations/20261105055856_limitar_consulta_vigencia_suscripcion.sql',
+  '../migrations/20261105212322_transferir_mesas_y_reimprimir_boletas.sql',
+  '../migrations/20261105212447_indizar_responsables_y_reimpresiones.sql',
+  '../migrations/20261105212734_proteger_cierre_mesa_reasignada.sql',
 ]
 
 const fallos = []
