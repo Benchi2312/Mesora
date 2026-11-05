@@ -121,6 +121,17 @@ donde el superadministrador puede marcar el seguimiento. No son tickets de un
 restaurante. Los fallos de servicios se agrupan en **Notificaciones** y generan
 un aviso externo por código y día. Ver [circuito de correo](./CONTACTO_COMERCIAL.md).
 
+Cada ticket tiene una conversación. El administrador del restaurante y Mesora
+pueden responder mientras el ticket no esté cerrado; solo ese restaurante y el
+superadministrador leen sus mensajes. Al cerrarlo, el historial queda visible
+y se abre un nuevo ticket si hace falta continuar. El estado y la prioridad los
+gestiona Mesora; las respuestas se consultan dentro de la aplicación.
+
+En **Consultas comerciales**, Mesora registra responsable, nota interna y fecha
+del próximo contacto. El contador de contactos atrasados considera las consultas
+abiertas con una fecha anterior a hoy en Lima. Las notas no se envían por correo
+ni aparecen en la landing; solo el superadministrador accede a ellas.
+
 La app real envía a logs PostgreSQL el prefijo `MESORA_CLIENT_ERROR`, tipo,
 ruta canónica y operación/contexto. No envía mensajes originales, formularios,
 identificadores, PIN ni tokens. Límite por pestaña: 20 intentos/10 minutos y

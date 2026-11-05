@@ -28,7 +28,7 @@ try {
     console.error('Error de instalación:', e.message, e.detail ?? '', pos ? instalador.slice(Math.max(0, pos - 110), pos + 160) : '')
     throw new Error('Falló el instalador SQL')
   }
-  assert.equal((await pg.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 19)
+  assert.equal((await pg.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 20)
   console.log('SQL QA: tablas, RPC, RLS y pgcrypto instalados')
   await pg.exec(`
     begin;
@@ -164,7 +164,7 @@ try {
   const copia = await pg.dumpDataDir('gzip')
   const restaurada = new PGlite({ extensions: { pgcrypto }, loadDataDir: copia })
   try {
-    assert.equal((await restaurada.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 19)
+    assert.equal((await restaurada.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 20)
     assert.equal((await restaurada.query('select count(*)::int as n from public.restaurantes')).rows[0].n, 0)
     console.log('SQL QA: respaldo/restauración de la base aislada y rollback correctos')
   } finally { await restaurada.close() }
