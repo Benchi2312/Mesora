@@ -84,6 +84,12 @@ Las instrucciones de instalación, arquitectura y verificación están más abaj
 El rol se lee de la tabla `usuarios` (`usuarios.id` = `auth.users.id`), no del
 frontend, y un restaurante con `suscripcion_activa = false` o
 `fecha_vencimiento` vencida bloquea el acceso (salvo `super_admin`).
+El bloqueo pausa a todos los roles del restaurante sin cambiar permanentemente
+`usuarios.activo`; al renovar, sus sesiones pueden volver a operar. El panel
+del administrador muestra la fecha y el tiempo restante, con avisos visibles
+durante los últimos 30 días y prioridad creciente en los últimos 7 días y
+24 horas. Las sesiones abiertas vuelven a consultar el estado cada minuto y
+al recuperar el foco de la ventana.
 
 ## Modos de ejecución
 

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore, suSuscripcionVencida } from '../store/auth'
 import type { Rol } from '../types/database'
@@ -15,10 +15,25 @@ interface ProtectedRouteProps {
  * del restaurante está vencida (excepto para super_admin).
  */
 export default function ProtectedRoute({ roles, children }: ProtectedRouteProps) {
-  const { session, usuario, restaurante, loading, initDone, signOut } = useAuthStore()
+  const { session, usuario, restaurante, loading, initDone, signOut, refreshSubscription } = useAuthStore()
   const location = useLocation()
   const navigate = useNavigate()
   const [saliendo, setSaliendo] = useState(false)
+  const [ahora, setAhora] = useState(Date.now)
+
+  useEffect(() => {
+    if (!session || !usuario || usuario.rol === 'super_admin' || !restaurante) return
+    const comprobar = () => {
+      setAhora(Date.now())
+      void refreshSubscription()
+    }
+    const timer = window.setInterval(comprobar, 60_000)
+    window.addEventListener('focus', comprobar)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', comprobar)
+    }
+  }, [session?.user.id, usuario?.rol, restaurante?.id, refreshSubscription])
 
   if (loading || !initDone) return <LoadingScreen />
 
@@ -57,7 +72,7 @@ export default function ProtectedRoute({ roles, children }: ProtectedRouteProps)
     return <Navigate to="/restablecer" replace state={{ from: location.pathname }} />
   }
 
-  if (usuario.rol !== 'super_admin' && restaurante && suSuscripcionVencida(restaurante)) {
+  if (usuario.rol !== 'super_admin' && restaurante && suSuscripcionVencida(restaurante, ahora)) {
     return <Navigate to="/suscripcion-vencida" replace />
   }
 
