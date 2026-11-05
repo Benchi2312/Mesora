@@ -93,6 +93,8 @@ const ORDEN = [
   '../migrations/20261105034329_soporte_mensajes_suscripcion.sql',
   '../migrations/20261105042359_cerrar_borrado_directo_soporte.sql',
   '../migrations/20261105042814_indexar_foreign_keys_soporte.sql',
+  '../migrations/20261105050740_fijar_actor_historial_suscripciones.sql',
+  '../migrations/20261105050911_revoke_direct_access_internal_tables.sql',
 ]
 
 const fallos = []
