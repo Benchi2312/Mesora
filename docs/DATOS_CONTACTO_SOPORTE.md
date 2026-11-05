@@ -28,3 +28,7 @@
 
 La política pública de privacidad y el plazo definitivo de retención requieren
 revisión del responsable del negocio antes de publicarlos.
+
+La propuesta de trabajo para esa decisión está en
+[Propuesta de retención de datos](./PROPUESTA_RETENCION_DATOS.md). No se ha
+activado ninguna purga automática.

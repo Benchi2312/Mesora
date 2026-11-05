@@ -91,6 +91,7 @@ rollback. No dejaron ventas, pagos, anulaciones ni turnos de prueba persistidos.
 | P0 | Impresora y operación | Probar papel de 80 mm, impresora real, móvil y caja. Asignar encargado, soporte y contingencia sin internet. |
 | Completado | Recuperación del admin por correo | El propietario confirmó recepción del enlace y cambio de contraseña del administrador. El correo alternativo requiere verificación por separado. |
 | Completado | Contacto comercial | El propietario confirmó la recepción de la consulta en el buzón. Reintento y errores cubiertos por QA aislada. |
+| P0 | Conversación de soporte | Con una cuenta de admin de restaurante, abrir un ticket, responder como superadmin y confirmar que ambas respuestas y avisos se ven desde las cuentas correspondientes. |
 | P1 | Seguimiento | Asignar revisión de logs y escalamiento. Habilitar protección de claves filtradas si está disponible en el plan. |
 
 **Acuerdo del propietario (30/10/2026):** el restaurante mantendrá su sistema
@@ -106,15 +107,15 @@ presenciales ni crea por sí solo una copia externa cifrada del respaldo.
 Una preview puede conectar al mismo proyecto real. **Su URL no aísla los
 datos**: usar el demo para mostrar y pruebas locales para validar cambios. No crear operaciones ficticias en producción. No crear ventas ficticias en el local operativo.
 
-### Recuperación: límite conocido
+### Recuperación: estado actual
 
 La RPC `confirmar_cambio_password` y el reset administrativo están presentes.
-Supabase Auth envía recuperación al correo de acceso mediante SMTP de Gmail;
-el superadministrador completó ese flujo. La recuperación al correo alternativo
-verificado utiliza Resend y aún requiere configuración y prueba de entrega real.
-Los trabajadores dependen del restablecimiento que inicia el administrador
-desde Personal. La recuperación del admin de restaurante con su correo de
-acceso queda pendiente de prueba integral.
+Supabase Auth envía recuperación al correo de acceso mediante SMTP de Gmail.
+El propietario confirmó que el superadministrador y el administrador del
+restaurante recibieron sus enlaces, cambiaron la contraseña e ingresaron. Los
+trabajadores dependen del restablecimiento que inicia el administrador desde
+Personal. La recuperación al correo alternativo verificado es otro flujo y
+requiere configurar Resend y comprobar su entrega antes de ofrecerla.
 
 ## Evidencia automatizada
 

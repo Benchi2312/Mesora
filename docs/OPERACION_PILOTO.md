@@ -1,6 +1,6 @@
 # Operación del piloto
 
-Procedimiento actualizado el 02/11/2026. Completar con el encargado los datos
+Procedimiento actualizado el 05/11/2026. Completar con el encargado los datos
 del local y las pruebas presenciales antes del primer turno.
 
 Para el encargado: [guía breve del primer turno](./GUIA_PRIMER_TURNO.md).
@@ -71,9 +71,11 @@ certifica el tiempo de recuperación ni restaura Storage o secretos.
   quedan en la pantalla de acceso pausado. Los perfiles y los datos permanecen
   intactos y el acceso se recupera al renovar. La app comprueba el estado cada
   minuto y al volver a la ventana; el bloqueo de escritura se aplica en la base.
-- Reset de personal probado. Probar recuperación con el correo real de acceso
-  del administrador del restaurante; el correo alternativo requiere Resend.
-- Impresora de 80 mm, PDF, móvil y equipo de caja aprobados.
+- Reset de personal probado. El propietario confirmó recuperación con correo de
+  acceso del administrador y superadministrador; el correo alternativo requiere
+  Resend y una prueba independiente.
+- Precuenta PDF y diseño móvil verificados en QA. La impresora física de 80 mm
+  y el equipo de caja del local siguen pendientes de aceptación presencial.
 - Sistema de comprobantes acordado: Mesora entrega recibo interno y precuenta.
   El propietario confirmó que mantiene su facturación actual; conciliar ambos
   registros durante el turno.
@@ -125,7 +127,9 @@ Cada ticket tiene una conversación. El administrador del restaurante y Mesora
 pueden responder mientras el ticket no esté cerrado; solo ese restaurante y el
 superadministrador leen sus mensajes. Al cerrarlo, el historial queda visible
 y se abre un nuevo ticket si hace falta continuar. El estado y la prioridad los
-gestiona Mesora; las respuestas se consultan dentro de la aplicación.
+gestiona Mesora; las respuestas se consultan dentro de la aplicación. La función
+está desplegada; su aceptación con una conversación entre cuentas reales queda
+para la prueba presencial del local.
 
 En **Consultas comerciales**, Mesora registra responsable, nota interna y fecha
 del próximo contacto. El contador de contactos atrasados considera las consultas
