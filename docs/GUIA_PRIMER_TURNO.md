@@ -1,6 +1,6 @@
 # Guía del primer turno de Mesora
 
-Versión: 03/11/2026. URL: https://mesora-sistema.vercel.app.
+Versión: 05/11/2026. URL: https://mesora-sistema.vercel.app.
 Esta guía se puede leer en voz alta o con lector de pantalla. Las casillas son
 un registro por completar; ninguna significa que la prueba ya se haya hecho.
 
@@ -10,12 +10,15 @@ un registro por completar; ninguna significa que la prueba ya se haya hecho.
   privado del local. No subir nombres, ventas ni incidencias personales a GitHub.
 - [ ] Copia externa cifrada del respaldo disponible, con responsable y frecuencia.
 - [ ] Restaurante y suscripción activos, precios, bebidas, menú, zonas y mesas revisados.
-- [ ] Administrador con correo real: probar «Olvidé mi contraseña», recibir el
-  enlace, establecer la contraseña y volver a entrar. No compartir el enlace.
+- [x] Recuperación por correo del superadministrador y del administrador del
+  restaurante: el propietario confirmó recepción, cambio de contraseña e ingreso.
+  No compartir los enlaces recibidos.
 - [ ] Cuentas individuales para mesero, cocina y caja. Cambiar contraseñas
   temporales y configurar el PIN del encargado; comprobar cambio de usuario.
 - [ ] Dos dispositivos conectados; activar «Aviso sonoro» en cocina y comprobar
   el volumen del dispositivo. El navegador necesita esa interacción inicial.
+- [ ] Abrir un ticket real de soporte y comprobar que Mesora responde y que la
+  conversación aparece para el administrador del restaurante.
 - [ ] Papel y conexión de la impresora de 80 mm; imprimir una precuenta y revisar
   que el texto, total y corte sean legibles. El demo permite ensayar sin ventas reales.
 - [ ] Disponer de un registro manual para cortes de internet. Mesora requiere

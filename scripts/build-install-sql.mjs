@@ -91,6 +91,8 @@ const ORDEN = [
   '../migrations/20261104172538_bandeja_comercial_alertas.sql',
   '../migrations/20261105033712_soporte_conversaciones_seguimiento.sql',
   '../migrations/20261105034329_soporte_mensajes_suscripcion.sql',
+  '../migrations/20261105042359_cerrar_borrado_directo_soporte.sql',
+  '../migrations/20261105042814_indexar_foreign_keys_soporte.sql',
 ]
 
 const fallos = []

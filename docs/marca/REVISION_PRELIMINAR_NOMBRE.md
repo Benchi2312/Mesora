@@ -1,6 +1,6 @@
 # Revisión preliminar del nombre Mesora
 
-Fecha: 04/11/2026. Alcance: búsqueda pública de coincidencias del nombre y del
+Fecha: 05/11/2026. Alcance: búsqueda pública de coincidencias del nombre y del
 sector. Esta revisión no determina titularidad, prioridad de uso, registro de
 marca ni riesgo jurídico definitivo.
 
@@ -22,8 +22,8 @@ mismo nombre tampoco demuestra por sí solo que exista una marca registrada.
 ## Comprobación pendiente en Perú
 
 Indecopi ofrece [Busca tu marca](https://www.gob.pe/institucion/indecopi/pages/16475-buscar-una-marca-o-servicio-registrado-busca-tu-marca)
-para buscar denominaciones y similitudes. La [guía oficial de antecedentes](https://www.gob.pe/328-busqueda-de-antecedentes-de-una-marca)
-explica la búsqueda fonética y la exportación de resultados. El buscador
+para buscar denominaciones y similitudes, y una [orientación oficial sobre antecedentes](https://www.gob.pe/328-instituto-nacional-de-defensa-de-la-competencia-y-de-la-proteccion-de-la-propiedad-intelectual-busqueda-de-antecedentes-de-una-marca)
+que explica la búsqueda fonética y gráfica. El buscador
 interactivo no pudo consultarse desde este entorno, de modo que **no hay un
 resultado registral verificado** para «Mesora» ni para el símbolo aprobado.
 
@@ -32,4 +32,6 @@ consultar en Indecopi «Mesora» y variantes fonéticas en las clases de los
 servicios reales del producto, revisar titulares y fechas, y solicitar asesoría
 de propiedad industrial si aparecen coincidencias. Guardar el resultado
 exportado y la fecha de consulta. También conviene aclarar si alguno de los
-sitios anteriores pertenece al propietario de este proyecto.
+sitios anteriores pertenece al propietario de este proyecto. La consulta del
+símbolo aprobado también está pendiente: revisar la marca figurativa además de
+la denominación.

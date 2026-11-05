@@ -1,6 +1,6 @@
 # Estado del MVP de Mesora
 
-Revisión: 04/11/2026. Versión técnica **0.1.0**.
+Revisión: 05/11/2026. Versión técnica **0.1.0**.
 Producto publicado en https://mesora-sistema.vercel.app.
 Este registro distingue implementación, prueba técnica y aceptación del local.
 Las suites aisladas no certifican un turno real ni la recepción de un correo.
@@ -21,7 +21,8 @@ electrónica permanece en el sistema actual del restaurante.
 | Recuperación del superadmin | Completada por el propietario | Confirmó recepción del enlace, nueva contraseña e ingreso. |
 | Recuperación del admin de restaurante | Completada por el propietario | Confirmó recepción del enlace y cambio de contraseña. El correo alternativo es una integración distinta. |
 | Contacto comercial | Envío y recepción confirmados | Función respondió HTTP 200 con `ok: true`; el propietario confirmó que la consulta llegó al buzón. Reintentos, errores y carga tienen pruebas aisladas. |
-| Bandejas y alertas | Implementadas en esta entrega; validación local aprobada | Consultas comerciales privadas con seguimiento, tickets por tipo y cola de correo para avisos. Verificar el circuito desplegado y recepción real después de publicar. |
+| Bandejas y alertas | Desplegadas en producción | Consultas comerciales con seguimiento, conversaciones de soporte y cola de avisos. La recepción del formulario comercial fue confirmada por el propietario; falta una conversación real de soporte entre ambas cuentas. |
+| Borrado de soporte | Corregido en producción | Se revocó el privilegio SQL directo de `DELETE` para `anon` y `authenticated`; comprobación de privilegios devuelve `false`. |
 | Respaldo | Exportación y restauración local documentadas | Falta copia cifrada fuera del equipo, frecuencia, retención y cobertura de Storage/configuración. |
 | Repositorio | Revisión de exposición completada | 39 commits alcanzables, 472 blobs, 471 de texto; sin coincidencias de los patrones de secretos buscados. No es una garantía contra cualquier secreto o información sensible. |
 | Identidad | Opción A aprobada y publicada | Logo, favicon y cabeceras aplicados; kit vectorial en `docs/marca/kit-mesora/` y copia local verificada en `backups/`. |
@@ -38,6 +39,8 @@ electrónica permanece en el sistema actual del restaurante.
 - Bandeja comercial para el superadmin, tipos de ticket de soporte y reintento
   programado de avisos de correo. La respuesta de la landing distingue aviso
   enviado de aviso pendiente.
+- Conversaciones de soporte con respuestas del admin y del superadmin, además
+  de notificaciones por correo en cola. El historial permanece en Mesora.
 - Guía práctica del primer turno y kit de la marca aprobada preparados.
 - Retirado el asistente local de carga de la clave de Resend, que ya cumplió su
   función. La clave permanece en Supabase, fuera de Git.
@@ -87,6 +90,8 @@ producción se consultan en GitHub Actions y Vercel.
   antecedentes oficiales antes de ampliar la promoción comercial.
 - Elegir la licencia del repositorio; no se añadió una licencia sin decisión
   del titular. Que el código sea visible no define los permisos de reutilización.
+- Aprobar un plazo de retención y publicarlo en una política de privacidad antes
+  de automatizar eliminaciones. La propuesta interna no es todavía una política.
 - Con dominio propio, verificar remitente y configurar correo corporativo.
   El remitente inicial de Resend no habilita correos arbitrarios a clientes.
 - Antes de campañas: medir si las cuotas de contacto implantadas (por correo,
@@ -95,6 +100,13 @@ producción se consultan en GitHub Actions y Vercel.
 - Completar las pruebas HTTP con tokens Auth reales y confirmar la entrega
   efectiva de los nuevos avisos de incidencias y soporte. La matriz SQL y las
   notificaciones dentro del panel no sustituyen esas comprobaciones.
+- En los avisos de Supabase queda habilitar la protección de contraseñas filtradas
+  y revisar las funciones `SECURITY DEFINER` de forma individual. El linter lista
+  35 funciones ejecutables por usuarios autenticados; no se revocaron en bloque,
+  porque varias sostienen operaciones legítimas y cada una debe validar rol,
+  restaurante y alcance antes de decidir cambios.
+- Confirmar en Indecopi la denominación y el logo en las clases de servicio
+  aplicables; la revisión preliminar no es una búsqueda registral certificada.
 
 ## Criterio de cierre
 

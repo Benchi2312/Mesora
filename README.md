@@ -21,6 +21,8 @@ Documentación: [estado y pendientes del MVP](./docs/ESTADO_MVP.md) ·
 [guía del primer turno](./docs/GUIA_PRIMER_TURNO.md) ·
 [operación y contingencias](./docs/OPERACION_PILOTO.md) ·
 [datos de contacto y soporte](./docs/DATOS_CONTACTO_SOPORTE.md) ·
+[propuesta de retención de datos](./docs/PROPUESTA_RETENCION_DATOS.md) ·
+[situación de licencia](./docs/LICENCIA_REPOSITORIO.md) ·
 [identidad visual](./docs/marca/README.md).
 
 El demo es gratuito, no requiere cuenta y usa datos de ejemplo. Puedes recorrer
@@ -226,9 +228,9 @@ Vite las incrusta durante el build.
 En Supabase, Site URL debe coincidir con el dominio publicado y Redirect URLs
 debe incluir `https://mesora-sistema.vercel.app/restablecer`.
 Supabase Auth usa SMTP personalizado con el remitente `Mesora Tech` para los
-enlaces enviados al correo de acceso. El superadministrador recibió un enlace,
-estableció su contraseña e ingresó; falta comprobar el circuito completo con
-un administrador de restaurante real. La plantilla de recuperación está en
+enlaces enviados al correo de acceso. El superadministrador y el administrador
+de restaurante completaron la recuperación de su contraseña y el ingreso,
+según confirmó el propietario. La plantilla de recuperación está en
 `supabase/templates/recuperar-contrasena.html`.
 
 El correo alternativo verificado del administrador es un circuito adicional:
@@ -397,15 +399,15 @@ de forma coherente; las suites locales y SQL cubren los circuitos principales.
 - Completar la aceptación punta a punta en el local con cuentas de prueba: cuentas por
   rol, pedidos y cocina, cobros/anulación con PIN, arqueo, impresora y dos
   dispositivos. La batería local no sustituye la aceptación presencial; por decisión del propietario no se creó staging de pago.
-- La recuperación con el correo real del administrador del restaurante y la
-  recepción del formulario comercial fueron confirmadas por el propietario.
-  Si se habilita un correo alternativo, configurar y probar Resend y verificar
-  ese correo antes de depender de él. Ver [contacto](./docs/CONTACTO_COMERCIAL.md).
+- El propietario confirmó la recuperación por correo de las cuentas superadmin
+  y admin de restaurante, y la recepción del formulario comercial. La prueba de
+  conversación de soporte entre restaurante y superadmin sigue pendiente con
+  cuentas reales. El correo alternativo es un flujo aparte. Ver
+  [contacto](./docs/CONTACTO_COMERCIAL.md).
 - Acordar responsable, monitoreo y operación ante cortes de red.
 - Actualizar el video promocional con capturas de esta versión después de la aceptación del primer turno.
-- Aclarar las coincidencias del nombre «Mesora» en otros productos de
-  restaurantes antes de ampliar la promoción; ver la
-  [revisión preliminar de marca](./docs/marca/REVISION_PRELIMINAR_NOMBRE.md).
+- Consultar el nombre y el símbolo en los registros oficiales antes de ampliar
+  la promoción; ver la [revisión preliminar de marca](./docs/marca/REVISION_PRELIMINAR_NOMBRE.md).
 ## Integración continua
 
 GitHub Actions ejecuta `npm ci`, `npm run sql:install`, `npm run verificar:sql`, `npm run verificar`,

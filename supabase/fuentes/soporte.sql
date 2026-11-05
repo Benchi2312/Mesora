@@ -84,6 +84,7 @@ create policy soporte_tickets_update on public.soporte_tickets
 
 revoke all on public.soporte_tickets from anon;
 grant select, insert, update on public.soporte_tickets to authenticated;
+revoke delete on public.soporte_tickets from public, anon, authenticated;
 revoke truncate on public.soporte_tickets from authenticated;
 
 -- -----------------------------------------------------------------------------
