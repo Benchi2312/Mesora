@@ -25,7 +25,13 @@ export default function AvisoSuscripcion() {
   }, [])
 
   const fecha = restaurante?.fecha_vencimiento
-  if (!restaurante || !fecha || !restaurante.suscripcion_activa) return null
+  if (!restaurante || !restaurante.suscripcion_activa) return null
+  if (!fecha) return (
+    <section aria-label="Estado de la suscripción" className="mb-6 rounded-2xl border border-surface-700 bg-surface-900 px-4 py-4 sm:px-5">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-400">Suscripción activa</p>
+      <p className="mt-1 text-sm text-zinc-200">Tu restaurante puede operar. No hay una fecha de vencimiento programada.</p>
+    </section>
+  )
   const vence = new Date(fecha).getTime()
   if (!Number.isFinite(vence)) return null
   const restante = vence - ahora
