@@ -111,3 +111,8 @@ permisivas y la ejecución de funciones `SECURITY DEFINER`:
    tras cambios en Auth o en el proveedor de correo.
 5. Mantener excluido el video promocional hasta actualizarlo y autorizar su
    publicación.
+
+## Seguimiento del 5 de noviembre de 2026
+
+La verificación posterior y dos cambios nuevos aplicados a producción se
+registran en [Actualización de seguridad del 5 de noviembre](./ACTUALIZACION_SEGURIDAD_SUPABASE_2026-11-05.md).

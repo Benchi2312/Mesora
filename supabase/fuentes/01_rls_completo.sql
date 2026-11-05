@@ -694,6 +694,7 @@ revoke all on public.restaurante_pins from anon;
 -- `cerrar_cuenta` (security definer). Sin este revoke, el `ALL` que Supabase
 -- otorga por defecto dejaba los contadores de boletas legibles con la anon key.
 revoke all on public.correlativos from anon;
+revoke all on public.correlativos from authenticated;
 
 grant select on public.restaurantes to authenticated;
 grant select on public.usuarios to authenticated;
@@ -727,7 +728,7 @@ revoke insert, update, delete on public.cuentas from authenticated;
 revoke insert, update, delete on public.cuenta_pedidos from authenticated;
 revoke insert, update, delete on public.cuenta_pagos from authenticated;
 revoke insert, update, delete on public.caja_turnos from authenticated;
-revoke insert, update, delete on public.restaurante_pins from authenticated;
+revoke all on public.restaurante_pins from authenticated;
 revoke insert, delete on public.restaurantes from authenticated;
 
 -- Y un privilege que casi nadie recuerda: TRUNCATE. A diferencia de SELECT,

@@ -28,3 +28,16 @@ La decisión afecta los permisos que se conceden a cualquier persona y los
 aportes futuros; por eso este documento solo presenta opciones. La ausencia de
 una licencia no elimina la posibilidad de que GitHub permita ver o bifurcar el
 repositorio bajo sus condiciones de servicio.
+
+## Decisión pendiente del titular
+
+- [ ] Mantener el repositorio público sin licencia abierta y conservar el
+  copyright.
+- [ ] Publicar bajo MIT.
+- [ ] Publicar bajo Apache-2.0.
+- [ ] Evaluar AGPL-3.0 con asesoría de cumplimiento.
+- [ ] Preparar licencia comercial para acuerdos concretos.
+
+**Recomendación actual:** mantenerlo sin licencia abierta mientras GitHub sea
+un escaparate público del SaaS. No se añadió un archivo `LICENSE`; la decisión
+sigue correspondiendo al titular del código y de los recursos.

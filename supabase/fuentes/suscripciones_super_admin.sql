@@ -148,6 +148,31 @@ create table if not exists public.suscripciones_historial (
   created_at timestamptz not null default now()
 );
 
+-- La identidad que queda en el historial se toma de la sesión verificada.
+-- `p_creado_por` se mantiene temporalmente en la firma de las RPC por
+-- compatibilidad con clientes anteriores, pero no se confía en su valor.
+create or replace function public.fijar_actor_historial_suscripciones()
+returns trigger
+language plpgsql
+security invoker
+set search_path = pg_catalog
+as $$
+begin
+  if auth.uid() is not null then
+    new.creado_por := auth.uid();
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.fijar_actor_historial_suscripciones() from public, anon, authenticated;
+
+drop trigger if exists trg_fijar_actor_historial_suscripciones
+  on public.suscripciones_historial;
+create trigger trg_fijar_actor_historial_suscripciones
+  before insert on public.suscripciones_historial
+  for each row execute function public.fijar_actor_historial_suscripciones();
+
 create index if not exists suscripciones_historial_rid_idx
   on public.suscripciones_historial (restaurante_id, created_at desc);
 
