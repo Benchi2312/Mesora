@@ -27,12 +27,12 @@ function mensajeErrorAuth(mensaje: string): string {
 }
 
 /** Devuelve true si la suscripción del restaurante está vencida o inactiva. */
-export function suSuscripcionVencida(r: Restaurante | null): boolean {
+export function suSuscripcionVencida(r: Restaurante | null, ahora = Date.now()): boolean {
   if (!r) return false
   if (!r.suscripcion_activa) return true
   if (r.fecha_vencimiento) {
     const t = new Date(r.fecha_vencimiento).getTime()
-    if (!Number.isNaN(t)) return t < Date.now()
+    if (!Number.isNaN(t)) return t < ahora
   }
   return false
 }
@@ -76,6 +76,7 @@ interface AuthState {
   authError: string | null
   initialize: () => Promise<void>
   refresh: () => Promise<void>
+  refreshSubscription: () => Promise<boolean>
   signIn: (email: string, password: string) => Promise<string | null>
   signOut: () => Promise<void>
   pedirRecuperacion: (email: string) => Promise<string | null>
@@ -207,6 +208,32 @@ export const useAuthStore = create<AuthState>()((set, get) => {
     },
 
     refresh,
+    refreshSubscription: async () => {
+      const actual = get()
+      const restauranteId = actual.restaurante?.id
+      if (!actual.session || !restauranteId || actual.usuario?.rol === 'super_admin') return false
+      if (modoLocalHabilitado || enDemo()) {
+        const restauranteLocal = actual.usuario ? restauranteDeUsuario(actual.usuario) : null
+        if (restauranteLocal) set({ restaurante: restauranteLocal })
+        return restauranteLocal !== null
+      }
+      try {
+        const { data, error } = await supabase.from('restaurantes')
+          .select('suscripcion_activa,fecha_vencimiento')
+          .eq('id', restauranteId)
+          .maybeSingle()
+        if (error || !data) return false
+        // Una respuesta atrasada nunca debe restaurar la cuenta de otra sesión.
+        if (get().session?.user.id !== actual.session.user.id || get().restaurante?.id !== restauranteId) return false
+        set((estado) => ({ restaurante: estado.restaurante
+          ? { ...estado.restaurante, suscripcion_activa: data.suscripcion_activa, fecha_vencimiento: data.fecha_vencimiento }
+          : null }))
+        return true
+      } catch {
+        // Una caída de red no cambia el estado local; RLS protege las escrituras.
+        return false
+      }
+    },
 
     signIn: async (email, password) => {
       if (supabaseFaltaConfig) {

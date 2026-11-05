@@ -10,6 +10,7 @@ import SoporteTab from './SoporteTab'
 import CajaTab from './CajaTab'
 import CobrosTab from './CobrosTab'
 import VentasTab from './VentasTab'
+import AvisoSuscripcion from './AvisoSuscripcion'
 
 type SeccionTab = 'dashboard' | 'ventas' | 'caja' | 'cobros' | 'mesas' | 'menu' | 'personal' | 'configuracion' | 'soporte'
 
@@ -44,6 +45,8 @@ export default function Admin() {
         titulo="Panel de administración"
         descripcion="Gestiona las ventas, las mesas, el menú y el equipo de tu restaurante."
       />
+
+      <AvisoSuscripcion />
 
       <nav className="no-print mb-8 flex flex-wrap gap-2" aria-label="Secciones de administración">
         {SECCIONES.map((s) => (

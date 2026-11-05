@@ -65,6 +65,12 @@ certifica el tiempo de recuperación ni restaura Storage o secretos.
 - Accesos individuales: rol, restaurante y activo comprobados.
 - PIN del encargado configurado; credenciales en un gestor privado.
 - Precios, bebidas, zonas/mesas, datos del local y suscripción revisados.
+- El administrador ve fecha y tiempo restante de su suscripción en el panel.
+  Desde 30 días antes aparecen avisos de renovación; en los últimos 7 días y
+  24 horas se vuelven más visibles. Si vence, todos los roles del restaurante
+  quedan en la pantalla de acceso pausado. Los perfiles y los datos permanecen
+  intactos y el acceso se recupera al renovar. La app comprueba el estado cada
+  minuto y al volver a la ventana; el bloqueo de escritura se aplica en la base.
 - Reset de personal probado. Probar recuperación con el correo real de acceso
   del administrador del restaurante; el correo alternativo requiere Resend.
 - Impresora de 80 mm, PDF, móvil y equipo de caja aprobados.
