@@ -20,6 +20,7 @@ Consultas comerciales: [mesoratech@gmail.com](mailto:mesoratech@gmail.com).
 Documentación: [estado y pendientes del MVP](./docs/ESTADO_MVP.md) ·
 [guía del primer turno](./docs/GUIA_PRIMER_TURNO.md) ·
 [operación y contingencias](./docs/OPERACION_PILOTO.md) ·
+[datos de contacto y soporte](./docs/DATOS_CONTACTO_SOPORTE.md) ·
 [identidad visual](./docs/marca/README.md).
 
 El demo es gratuito, no requiere cuenta y usa datos de ejemplo. Puedes recorrer

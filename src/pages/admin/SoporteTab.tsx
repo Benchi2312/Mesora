@@ -14,6 +14,7 @@ import {
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 import { Campo, IconoInfo, IconoMas, Modal, PieAcciones } from '../../components/ui'
+import ConversacionSoporte from '../../components/ConversacionSoporte'
 
 const COLOR_PRIORIDAD: Record<TicketPrioridad, string> = {
   baja: 'border-surface-600 bg-surface-800 text-zinc-400',
@@ -52,6 +53,7 @@ export default function SoporteTab() {
   const [form, setForm] = useState<FormTicket>(FORM_VACIO)
   const [formError, setFormError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [ticketAbiertoId, setTicketAbiertoId] = useState<string | null>(null)
 
   const cargar = useCallback(async () => {
     const { data, error: apiErr } = await getApi().getTickets()
@@ -168,6 +170,12 @@ export default function SoporteTab() {
               {t.responsable && (
                 <p className="mt-1 text-xs text-zinc-500">Atiende: {t.responsable}</p>
               )}
+              <button type="button" className="btn btn-outline mt-3 min-h-11 px-3 text-xs"
+                aria-expanded={ticketAbiertoId === t.id}
+                onClick={() => setTicketAbiertoId(ticketAbiertoId === t.id ? null : t.id)}>
+                {ticketAbiertoId === t.id ? 'Ocultar conversación' : 'Ver conversación y responder'}
+              </button>
+              {ticketAbiertoId === t.id && <ConversacionSoporte ticket={t} autorId={yoId} superAdmin={false} />}
             </li>
           ))}
         </ul>

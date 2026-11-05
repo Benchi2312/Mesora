@@ -19,6 +19,8 @@ import EstadoVacio from '../../components/EstadoVacio'
 import { Campo, Modal, PieAcciones } from '../../components/ui'
 import BandejaComercial from './BandejaComercial'
 import { etiquetaTipoTicket } from '../../domain/platform/soporte'
+import { useCurrentContext } from '../../lib/useCurrentContext'
+import ConversacionSoporte from '../../components/ConversacionSoporte'
 
 const COLOR_PRIORIDAD: Record<TicketPrioridad, string> = {
   baja: 'border-surface-600 bg-surface-800 text-zinc-400',
@@ -52,6 +54,7 @@ type TicketEditando = {
 }
 
 function BandejaTickets() {
+  const { usuario } = useCurrentContext()
   const [tickets, setTickets] = useState<SoporteTicket[]>([])
   const [restaurantes, setRestaurantes] = useState<Restaurante[]>([])
   const [cargando, setCargando] = useState(true)
@@ -361,6 +364,7 @@ function BandejaTickets() {
               labelGuardar="Guardar cambios"
             />
           </form>
+          <ConversacionSoporte ticket={editando.ticket} autorId={usuario?.id ?? null} superAdmin />
         </Modal>
       )}
     </div>

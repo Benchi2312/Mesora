@@ -34,6 +34,7 @@ import type {
   Restaurante,
   Rol,
   SoporteTicket,
+  SoporteMensaje,
   SuscripcionHistorial,
   TicketEstado,
   TicketPrioridad,
@@ -488,9 +489,12 @@ export interface DataApi {
   crearTicket(datos: DatosTicket): Promise<Res<SoporteTicket>>
   /** Actualiza estado/prioridad/responsable de un ticket. */
   actualizarTicket(ticketId: string, cambios: CambiosTicket): Promise<Res<SoporteTicket>>
+  getMensajesSoporte(ticketId: string): Promise<Res<SoporteMensaje[]>>
+  enviarMensajeSoporte(ticketId: string, autorId: string, autorSuperAdmin: boolean, mensaje: string): Promise<Res<SoporteMensaje>>
   /** Consultas anónimas de la landing, solo superadministrador. */
   getBandejaComercial(): Promise<Res<BandejaComercial>>
   actualizarConsultaComercial(id: string, estado: ConsultaComercial['estado']): Promise<Res<void>>
+  actualizarSeguimientoComercial(id: string, responsable: string, nota: string, fecha: string | null): Promise<Res<void>>
 
   // ----------------------------------------------------------- Notificaciones
   /** Alertas administrativas agregadas. Solo super admin. */
@@ -1139,8 +1143,26 @@ const realApi: DataApi = {
     if (error) return { data: null, error: error.message }
     return { data: data as BandejaComercial, error: null }
   },
+  async getMensajesSoporte(ticketId) {
+    const { data, error } = await supabase.from('soporte_mensajes').select('*').eq('ticket_id', ticketId).order('created_at')
+    return { data: error ? null : (data ?? []) as SoporteMensaje[], error: error?.message ?? null }
+  },
+  async enviarMensajeSoporte(ticketId, autorId, autorSuperAdmin, mensaje) {
+    const texto = mensaje.trim()
+    if (!texto || texto.length > 2000) return { data: null, error: 'Escribe un mensaje de hasta 2000 caracteres.' }
+    const { data, error } = await supabase.from('soporte_mensajes')
+      .insert({ ticket_id: ticketId, autor_id: autorId, autor_super_admin: autorSuperAdmin, mensaje: texto })
+      .select('*').single()
+    return { data: error ? null : data as SoporteMensaje, error: error?.message ?? null }
+  },
   async actualizarConsultaComercial(id, estado) {
     const { error } = await supabase.rpc('mesora_update_commercial_lead', { p_id: id, p_estado: estado })
+    return { data: error ? null : undefined, error: error?.message ?? null }
+  },
+  async actualizarSeguimientoComercial(id, responsable, nota, fecha) {
+    const { error } = await supabase.rpc('mesora_update_commercial_followup', {
+      p_id: id, p_responsable: responsable, p_nota_interna: nota, p_proximo_contacto: fecha || null,
+    })
     return { data: error ? null : undefined, error: error?.message ?? null }
   },
   // --------------------------------------------------- Notificaciones (real)
@@ -2616,9 +2638,19 @@ function crearApiDesde(
     await espera()
     const operador = apiMode.operadorId ? ds.usuarios.find((u) => u.id === apiMode.operadorId) : null
     if (operador?.rol !== 'super_admin') return { data: null, error: 'Solo el superadministrador puede ver consultas comerciales.' }
-    return { data: { resumen: { hoy: 0, ultimos_30_dias: 0, nuevas: 0, correo_pendiente: 0, correo_fallido: 0 }, consultas: [] }, error: null }
+    return { data: { resumen: { hoy: 0, ultimos_30_dias: 0, nuevas: 0, correo_pendiente: 0, correo_fallido: 0, contactos_vencidos: 0 }, consultas: [] }, error: null }
+  },
+  async getMensajesSoporte() {
+    await espera()
+    return { data: [], error: null }
+  },
+  async enviarMensajeSoporte() {
+    return { data: null, error: 'Los mensajes de soporte requieren una cuenta real.' }
   },
   async actualizarConsultaComercial() {
+    return { data: null, error: 'Las consultas comerciales solo existen en el servidor real.' }
+  },
+  async actualizarSeguimientoComercial() {
     return { data: null, error: 'Las consultas comerciales solo existen en el servidor real.' }
   },
   // ------------------------------------------------- Notificaciones (mock)

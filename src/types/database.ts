@@ -297,12 +297,15 @@ export type ConsultaComercial = {
   mensaje: string
   estado: 'nuevo' | 'en_seguimiento' | 'cerrado'
   correo_estado: 'enviado' | 'pendiente' | 'fallido'
+  responsable: string | null
+  nota_interna: string | null
+  proximo_contacto: string | null
   created_at: string
   updated_at: string
 }
 
 export type BandejaComercial = {
-  resumen: { hoy: number; ultimos_30_dias: number; nuevas: number; correo_pendiente: number; correo_fallido: number }
+  resumen: { hoy: number; ultimos_30_dias: number; nuevas: number; correo_pendiente: number; correo_fallido: number; contactos_vencidos: number }
   consultas: ConsultaComercial[]
 }
 
@@ -322,6 +325,15 @@ export type SoporteTicket = {
   created_at: string
   updated_at: string
   resuelto_at: string | null
+}
+
+export type SoporteMensaje = {
+  id: string
+  ticket_id: string
+  autor_id: string
+  autor_super_admin: boolean
+  mensaje: string
+  created_at: string
 }
 
 /** Configuración general de la plataforma (fila única id = 1). */
@@ -365,6 +377,7 @@ export interface Database {
       suscripciones_historial: Tbl<SuscripcionHistorial, Partial<SuscripcionHistorial>, Partial<SuscripcionHistorial>>
       audit_logs: Tbl<AuditLog, Partial<AuditLog>, Partial<AuditLog>>
       soporte_tickets: Tbl<SoporteTicket, Partial<SoporteTicket>, Partial<SoporteTicket>>
+      soporte_mensajes: Tbl<SoporteMensaje, Partial<SoporteMensaje>, Partial<SoporteMensaje>>
       configuracion_global: Tbl<ConfiguracionGlobal, Partial<ConfiguracionGlobal>, Partial<ConfiguracionGlobal>>
     }
     Views: Record<string, never>
@@ -475,6 +488,7 @@ export interface Database {
       }
       mesora_commercial_inbox: { Args: Record<string, never>; Returns: unknown }
       mesora_update_commercial_lead: { Args: { p_id: string; p_estado: ConsultaComercial['estado'] }; Returns: void }
+      mesora_update_commercial_followup: { Args: { p_id: string; p_responsable: string; p_nota_interna: string; p_proximo_contacto: string | null }; Returns: void }
       crear_pedido: { Args: { p_restaurante_id: string; p_mesa_id: string; p_items: { producto_id: string; cantidad: number; nota?: string }[] }; Returns: string }
       abrir_turno_caja: { Args: { p_restaurante_id: string; p_usuario_id: string; p_monto_inicial: number }; Returns: string }
       cerrar_turno_caja: {
