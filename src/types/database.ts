@@ -500,6 +500,10 @@ export interface Database {
       mesora_update_commercial_lead: { Args: { p_id: string; p_estado: ConsultaComercial['estado'] }; Returns: void }
       mesora_update_commercial_followup: { Args: { p_id: string; p_responsable: string; p_nota_interna: string; p_proximo_contacto: string | null }; Returns: void }
       crear_pedido: { Args: { p_restaurante_id: string; p_mesa_id: string; p_items: { producto_id: string; cantidad: number; nota?: string }[] }; Returns: string }
+      listar_meseros_activos_restaurante: {
+        Args: { p_restaurante_id: string }
+        Returns: { id: string; nombre: string; activo: boolean; rol: string }[]
+      }
       asignar_mesa_mesero: { Args: { p_restaurante_id: string; p_mesa_id: string; p_mesero_id: string }; Returns: undefined }
       mover_consumo_mesa: { Args: { p_restaurante_id: string; p_mesa_origen_id: string; p_mesa_destino_id: string }; Returns: undefined }
       reimprimir_boleta: { Args: { p_restaurante_id: string; p_cuenta_id: string; p_pin?: string | null }; Returns: unknown }

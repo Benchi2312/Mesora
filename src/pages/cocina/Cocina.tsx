@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PageHeader from '../../components/PageHeader'
-import { getApi, type ItemResumen, type PedidoConItems, type UsuarioResumen } from '../../lib/api'
+import { getApi, type ItemResumen, type MeseroResumen, type PedidoConItems } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import { fmtFecha, fmtPEN } from '../../lib/format'
 import { useElapsed } from '../../lib/useElapsed'
@@ -84,7 +84,7 @@ export default function Cocina() {
   const { restaurante } = useCurrentContext()
   const [pedidos, setPedidos] = useState<PedidoConItems[]>([])
   const [mesas, setMesas] = useState<Mesa[]>([])
-  const [meseros, setMeseros] = useState<UsuarioResumen[]>([])
+  const [meseros, setMeseros] = useState<MeseroResumen[]>([])
   const [estacion, setEstacion] = useState<Estacion>('cocina')
   const [sonidoActivo, setSonidoActivo] = useState(false)
   const [avisoNuevo, setAvisoNuevo] = useState('')

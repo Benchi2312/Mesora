@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getApi, itemsVigentes, totalItems, type ItemResumen, type PedidoResumen, type UsuarioResumen } from '../../lib/api'
+import { getApi, itemsVigentes, totalItems, type ItemResumen, type MeseroResumen, type PedidoResumen } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import type { Mesa } from '../../types/database'
 import { estadoPedidoLabel, fmtFecha, fmtPEN } from '../../lib/format'
@@ -49,7 +49,7 @@ export default function MesaOcupada({
   const [anulando, setAnulando] = useState<EnEdicion | null>(null)
   const [anulandoEnCurso, setAnulandoEnCurso] = useState(false)
   const [errorAnulacion, setErrorAnulacion] = useState<string | null>(null)
-  const [meseros, setMeseros] = useState<UsuarioResumen[]>([])
+  const [meseros, setMeseros] = useState<MeseroResumen[]>([])
   const [mesasLibres, setMesasLibres] = useState<Mesa[]>([])
   const [zonas, setZonas] = useState<Zona[]>([])
   const [meseroResponsableId, setMeseroResponsableId] = useState<string | null>(mesa.mesero_responsable_id ?? null)

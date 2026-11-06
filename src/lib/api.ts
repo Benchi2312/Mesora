@@ -65,6 +65,7 @@ import { generarPasswordTemporal } from '../domain/security/password'
 import type { LocalSeedData } from './localSeed'
 import { formatearNumeroBoleta } from '../domain/cashier/boleta'
 import { prepararDatosLocal, type CambiosDatosLocal } from '../domain/restaurant/datosLocal'
+import { buscarMesaConNombre, mensajeNombreMesaDuplicado } from '../domain/restaurant/mesas'
 import { registrarDiagnostico } from './diagnostico'
 import type { RangoReporteVentas, ReporteVentas } from '../domain/reporting/ventas'
 
@@ -169,6 +170,15 @@ export function totalItems(items: readonly ItemResumen[]): number {
 export type PedidoResumen = Pick<Pedido, 'id' | 'mesa_id' | 'estado' | 'created_at'>
 
 export type UsuarioResumen = Pick<Usuario, 'id' | 'nombre' | 'email' | 'activo' | 'rol'>
+/** Datos mínimos de compañeros que se muestran en cocina y en el traspaso de mesa. */
+export type MeseroResumen = Pick<Usuario, 'id' | 'nombre' | 'activo' | 'rol'>
+
+function traducirErrorMesa(error: { code?: string; message: string }, nombre: string): string {
+  if (error.code === '23505' && error.message.includes('mesas_un_nombre_por_restaurante')) {
+    return mensajeNombreMesaDuplicado(nombre)
+  }
+  return error.message
+}
 
 // --------------------------------------------------- Entrada de datos (CRUD)
 /** Datos para crear una zona. */
@@ -346,7 +356,7 @@ export interface DataApi {
   getCategorias(rid: string): Promise<Res<CategoriaProducto[]>>
   /** Solo productos disponibles. */
   getProductos(rid: string, opciones?: { incluirAgotados?: boolean }): Promise<Res<Producto[]>>
-  getMeseros(rid: string): Promise<Res<UsuarioResumen[]>>
+  getMeseros(rid: string): Promise<Res<MeseroResumen[]>>
   /** Reasigna la responsabilidad de una mesa ocupada sin cambiar autores históricos. */
   asignarMesaMesero(rid: string, mesaId: string, meseroId: string): Promise<Res<null>>
   /** Mueve solo comandas aún no cobradas de una mesa a otra mesa libre. */
@@ -649,13 +659,10 @@ const realApi: DataApi = {
     return { data, error: error?.message ?? null }
   },
   async getMeseros(rid) {
-    const { data, error } = await supabase
-      .from('usuarios')
-      .select('id, nombre, email, activo, rol')
-      .eq('restaurante_id', rid)
-      .eq('rol', 'mesero')
-      .order('nombre')
-    return { data, error: error?.message ?? null }
+    const { data, error } = await supabase.rpc('listar_meseros_activos_restaurante', {
+      p_restaurante_id: rid,
+    })
+    return { data: data as MeseroResumen[] | null, error: error?.message ?? null }
   },
   async asignarMesaMesero(rid, mesaId, meseroId) {
     const { error } = await supabase.rpc('asignar_mesa_mesero', {
@@ -1385,7 +1392,7 @@ const realApi: DataApi = {
       .insert({ ...datos, restaurante_id: rid, estado: 'libre' })
       .select()
       .single()
-    if (error) return { data: null, error: error.message }
+    if (error) return { data: null, error: traducirErrorMesa(error, datos.nombre) }
     return { data: data as Mesa, error: null }
   },
   async actualizarMesa(rid, id, cambios) {
@@ -1396,7 +1403,7 @@ const realApi: DataApi = {
       .eq('restaurante_id', rid)
       .select()
       .single()
-    if (error) return { data: null, error: error.message }
+    if (error) return { data: null, error: traducirErrorMesa(error, cambios.nombre ?? 'ese nombre') }
     return { data: data as Mesa, error: null }
   },
   async eliminarMesa(rid, id) {
@@ -2078,7 +2085,12 @@ function crearApiDesde(
   },
   async getMeseros(rid) {
     await espera()
-    return { data: ds.usuarios.filter((u) => u.restaurante_id === rid && u.rol === 'mesero'), error: null }
+    return {
+      data: ds.usuarios
+        .filter((u) => u.restaurante_id === rid && u.rol === 'mesero' && u.activo !== false)
+        .map(({ id, nombre, activo, rol }) => ({ id, nombre, activo, rol })),
+      error: null,
+    }
   },
   async asignarMesaMesero(rid, mesaId, meseroId) {
     const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
@@ -3248,6 +3260,9 @@ function crearApiDesde(
     if (!ds.zonas.some((z) => z.id === datos.zona_id && z.restaurante_id === rid)) {
       return { data: null, error: 'La zona no existe' }
     }
+    if (buscarMesaConNombre(ds.mesas, rid, datos.nombre)) {
+      return { data: null, error: mensajeNombreMesaDuplicado(datos.nombre) }
+    }
     const mesa: Mesa = {
       id: crypto.randomUUID(),
       restaurante_id: rid,
@@ -3264,6 +3279,9 @@ function crearApiDesde(
     await espera()
     const mesa = ds.mesas.find((m) => m.id === id && m.restaurante_id === rid)
     if (!mesa) return { data: null, error: 'Mesa no encontrada' }
+    if (cambios.nombre !== undefined && buscarMesaConNombre(ds.mesas, rid, cambios.nombre, id)) {
+      return { data: null, error: mensajeNombreMesaDuplicado(cambios.nombre) }
+    }
     if (cambios.zona_id && !ds.zonas.some((z) => z.id === cambios.zona_id && z.restaurante_id === rid)) {
       return { data: null, error: 'La zona no existe' }
     }

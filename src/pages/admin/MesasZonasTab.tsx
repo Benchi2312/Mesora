@@ -8,6 +8,7 @@ import type { Mesa, Zona } from '../../types/database'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 import { Campo, ConfirmDialog, IconoBasura, IconoLapiz, IconoMas, Modal, PieAcciones } from '../../components/ui'
+import { buscarMesaConNombre, mensajeNombreMesaDuplicado } from '../../domain/restaurant/mesas'
 
 type ModalZona = { accion: 'crear' | 'editar'; id?: string; nombre: string } | null
 type ModalMesa = { accion: 'crear' | 'editar'; id?: string; zonaId: string; nombre: string } | null
@@ -173,6 +174,12 @@ export default function MesasZonasTab() {
     }
     if (!modalMesa.zonaId) {
       setMesaError('Elige una zona para la mesa.')
+      return
+    }
+    const duplicada = buscarMesaConNombre(mesas, rid, nombre, modalMesa.id)
+    if (duplicada) {
+      const nombreZona = zonas.find((zona) => zona.id === duplicada.zona_id)?.nombre
+      setMesaError(mensajeNombreMesaDuplicado(nombre, nombreZona))
       return
     }
     setMesaError(null)
@@ -407,7 +414,7 @@ export default function MesasZonasTab() {
               <select
                 id="mesa-zona"
                 value={modalMesa.zonaId}
-                onChange={(e) => setModalMesa({ ...modalMesa, zonaId: e.target.value })}
+                onChange={(e) => { setMesaError(null); setModalMesa({ ...modalMesa, zonaId: e.target.value }) }}
                 className="input h-11"
               >
                 {zonas.map((z) => (
@@ -425,11 +432,14 @@ export default function MesasZonasTab() {
                 onFocus={(e) => {
                   if (prefill) e.currentTarget.select()
                 }}
-                onChange={(e) => setModalMesa({ ...modalMesa, nombre: e.target.value })}
+                onChange={(e) => { setMesaError(null); setModalMesa({ ...modalMesa, nombre: e.target.value }) }}
                 className={`input ${campoActivo ? 'ring-2 ring-brand-500' : ''}`}
                 placeholder="Ej. Mesa 10"
               />
             </Campo>
+            <p className="-mt-2 mb-4 text-xs text-zinc-500">
+              El nombre debe ser único en todo el restaurante, también entre zonas.
+            </p>
             {campoActivo && (
               <p className="mt-2 text-xs font-medium text-brand-400">
                 Mesora está escribiendo por ti… confirma con «Crear mesa».

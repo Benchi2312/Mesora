@@ -99,6 +99,7 @@ const ORDEN = [
   '../migrations/20261105212322_transferir_mesas_y_reimprimir_boletas.sql',
   '../migrations/20261105212447_indizar_responsables_y_reimpresiones.sql',
   '../migrations/20261105212734_proteger_cierre_mesa_reasignada.sql',
+  '../migrations/20261106064127_listar_meseros_activos_mismo_restaurante.sql',
 ]
 
 const fallos = []
