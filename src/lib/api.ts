@@ -357,10 +357,10 @@ export interface DataApi {
   /** Solo productos disponibles. */
   getProductos(rid: string, opciones?: { incluirAgotados?: boolean }): Promise<Res<Producto[]>>
   getMeseros(rid: string): Promise<Res<MeseroResumen[]>>
-  /** Reasigna la responsabilidad de una mesa ocupada sin cambiar autores históricos. */
-  asignarMesaMesero(rid: string, mesaId: string, meseroId: string): Promise<Res<null>>
-  /** Mueve solo comandas aún no cobradas de una mesa a otra mesa libre. */
-  moverConsumoMesa(rid: string, origenId: string, destinoId: string): Promise<Res<null>>
+  /** Reasigna una mesa ocupada con autorización PIN (si está configurado) y motivo auditable. */
+  asignarMesaMesero(rid: string, mesaId: string, meseroId: string, pin: string | null, motivo: string): Promise<Res<null>>
+  /** Mueve comandas no cobradas con autorización PIN (si está configurado) y motivo auditable. */
+  moverConsumoMesa(rid: string, origenId: string, destinoId: string, pin: string | null, motivo: string): Promise<Res<null>>
   /** Meseros + cocina del restaurante (personal), para el panel de admin. */
   getPersonal(rid: string): Promise<Res<UsuarioResumen[]>>
   getPedidosDeMesa(rid: string, mesaId: string): Promise<Res<PedidoResumen[]>>
@@ -664,19 +664,23 @@ const realApi: DataApi = {
     })
     return { data: data as MeseroResumen[] | null, error: error?.message ?? null }
   },
-  async asignarMesaMesero(rid, mesaId, meseroId) {
+  async asignarMesaMesero(rid, mesaId, meseroId, pin, motivo) {
     const { error } = await supabase.rpc('asignar_mesa_mesero', {
       p_restaurante_id: rid,
       p_mesa_id: mesaId,
       p_mesero_id: meseroId,
+      p_pin: pin,
+      p_motivo: motivo,
     })
     return { data: null, error: error?.message ?? null }
   },
-  async moverConsumoMesa(rid, origenId, destinoId) {
+  async moverConsumoMesa(rid, origenId, destinoId, pin, motivo) {
     const { error } = await supabase.rpc('mover_consumo_mesa', {
       p_restaurante_id: rid,
       p_mesa_origen_id: origenId,
       p_mesa_destino_id: destinoId,
+      p_pin: pin,
+      p_motivo: motivo,
     })
     return { data: null, error: error?.message ?? null }
   },
@@ -2092,9 +2096,13 @@ function crearApiDesde(
       error: null,
     }
   },
-  async asignarMesaMesero(rid, mesaId, meseroId) {
+  async asignarMesaMesero(rid, mesaId, meseroId, pin, motivo) {
     const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
     if (acceso) return { data: null, error: acceso }
+    const motivoLimpio = motivo.trim()
+    if (motivoLimpio.length < 5 || motivoLimpio.length > 300) {
+      return { data: null, error: 'Escribe un motivo de entre 5 y 300 caracteres.' }
+    }
     return conLockDeMesa(rid, mesaId, async () => {
     await espera(250)
     const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
@@ -2105,6 +2113,7 @@ function crearApiDesde(
     if (!mesa || mesa.estado !== 'ocupada') return { data: null, error: 'La mesa no está ocupada.' }
     const destino = ds.usuarios.find((u) => u.id === meseroId && u.restaurante_id === rid && u.rol === 'mesero' && u.activo !== false)
     if (!destino) return { data: null, error: 'El mesero elegido no está activo en este restaurante.' }
+    if (destino.id === mesa.mesero_responsable_id) return { data: null, error: 'Esa persona ya es responsable de la mesa.' }
     const pedidosAbiertos = pedidosAbiertosDeMesa(ds, rid, mesaId).filter((p) => totalDePedidos(ds, [p.id]) > 0.004)
     if (pedidosAbiertos.length === 0) return { data: null, error: 'La mesa no tiene consumo pendiente para transferir.' }
     if (actor.rol === 'mesero') {
@@ -2115,21 +2124,45 @@ function crearApiDesde(
         return { data: null, error: 'Solo el administrador puede asignar esta mesa porque tiene comandas de otro mesero.' }
       }
     }
+    const errorPin = errorDePin(ds, rid, pin)
+    if (errorPin) return { data: null, error: errorPin }
+    const responsableAnterior = ds.usuarios.find((u) => u.id === mesa.mesero_responsable_id)
     mesa.mesero_responsable_id = destino.id
+    registrarAuditoria('mesa_transferir_responsable', {
+      restauranteId: rid,
+      entidad: 'mesa',
+      entidadId: mesa.id,
+      descripcion: `Responsabilidad de ${mesa.nombre} transferida${responsableAnterior ? ` de ${responsableAnterior.nombre}` : ''} a ${destino.nombre}.`,
+      detalle: {
+        mesa_id: mesa.id,
+        mesa_nombre: mesa.nombre,
+        mesero_anterior_id: responsableAnterior?.id ?? null,
+        mesero_anterior_nombre: responsableAnterior?.nombre ?? null,
+        mesero_nuevo_id: destino.id,
+        mesero_nuevo_nombre: destino.nombre,
+        motivo: motivoLimpio,
+      },
+    })
     persiste()
     return { data: null, error: null }
     })
   },
-  async moverConsumoMesa(rid, origenId, destinoId) {
+  async moverConsumoMesa(rid, origenId, destinoId, pin, motivo) {
     const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
     if (acceso) return { data: null, error: acceso }
     if (origenId === destinoId) return { data: null, error: 'Elige una mesa distinta.' }
+    const motivoLimpio = motivo.trim()
+    if (motivoLimpio.length < 5 || motivoLimpio.length > 300) {
+      return { data: null, error: 'Escribe un motivo de entre 5 y 300 caracteres.' }
+    }
     return conLocksDeMesas(rid, [origenId, destinoId], async () => {
       await espera(300)
       const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
       if (!actor || !['mesero', 'admin_restaurante'].includes(actor.rol)) {
         return { data: null, error: 'Solo el mesero responsable o el administrador puede mover este consumo.' }
       }
+      const errorPin = errorDePin(ds, rid, pin)
+      if (errorPin) return { data: null, error: errorPin }
       const origen = ds.mesas.find((m) => m.id === origenId && m.restaurante_id === rid)
       const destino = ds.mesas.find((m) => m.id === destinoId && m.restaurante_id === rid)
       if (!origen || !destino) return { data: null, error: 'Una de las mesas no pertenece al restaurante.' }
@@ -2157,6 +2190,23 @@ function crearApiDesde(
       origen.mesero_responsable_id = null
       destino.estado = 'ocupada'
       destino.mesero_responsable_id = responsable
+      const responsableNombre = ds.usuarios.find((u) => u.id === responsable)?.nombre ?? null
+      registrarAuditoria('mesa_mover_consumo', {
+        restauranteId: rid,
+        entidad: 'mesa',
+        entidadId: origen.id,
+        descripcion: `Consumo movido de ${origen.nombre} a ${destino.nombre}.`,
+        detalle: {
+          mesa_origen_id: origen.id,
+          mesa_origen_nombre: origen.nombre,
+          mesa_destino_id: destino.id,
+          mesa_destino_nombre: destino.nombre,
+          mesero_responsable_id: responsable,
+          mesero_responsable_nombre: responsableNombre,
+          motivo: motivoLimpio,
+          pedidos_movidos: pedidos.length,
+        },
+      })
       persiste()
       return { data: null, error: null }
     })

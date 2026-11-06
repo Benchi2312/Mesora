@@ -4,8 +4,8 @@ import { PIN_MAX_DIGITOS, PIN_MIN_DIGITOS } from '../domain/security/autorizacio
 import { Spinner } from './LoadingScreen'
 
 /**
- * PIN de autorización para las acciones que mueven dinero para menos (anular un
- * ítem, anular un cobro).
+ * PIN de autorización para acciones sensibles: anular un ítem o cobro, cambiar
+ * al mesero responsable de una mesa y mover consumo a otra mesa.
  *
  * Lo que decide esta pieza NO es si el PIN es correcto — eso solo lo sabe el
  * servidor, que compara contra el hash (`validar_pin_autorizacion`)—, sino si hay
@@ -14,7 +14,7 @@ import { Spinner } from './LoadingScreen'
  * que se aplicó el cambio (ver la nota de supabase/pin_autorizacion.sql).
  *
  * Además se consulta una sola vez por restaurante y se recuerda en el módulo, así
- * que abrir el modal de anulación no hace un request extra cada vez.
+ * que abrir un modal de autorización no hace un request extra cada vez.
  */
 type Cache = { restauranteId: string; hayPin: boolean }
 

@@ -56,14 +56,14 @@ export default function MesaOcupada({
   const [operacionMesa, setOperacionMesa] = useState<OperacionMesa>(null)
   const [meseroSeleccionado, setMeseroSeleccionado] = useState('')
   const [mesaSeleccionada, setMesaSeleccionada] = useState('')
+  const [motivoOperacion, setMotivoOperacion] = useState('')
   const [guardandoOperacion, setGuardandoOperacion] = useState(false)
   const [errorOperacion, setErrorOperacion] = useState<string | null>(null)
   const [cargandoOpcionesMesa, setCargandoOpcionesMesa] = useState(false)
-  // Si el restaurante configuró PIN, el mesero tiene que pedirlo antes de anular:
-  // es el número de quien autoriza. El campo solo aparece si hace falta (y el
-  // backend lo valida igual, por si alguien lo salta desde la consola).
-  const { pin, setPin, requierePin } = usePinAutorizacion(anulando ? restaurante?.id : null)
+  // El servidor vuelve a validar el PIN en las operaciones sensibles.
+  const { pin, setPin, requierePin, cargando: cargandoPin } = usePinAutorizacion(anulando || operacionMesa ? restaurante?.id : null)
   const meseroResponsable = meseros.find((m) => m.id === meseroResponsableId)
+  const meserosDisponibles = meseros.filter((m) => m.id !== meseroResponsableId)
   const asignadaAOtro = usuario?.rol === 'mesero' && Boolean(meseroResponsableId) && meseroResponsableId !== usuario?.id
 
   useEffect(() => {
@@ -187,6 +187,11 @@ export default function MesaOcupada({
 
   async function confirmarOperacionMesa() {
     if (!restaurante || !operacionMesa) return
+    const motivo = motivoOperacion.trim()
+    if (motivo.length < 5 || motivo.length > 300) {
+      setErrorOperacion('Escribe un motivo de entre 5 y 300 caracteres.')
+      return
+    }
     setGuardandoOperacion(true)
     setErrorOperacion(null)
     try {
@@ -197,7 +202,7 @@ export default function MesaOcupada({
           setErrorOperacion('Elige el mesero que recibirá la mesa.')
           return
         }
-        const res = await api.asignarMesaMesero(restaurante.id, mesa.id, destino.id)
+        const res = await api.asignarMesaMesero(restaurante.id, mesa.id, destino.id, requierePin ? pin : null, motivo)
         if (res.error) {
           setErrorOperacion(res.error)
           return
@@ -205,6 +210,8 @@ export default function MesaOcupada({
         setMeseroResponsableId(destino.id)
         setOperacionMesa(null)
         setMeseroSeleccionado('')
+        setMotivoOperacion('')
+        setPin('')
         setFlash(`Mesa asignada a ${destino.nombre}. Las comandas anteriores conservan su mesero original.`)
         await cargar(true)
         return
@@ -215,7 +222,7 @@ export default function MesaOcupada({
         setErrorOperacion('Elige una mesa libre para recibir el consumo.')
         return
       }
-      const res = await api.moverConsumoMesa(restaurante.id, mesa.id, destino.id)
+      const res = await api.moverConsumoMesa(restaurante.id, mesa.id, destino.id, requierePin ? pin : null, motivo)
       if (res.error) {
         setErrorOperacion(res.error)
         return
@@ -224,6 +231,8 @@ export default function MesaOcupada({
       const ubicacion = zona ? `${destino.nombre} · ${zona}` : destino.nombre
       setOperacionMesa(null)
       setMesaSeleccionada('')
+      setMotivoOperacion('')
+      setPin('')
       onConsumoMovido(`Consumo movido de ${mesa.nombre} a ${ubicacion}. Cocina verá las comandas bajo la mesa nueva.`)
     } catch {
       setErrorOperacion('No se pudo completar la operación. Actualiza las mesas antes de volver a intentarlo.')
@@ -358,7 +367,7 @@ export default function MesaOcupada({
         <button
           type="button"
           disabled={!hayPedidos || asignadaAOtro || cargandoOpcionesMesa}
-          onClick={() => { setErrorOperacion(null); setOperacionMesa('pasar-mesero') }}
+          onClick={() => { setErrorOperacion(null); setMeseroSeleccionado(''); setMotivoOperacion(''); setPin(''); setOperacionMesa('pasar-mesero') }}
           className="btn btn-outline min-h-12 px-4 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Pasar a otro mesero
@@ -366,7 +375,7 @@ export default function MesaOcupada({
         <button
           type="button"
           disabled={!hayPedidos || asignadaAOtro || cargandoOpcionesMesa || mesasLibres.length === 0}
-          onClick={() => { setErrorOperacion(null); setOperacionMesa('mover-consumo') }}
+          onClick={() => { setErrorOperacion(null); setMesaSeleccionada(''); setMotivoOperacion(''); setPin(''); setOperacionMesa('mover-consumo') }}
           className="btn btn-outline min-h-12 px-4 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Mover consumo a otra mesa
@@ -425,7 +434,7 @@ export default function MesaOcupada({
       {operacionMesa && (
         <Modal
           titulo={operacionMesa === 'pasar-mesero' ? 'Pasar mesa a otro mesero' : 'Mover consumo a otra mesa'}
-          onCerrar={() => { if (!guardandoOperacion) setOperacionMesa(null) }}
+          onCerrar={() => { if (!guardandoOperacion) { setOperacionMesa(null); setMotivoOperacion(''); setPin('') } }}
         >
           {operacionMesa === 'pasar-mesero' ? (
             <>
@@ -435,9 +444,9 @@ export default function MesaOcupada({
               <label className="label mt-4" htmlFor="mesa-nuevo-mesero">Mesero que recibe</label>
               <select id="mesa-nuevo-mesero" value={meseroSeleccionado} onChange={(e) => setMeseroSeleccionado(e.target.value)} className="input">
                 <option value="">Selecciona un mesero</option>
-                {meseros.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                {meserosDisponibles.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
               </select>
-              {meseros.length === 0 ? <p className="mt-2 text-xs text-zinc-500">No hay meseros activos disponibles.</p> : null}
+              {meserosDisponibles.length === 0 ? <p className="mt-2 text-xs text-zinc-500">No hay otros meseros activos disponibles.</p> : null}
             </>
           ) : (
             <>
@@ -455,15 +464,26 @@ export default function MesaOcupada({
               {mesasLibres.length === 0 ? <p className="mt-2 text-xs text-zinc-500">No hay mesas libres para recibir el consumo.</p> : null}
             </>
           )}
+          <label className="label mt-4" htmlFor="mesa-motivo-operacion">Motivo</label>
+          <textarea
+            id="mesa-motivo-operacion"
+            value={motivoOperacion}
+            onChange={(e) => { setMotivoOperacion(e.target.value.slice(0, 300)); setErrorOperacion(null) }}
+            className="input min-h-20 resize-y"
+            maxLength={300}
+            placeholder={operacionMesa === 'pasar-mesero' ? 'Ej. Cambio de turno' : 'Ej. Cliente pidió cambiar de mesa'}
+          />
+          {requierePin ? <CampoPin pin={pin} onChange={setPin} etiqueta="PIN del administrador o gerente" /> : null}
+          <p className="mt-2 text-xs text-zinc-500">El cambio quedará registrado con el usuario, las mesas y el motivo.</p>
           {errorOperacion ? <div role="alert" className="aviso mt-4 border-danger-500/40 bg-danger-500/10 text-danger-500">{errorOperacion}</div> : null}
           {guardandoOperacion ? (
             <div role="status" aria-live="polite" className="aviso mt-4 border-brand-500/30 bg-brand-500/10 text-brand-300"><Spinner className="mr-2 h-4 w-4 align-middle" />Guardando el cambio de mesa…</div>
           ) : null}
           <div className="mt-6 flex flex-wrap justify-end gap-2">
-            <button type="button" disabled={guardandoOperacion} onClick={() => setOperacionMesa(null)} className="btn btn-outline min-h-11 px-4">Cancelar</button>
+            <button type="button" disabled={guardandoOperacion} onClick={() => { setOperacionMesa(null); setMotivoOperacion(''); setPin('') }} className="btn btn-outline min-h-11 px-4">Cancelar</button>
             <button
               type="button"
-              disabled={guardandoOperacion || (operacionMesa === 'pasar-mesero' ? !meseroSeleccionado : !mesaSeleccionada)}
+              disabled={guardandoOperacion || cargandoPin || motivoOperacion.trim().length < 5 || (requierePin && pin.length === 0) || (operacionMesa === 'pasar-mesero' ? !meseroSeleccionado : !mesaSeleccionada)}
               onClick={() => void confirmarOperacionMesa()}
               className="btn min-h-11 px-4"
             >

@@ -90,9 +90,12 @@ certifica el tiempo de recuperación ni restaura Storage o secretos.
 3. Revisar total, propina, método, recibido y vuelto al cobrar. Esperar la
    confirmación antes de repetir una acción.
 4. Para anular, pedir PIN, registrar motivo y comprobar estado/devolución.
-5. Cerrar contando efectivo físico: comparar apertura, cobros en efectivo y
+5. Al pasar una mesa a otro mesero o mover su consumo, elegir el destino,
+   describir el motivo e ingresar el PIN si el restaurante lo configuró. Verificar
+   el responsable/mesa nueva y confirmar el evento en la auditoría.
+6. Cerrar contando efectivo físico: comparar apertura, cobros en efectivo y
    devoluciones. Explicar toda diferencia y revisar pendientes por separado.
-6. Conciliar con el sistema de comprobantes y guardar el resumen en ubicación
+7. Conciliar con el sistema de comprobantes y guardar el resumen en ubicación
    privada. Registrar incidentes y tiempos.
 
 ## 4. Corte de internet o error al cobrar

@@ -93,6 +93,8 @@ try {
   console.log('SQL QA: permisos RLS de catálogo, mesas y configuración global correctos')
   await pg.exec(readFileSync(new URL('../supabase/qa/matriz_roles_rollback.sql', import.meta.url), 'utf8'))
   console.log('SQL QA: matriz de roles y aislamiento entre restaurantes aprobados')
+  await pg.exec(readFileSync(new URL('../supabase/qa/traslado_mesa_pin_auditoria_rollback.sql', import.meta.url), 'utf8'))
+  console.log('SQL QA: cambio de responsable y traslado de consumo protegidos con PIN y auditoría')
   await pg.exec(readFileSync(new URL('../supabase/qa/bandeja_comercial_alertas_rollback.sql', import.meta.url), 'utf8'))
   console.log('SQL QA: bandeja comercial privada, avisos y soporte con rollback')
   await pg.exec(readFileSync(new URL('../supabase/qa/flujo_piloto_rollback.sql', import.meta.url), 'utf8'))

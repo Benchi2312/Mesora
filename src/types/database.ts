@@ -504,8 +504,8 @@ export interface Database {
         Args: { p_restaurante_id: string }
         Returns: { id: string; nombre: string; activo: boolean; rol: string }[]
       }
-      asignar_mesa_mesero: { Args: { p_restaurante_id: string; p_mesa_id: string; p_mesero_id: string }; Returns: undefined }
-      mover_consumo_mesa: { Args: { p_restaurante_id: string; p_mesa_origen_id: string; p_mesa_destino_id: string }; Returns: undefined }
+      asignar_mesa_mesero: { Args: { p_restaurante_id: string; p_mesa_id: string; p_mesero_id: string; p_pin?: string | null; p_motivo?: string | null }; Returns: undefined }
+      mover_consumo_mesa: { Args: { p_restaurante_id: string; p_mesa_origen_id: string; p_mesa_destino_id: string; p_pin?: string | null; p_motivo?: string | null }; Returns: undefined }
       reimprimir_boleta: { Args: { p_restaurante_id: string; p_cuenta_id: string; p_pin?: string | null }; Returns: unknown }
       abrir_turno_caja: { Args: { p_restaurante_id: string; p_usuario_id: string; p_monto_inicial: number }; Returns: string }
       cerrar_turno_caja: {

@@ -18,6 +18,8 @@ export type AccionAuditoria =
   | 'suscripcion_reactivar'
   | 'suscripcion_ajuste'
   | 'configuracion_actualizar'
+  | 'mesa_transferir_responsable'
+  | 'mesa_mover_consumo'
 
 export type CategoriaAuditoria = 'restaurantes' | 'usuarios' | 'suscripciones' | 'configuracion' | 'otros'
 
@@ -35,6 +37,8 @@ const ETIQUETAS: Record<AccionAuditoria, string> = {
   suscripcion_reactivar: 'Suscripción reactivada',
   suscripcion_ajuste: 'Suscripción ajustada',
   configuracion_actualizar: 'Configuración actualizada',
+  mesa_transferir_responsable: 'Responsable de mesa cambiado',
+  mesa_mover_consumo: 'Consumo movido entre mesas',
 }
 
 const CATEGORIAS: Record<AccionAuditoria, CategoriaAuditoria> = {
@@ -51,6 +55,8 @@ const CATEGORIAS: Record<AccionAuditoria, CategoriaAuditoria> = {
   suscripcion_reactivar: 'suscripciones',
   suscripcion_ajuste: 'suscripciones',
   configuracion_actualizar: 'configuracion',
+  mesa_transferir_responsable: 'otros',
+  mesa_mover_consumo: 'otros',
 }
 
 /** Texto legible de una acción; si es desconocida, se muestra tal cual. */

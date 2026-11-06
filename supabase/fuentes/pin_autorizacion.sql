@@ -6,10 +6,9 @@
 -- cobra de menos. Lo mismo, en mayor escala, con el cobro: una boleta ya emitida
 -- es un documento contable y no se puede borrar desde la app.
 --
--- La regla que se impone: las dos acciones que tocan dinero para menos
--- (anular un ítem y anular un cobro) exigen el PIN del restaurante cuando el
--- restaurante lo configuró. El PIN lo define el Admin y nadie más lo puede ver
--- ni cambiar.
+-- La regla que se impone: anular ítems/cobros, cambiar al responsable de una
+-- mesa y mover consumo requieren el PIN del restaurante cuando está configurado.
+-- El PIN lo define el Admin y nadie más lo puede ver ni cambiar.
 --
 -- POR QUÉ UNA TABLA PROPIA Y NO UNA COLUMNA EN `restaurantes`
 -- El hash del PIN no puede vivir en una columna de `restaurantes`: cualquier

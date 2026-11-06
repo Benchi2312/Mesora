@@ -1,6 +1,6 @@
 # Estado del MVP de Mesora
 
-Revisión: 05/11/2026. Versión técnica **0.1.0**.
+Revisión: 06/11/2026. Versión técnica **0.1.0**.
 Producto publicado en https://mesora-sistema.vercel.app.
 Este registro distingue implementación, prueba técnica y aceptación del local.
 Las suites aisladas no certifican un turno real ni la recepción de un correo.
@@ -16,8 +16,11 @@ electrónica permanece en el sistema actual del restaurante.
 
 | Área | Estado comprobado | Evidencia y límite |
 | --- | --- | --- |
-| Publicación | GitHub público, `main` conectado a Vercel | Repo `Benchi2312/Mesora`; revisar CI y despliegue para cada publicación. |
-| Instalación inicial | Lista para crear el restaurante piloto | El 05/11/2026 se retiraron el restaurante y las dos cuentas de prueba; quedó activa únicamente la cuenta de superadministración. Crea el negocio y su admin desde ese panel. |
+| Publicación | GitHub público, rama `main` conectada a Vercel | Repo `Benchi2312/Mesora`. Vercel creó el despliegue de `main`; la promoción automática al alias comercial requiere corregir la comprobación de despliegue indicada abajo. |
+| Restaurante piloto | Configurado y probado el 06/11/2026 | El propietario completó el menú, personal, roles, caja y datos del local. Las pruebas ocurrieron en producción; sus registros de prueba siguen en la base y deben conciliarse antes del turno real. |
+| Flujo E2E del local | Flujo principal aprobado por el propietario | Se probaron apertura/cierre de caja, pedidos, cocina/barra, traslado de consumo, precuenta, impresión, cobros divididos, vuelto, anulaciones, dashboard y CSV. La prueba física con impresora y turno real sigue pendiente. |
+| Crear mesa duplicada | Mensaje corregido | El nombre es único en todo el restaurante, también entre zonas. La pantalla ahora detecta el duplicado y explica qué nombre debe cambiarse; la base conserva la restricción. |
+| Pasar mesa a otro mesero | Corregido en código y Supabase | Selector de meseros activos del mismo restaurante; PIN cuando está configurado, motivo obligatorio y auditoría. La aceptación final entre dos cuentas reales queda pendiente de repetición en el local. |
 | Recuperación del superadmin | Completada por el propietario | Confirmó recepción del enlace, nueva contraseña e ingreso. |
 | Recuperación del admin de restaurante | Completada por el propietario | Confirmó recepción del enlace y cambio de contraseña. El correo alternativo es una integración distinta. |
 | Contacto comercial | Envío y recepción confirmados | Función respondió HTTP 200 con `ok: true`; el propietario confirmó que la consulta llegó al buzón. Reintentos, errores y carga tienen pruebas aisladas. |
@@ -58,6 +61,7 @@ electrónica permanece en el sistema actual del restaurante.
 | Contacto en navegador | Aprobado a 360 y 1280 px: doble evento, fallo, reintento, enlace manual y éxito. |
 | Contacto en Deno | Una prueba con cuatro grupos aprobados; sin permisos de red. |
 | TypeScript y build | Aprobados. |
+| Traslado de mesa en SQL aislado | Aprobado con PIN incorrecto/correcto, aislamiento de restaurante y auditoría con actor, fecha y motivo. |
 | Dependencias | `npm audit`: cero vulnerabilidades reportadas al revisar. |
 | Propuesta de marca | SVG renderizados y presentación sin desborde a 360 px. |
 
@@ -69,21 +73,31 @@ producción se consultan en GitHub Actions y Vercel.
 
 ## Pendientes que necesitan al propietario o al local
 
-1. Crear el nuevo restaurante desde el superadmin y completar menú, precios,
-   roles, suscripción, PIN y datos del local. Se eliminó el tenant de prueba y
-   sus dos usuarios; no se borró la cuenta de superadministración.
-2. Purgar las copias locales previas al reset que todavía guardan datos de
+1. Repetir el traspaso de Carlos a María con PIN incorrecto y correcto; confirmar
+   que el destinatario ve la mesa y que la auditoría registra responsable,
+   usuario, fecha, mesa y motivo.
+2. Imprimir y reimprimir una comanda de cocina/barra con la impresora del local.
+3. Probar acceso entre roles, aislamiento entre restaurantes, usuario inactivo y
+   bloqueo de apertura de un segundo turno mientras ya hay uno abierto. Las
+   pruebas SQL aisladas cubren parte de esos controles, no la aceptación de UI.
+4. Probar pérdida temporal de internet y recuperación sin duplicar pedidos/cobros.
+5. Purgar las copias locales previas al reset que todavía guardan datos de
    prueba; elegir destino externo cifrado y responsable; completar frecuencia,
    retención y recuperación de servicios complementarios.
-3. Ejecutar la [guía del primer turno](./GUIA_PRIMER_TURNO.md) con impresora,
+6. Ejecutar la [guía del primer turno](./GUIA_PRIMER_TURNO.md) con impresora,
    dispositivos y personal reales; registrar conciliación e incidencias.
-4. Asignar encargado y contacto de soporte durante el primer turno.
-5. Completar y publicar condiciones del servicio y aviso de privacidad cuando
+7. Asignar encargado y contacto de soporte durante el primer turno.
+8. Completar y publicar condiciones del servicio y aviso de privacidad cuando
    el titular confirme identidad legal, RUC/documento, domicilio, canales
    oficiales, planes, precios y conservación. Los borradores requieren revisión
    legal y no están publicados.
-6. Confirmar que nombre y logo pueden usarse comercialmente; la revisión
+9. Confirmar que nombre y logo pueden usarse comercialmente; la revisión
    preliminar no sustituye una búsqueda registral en Indecopi.
+10. Revisar en Vercel **Project → Settings → Deployment Checks** por qué el
+    control de promoción devuelve `Checks for Deployment have failed`. El build
+    de `main` quedó `READY` y `mesora-sistema.vercel.app` se reasignó manualmente
+    al último despliegue; hasta resolver el control no se confirmó la promoción
+    automática de ese alias en futuras publicaciones.
 
 ## Mejoras posteriores y decisiones comerciales
 
@@ -119,8 +133,8 @@ producción se consultan en GitHub Actions y Vercel.
 
 El MVP técnico debe compilar y aprobar las suites exigidas por CI; la versión
 de `main` debe llegar a Vercel y superar la comprobación pública. La aceptación
-operativa requiere además los cuatro pendientes del local anteriores. No se
-asigna un porcentaje que mezcle esas dos condiciones.
+operativa requiere completar los puntos del local anteriores y aprobarlos con
+el encargado. No se asigna un porcentaje que mezcle esas dos condiciones.
 
 Documentos: [operación](./OPERACION_PILOTO.md), [respaldo](./RESPALDOS.md),
 [contacto](./CONTACTO_COMERCIAL.md), [alcance técnico](./PILOTO.md).

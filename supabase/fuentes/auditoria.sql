@@ -48,7 +48,8 @@ create table if not exists public.audit_logs (
   -- Clave estable de la acción (ver src/lib/auditoria.ts): restaurante_crear,
   -- restaurante_editar, usuario_crear, usuario_cambiar_rol, usuario_estado,
   -- suscripcion_renovar, suscripcion_cambiar_plan, suscripcion_suspender,
-  -- suscripcion_reactivar, suscripcion_ajuste, configuracion_actualizar.
+  -- suscripcion_reactivar, suscripcion_ajuste, configuracion_actualizar,
+  -- mesa_transferir_responsable, mesa_mover_consumo.
   accion text not null,
   -- Texto legible para la UI.
   descripcion text,
