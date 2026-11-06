@@ -20,6 +20,9 @@ export type AccionAuditoria =
   | 'configuracion_actualizar'
   | 'mesa_transferir_responsable'
   | 'mesa_mover_consumo'
+  | 'comanda_item_anular'
+  | 'cuenta_anular'
+  | 'caja_turno_cerrar'
 
 export type CategoriaAuditoria = 'restaurantes' | 'usuarios' | 'suscripciones' | 'configuracion' | 'otros'
 
@@ -39,6 +42,9 @@ const ETIQUETAS: Record<AccionAuditoria, string> = {
   configuracion_actualizar: 'Configuración actualizada',
   mesa_transferir_responsable: 'Responsable de mesa cambiado',
   mesa_mover_consumo: 'Consumo movido entre mesas',
+  comanda_item_anular: 'Ítem de comanda anulado',
+  cuenta_anular: 'Boleta anulada y reembolsada',
+  caja_turno_cerrar: 'Turno de caja cerrado',
 }
 
 const CATEGORIAS: Record<AccionAuditoria, CategoriaAuditoria> = {
@@ -57,6 +63,9 @@ const CATEGORIAS: Record<AccionAuditoria, CategoriaAuditoria> = {
   configuracion_actualizar: 'configuracion',
   mesa_transferir_responsable: 'otros',
   mesa_mover_consumo: 'otros',
+  comanda_item_anular: 'otros',
+  cuenta_anular: 'otros',
+  caja_turno_cerrar: 'otros',
 }
 
 /** Texto legible de una acción; si es desconocida, se muestra tal cual. */

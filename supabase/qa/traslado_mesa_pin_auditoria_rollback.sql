@@ -49,6 +49,10 @@ begin
 
   perform set_config('request.jwt.claim.sub', v_carlos::text, true);
   execute 'set local role authenticated';
+  if not exists (
+    select 1 from public.listar_meseros_activos_restaurante(v_r)
+     where id=v_maria and activo is true and rol='mesero'
+  ) then raise exception 'La lista no muestra al segundo mesero activo del restaurante'; end if;
   v_denegado := false;
   begin
     perform public.asignar_mesa_mesero(v_r, v_mesa_a, v_maria, '0000', 'Cambio de turno');

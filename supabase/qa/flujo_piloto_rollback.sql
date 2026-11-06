@@ -60,6 +60,12 @@ begin
   begin perform public.mesas_por_cobrar(otro); exception when others then denegado:=true; end;
   if not denegado then raise exception 'Se consultó un restaurante ajeno'; end if;
   execute format('set local role %I',rol_inicial);
+  if not exists (
+    select 1 from public.audit_logs
+     where actor_id=mesero and entidad_id=item_cancelado and accion='comanda_item_anular'
+       and detalle->>'producto'='Bebida QA'
+       and detalle->>'mesa_id'=mesa::text
+  ) then raise exception 'La anulación del ítem no quedó en auditoría'; end if;
 
   perform set_config('request.jwt.claim.sub',cocina::text,true);
   execute 'set local role authenticated';
@@ -102,6 +108,12 @@ begin
   exception when others then denegado:=true; end;
   if not denegado then raise exception 'Se permitió una segunda anulación'; end if;
   execute format('set local role %I',rol_inicial);
+  if not exists (
+    select 1 from public.audit_logs
+     where actor_id=cajero and entidad_id=cuenta and accion='cuenta_anular'
+       and detalle->>'motivo'='Anulación de QA con PIN'
+       and (detalle->>'monto_reembolsado')::numeric=61
+  ) then raise exception 'La anulación de la boleta no quedó en auditoría'; end if;
   update public.cuentas set anulada_at=now()-interval '30 seconds' where id=cuenta;
 
   perform set_config('request.jwt.claim.sub',cajero::text,true);
@@ -109,6 +121,12 @@ begin
   cierre:=public.cerrar_turno_caja(r,cajero,100,'QA transaccional');
   if cierre.estado<>'cerrado' or cierre.monto_esperado<>100 or cierre.diferencia<>0 then raise exception 'Arqueo incorrecto'; end if;
   execute format('set local role %I',rol_inicial);
+  if not exists (
+    select 1 from public.audit_logs
+     where actor_id=cajero and entidad_id=turno and accion='caja_turno_cerrar'
+       and (detalle->>'monto_declarado')::numeric=100
+       and (detalle->>'diferencia')::numeric=0
+  ) then raise exception 'El cierre de caja no quedó en auditoría'; end if;
 
   update public.usuarios set activo=false where id=mesero;
   perform set_config('request.jwt.claim.sub',mesero::text,true);

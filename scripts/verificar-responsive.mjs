@@ -464,6 +464,10 @@ async function correrSesionesLocales(browser, vp) {
 
       await page.fill('#caja-declarado', '0')
       await page.getByRole('button', { name: 'Cerrar turno' }).click()
+      await page.getByRole('heading', { name: 'Confirma el cierre de caja' }).waitFor({ timeout: 10000 })
+      check(`cajero ${vp.nombre} · explica la auditoría antes del cierre`, await page.getByText(/registro de auditoría/i).count() > 0)
+      await medir(page, vp, `${vp.nombre}_cajero_confirmacion_cierre`)
+      await page.getByRole('button', { name: 'Confirmar cierre de caja' }).click()
       await page.getByRole('heading', { name: 'Abrir caja' }).waitFor({ timeout: 15000 })
       check(
         `cajero ${vp.nombre} · cierra la caja aunque queden mesas sin cobrar`,

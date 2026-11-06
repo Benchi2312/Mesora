@@ -153,6 +153,15 @@ const { formatearNumeroBoleta, numeroBoletaDeCuenta, SERIE_BOLETA } = await serv
   '/src/lib/boleta.ts',
 )
 const { rutaDespuesDeLogin } = await servidor.ssrLoadModule('/src/lib/roles.ts')
+const {
+  confirmarAnulacionItem,
+  confirmarAnulacionCuenta,
+  confirmarMovimientoConsumo,
+  confirmarCambioMesero,
+  confirmarCierreCaja,
+  TEXTO_AUDITORIA,
+} = await servidor.ssrLoadModule('/src/domain/security/confirmaciones.ts')
+const { mensajeOperacion } = await servidor.ssrLoadModule('/src/domain/security/mensajeOperacion.ts')
 
 // ----------------------------------------------------------------- aserciones
 let ok = 0
@@ -184,12 +193,33 @@ restablecerDatosLocal()
 const api = getApi()
 const RID = 'r-demo'
 const MESA = 'm-4' // Mesa 4 del dataset semilla, estado "libre"
+const meseroFlujo = {
+  id: 'u-qa-mesero-flujo', restaurante_id: RID, rol: 'mesero', nombre: 'Mesero Flujo QA',
+  email: 'flujo@qa.invalid', activo: true, created_at: new Date().toISOString(),
+}
+localSeed.usuarios.push(meseroFlujo)
+apiMode.operadorId = meseroFlujo.id
 
 titulo('0 · El backend activo es el local (sin Supabase)')
 check('esModoLocal()', esModoLocal() === true)
 check('login admin desde caja vuelve a /admin', rutaDespuesDeLogin('admin_restaurante', '/cajero') === '/admin')
 check('login cajero desde caja conserva /cajero', rutaDespuesDeLogin('cajero', '/cajero') === '/cajero')
 check('crearPedido exige que la mesa sea del restaurante', (await api.crearPedido(RID, 'm-inexistente', [pedir(prod('p-1'), 1)]).then((r) => !!r.error)))
+
+titulo('0.1 · Resúmenes de confirmación y errores comprensibles')
+const resumenesSensibles = [
+  confirmarAnulacionItem({ producto: 'Ceviche', cantidad: 2, importe: 'S/ 30.00', mesa: 'Mesa 1', liberaMesa: false, requierePin: true }),
+  confirmarAnulacionCuenta({ boleta: 'B001', total: 'S/ 20.00', propina: 'S/ 2.00', reembolso: 'S/ 22.00', motivo: 'Error de cobro', requierePin: true }),
+  confirmarMovimientoConsumo({ origen: 'Mesa 1', destino: 'Mesa 2', comandas: 1, importe: 'S/ 30.00', motivo: 'Cliente cambió de mesa', requierePin: true }),
+  confirmarCambioMesero({ mesa: 'Mesa 1', anterior: 'Carlos', nuevo: 'María', comandas: 1, importe: 'S/ 30.00', motivo: 'Cambio de turno', requierePin: true }),
+  confirmarCierreCaja({ declarado: 'S/ 100.00', esperado: 'S/ 100.00', diferencia: 'S/ 0.00', mesasPendientes: 1, totalPendiente: 'S/ 25.00', observaciones: '' }),
+]
+check('cada acción sensible presenta acción, datos, PIN y auditoría', resumenesSensibles.every((r) => !!r.accion && !!r.datosAfectados && !!r.pinGerente && r.auditoria === TEXTO_AUDITORIA))
+check('el traspaso identifica a Carlos y María antes de confirmar', resumenesSensibles[3].datosAfectados.includes('Carlos → María'))
+check('el cierre advierte que el consumo pendiente seguirá abierto', resumenesSensibles[4].datosAfectados.includes('seguirán abiertos'))
+check('la anulación de ítem informa si liberará la mesa', confirmarAnulacionItem({ producto: 'Ceviche', cantidad: 1, importe: 'S/ 15.00', mesa: 'Mesa 1', liberaMesa: true, requierePin: false }).datosAfectados.includes('se liberará la mesa'))
+check('el PIN incorrecto se explica sin exponer el error técnico', mensajeOperacion('PIN de autorizacion incorrecto', 'Error') === 'El PIN no coincide. Revísalo con el gerente e inténtalo de nuevo.')
+check('un error de RLS se muestra como indicación para el local', mensajeOperacion('new row violates row-level security policy for table audit_logs', 'Error').includes('Actualiza la pantalla'))
 
 // ---------------------------------------------------------------------------
 titulo('1 · Dos comandas a la misma mesa antes de cobrar')
@@ -598,6 +628,7 @@ check('12m · anular el ítem no falla', !an.error, an.error ?? '')
 const trasAnular = (await api.getPedidoItems([idC])).data
 check('12n · el ítem queda marcado, no borrado', trasAnular.length === 2 && trasAnular.find((i) => i.id === itemCeviche.id).anulado === true)
 check('12o · queda registrado quién y cuándo lo anuló', !!trasAnular.find((i) => i.id === itemCeviche.id).anulado_at && !!trasAnular.find((i) => i.id === itemCeviche.id).anulado_por)
+check('12o1 · la anulación del ítem deja auditoría local', localSeed.auditLogs.some((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemCeviche.id))
 check('12p · el total ya no cuenta el ítem anulado', totalDe(trasAnular) === 8, `${totalDe(trasAnular)} != 8`)
 
 const cocinaAnulada = (await api.getPedidosActivos(RID)).data.find((p) => p.id === idC)
@@ -1029,6 +1060,7 @@ check('15n · el cierre congela el esperado', cierreFaltante.data?.monto_esperad
 check('15o · las observaciones se guardan', cierreFaltante.data?.observaciones === 'Faltó un billete de 10')
 check('15p · no queda ningún turno abierto', (await api.getTurnoAbierto(RID)).data === null)
 check('15q · el turno cerrado aparece en el historial', (await api.getTurnos(RID)).data.some((t) => t.id === cierreFaltante.data?.id))
+check('15q1 · el cierre de caja deja auditoría local con diferencia', localSeed.auditLogs.some((l) => l.accion === 'caja_turno_cerrar' && l.entidad_id === cierreFaltante.data?.id && l.detalle?.diferencia === -10))
 check(
   '15r · el monto declarado negativo se rechaza',
   (await api.cerrarTurno(RID, adminId, -5)).error === 'No hay ningún turno de caja abierto.',
@@ -1657,6 +1689,7 @@ const anulacion = await api.anularCuenta(RID, cuentaAnulable.id, 'Error de cobro
 check('19u · con el PIN correcto la boleta se anula', !anulacion.error, anulacion.error ?? '')
 check('19v · la boleta queda "anulada", no borrada', cuentaAnulable.estado === 'anulada')
 check('19w · queda el motivo registrado', cuentaAnulable.motivo_anulacion === 'Error de cobro')
+check('19w1 · la anulación de la boleta deja auditoría local con motivo', localSeed.auditLogs.some((l) => l.accion === 'cuenta_anular' && l.entidad_id === cuentaAnulable.id && l.detalle?.motivo === 'Error de cobro'))
 check('19x · queda quién la anuló', cuentaAnulable.anulada_por === adminId)
 check(
   '19y · el monto devuelto es el total + la propina',
@@ -2681,6 +2714,9 @@ check(
   '25a · etiquetas y categorías de las acciones de auditoría',
   etiquetaAccionAuditoria('restaurante_crear') === 'Restaurante creado' &&
     etiquetaAccionAuditoria('suscripcion_suspender') === 'Suscripción suspendida' &&
+    etiquetaAccionAuditoria('comanda_item_anular') === 'Ítem de comanda anulado' &&
+    etiquetaAccionAuditoria('cuenta_anular') === 'Boleta anulada y reembolsada' &&
+    etiquetaAccionAuditoria('caja_turno_cerrar') === 'Turno de caja cerrado' &&
     etiquetaAccionAuditoria('accion-desconocida') === 'accion-desconocida' &&
     categoriaDeAccion('suscripcion_renovar') === 'suscripciones' &&
     categoriaDeAccion('usuario_estado') === 'usuarios' &&
@@ -3355,6 +3391,36 @@ check(
   escritos2.length === antesDeCancelar,
   `escritos=${escritos2.length} antes=${antesDeCancelar}`,
 )
+
+titulo('29 · Reasignar Carlos → María y mover consumo con confirmación auditada')
+const restauranteTraspaso = localSeed.restaurantes.find((r) => r.id === RID)
+restauranteTraspaso.suscripcion_activa = true
+restauranteTraspaso.fecha_vencimiento = enMinutos(60 * 24)
+const meseroCarlosQa = { id: 'u-qa-carlos', restaurante_id: RID, rol: 'mesero', nombre: 'Carlos', email: 'carlos@qa.invalid', activo: true, created_at: new Date().toISOString() }
+const meseroMariaQa = { id: 'u-qa-maria', restaurante_id: RID, rol: 'mesero', nombre: 'María', email: 'maria@qa.invalid', activo: true, created_at: new Date().toISOString() }
+const meseroInactivoQa = { id: 'u-qa-inactivo', restaurante_id: RID, rol: 'mesero', nombre: 'Inactivo', email: 'inactivo@qa.invalid', activo: false, created_at: new Date().toISOString() }
+localSeed.usuarios.push(meseroCarlosQa, meseroMariaQa, meseroInactivoQa)
+apiMode.operadorId = meseroCarlosQa.id
+const listadoMeserosQa = await api.getMeseros(RID)
+check('29a · al actualizar opciones aparecen otros meseros activos y se excluyen los inactivos', listadoMeserosQa.data.some((m) => m.id === meseroMariaQa.id) && !listadoMeserosQa.data.some((m) => m.id === meseroInactivoQa.id))
+const zonaTraspasoQa = await api.crearZona(RID, 'QA traspasos')
+const mesaTraspasoQa = await api.crearMesa(RID, { zona_id: zonaTraspasoQa.data.id, nombre: 'Mesa QA traspaso' })
+const mesaDestinoQa = await api.crearMesa(RID, { zona_id: zonaTraspasoQa.data.id, nombre: 'Mesa QA destino' })
+await api.configurarPinAutorizacion(RID, '4321')
+const pedidoTraspasoQa = await api.crearPedido(RID, mesaTraspasoQa.data.id, [pedir(prod('p-1'), 2)])
+const auditoriaAntesTraspasoQa = localSeed.auditLogs.length
+const pinMaloTraspasoQa = await api.asignarMesaMesero(RID, mesaTraspasoQa.data.id, meseroMariaQa.id, '0000', 'Cambio de turno')
+check('29b · un PIN incorrecto no cambia el responsable ni crea auditoría', pinMaloTraspasoQa.error === MENSAJE_PIN_INCORRECTO && !localSeed.auditLogs.some((l) => l.accion === 'mesa_transferir_responsable' && l.entidad_id === mesaTraspasoQa.data.id))
+const traspasoCorrectoQa = await api.asignarMesaMesero(RID, mesaTraspasoQa.data.id, meseroMariaQa.id, '4321', 'Cambio de turno')
+check('29c · con PIN correcto María recibe la mesa', !traspasoCorrectoQa.error && localSeed.mesas.find((m) => m.id === mesaTraspasoQa.data.id).mesero_responsable_id === meseroMariaQa.id)
+const auditoriaTraspasoQa = localSeed.auditLogs.find((l) => l.accion === 'mesa_transferir_responsable' && l.entidad_id === mesaTraspasoQa.data.id)
+check('29d · el registro incluye Carlos, María y el motivo', auditoriaTraspasoQa?.actor_id === meseroCarlosQa.id && auditoriaTraspasoQa.detalle?.mesero_nuevo_id === meseroMariaQa.id && auditoriaTraspasoQa.detalle?.motivo === 'Cambio de turno' && localSeed.auditLogs.length === auditoriaAntesTraspasoQa + 1)
+apiMode.operadorId = meseroMariaQa.id
+const pinMaloMoverQa = await api.moverConsumoMesa(RID, mesaTraspasoQa.data.id, mesaDestinoQa.data.id, '0000', 'Cliente cambió de mesa')
+check('29e · el PIN incorrecto tampoco mueve el consumo', pinMaloMoverQa.error === MENSAJE_PIN_INCORRECTO && localSeed.pedidos.find((p) => p.id === pedidoTraspasoQa.data).mesa_id === mesaTraspasoQa.data.id)
+const movimientoCorrectoQa = await api.moverConsumoMesa(RID, mesaTraspasoQa.data.id, mesaDestinoQa.data.id, '4321', 'Cliente cambió de mesa')
+const auditoriaMovimientoQa = localSeed.auditLogs.find((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaTraspasoQa.data.id)
+check('29f · con PIN correcto se mueve la comanda y queda auditada', !movimientoCorrectoQa.error && localSeed.pedidos.find((p) => p.id === pedidoTraspasoQa.data).mesa_id === mesaDestinoQa.data.id && auditoriaMovimientoQa?.detalle?.mesa_destino_id === mesaDestinoQa.data.id && auditoriaMovimientoQa.detalle?.motivo === 'Cliente cambió de mesa')
 
 await servidor.close()
 rmSync(ENV_DIR, { recursive: true, force: true })

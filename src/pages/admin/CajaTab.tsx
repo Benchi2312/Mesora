@@ -7,8 +7,9 @@ import type { MesaPorCobrar } from '../../lib/api'
 import type { Cuenta, Pago, TurnoCaja } from '../../types/database'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
-import { IconoInfo } from '../../components/ui'
+import { IconoInfo, Modal, ResumenConfirmacionAccion } from '../../components/ui'
 import Precuenta from '../../components/Precuenta'
+import { confirmarCierreCaja } from '../../domain/security/confirmaciones'
 
 /**
  * Caja por turnos del Admin: abrir la gaveta, ver cuánto debería haber y cerrar
@@ -33,6 +34,7 @@ export default function CajaTab() {
   const [observaciones, setObservaciones] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [mesaPrecuenta, setMesaPrecuenta] = useState<MesaPorCobrar | null>(null)
+  const [confirmarCierre, setConfirmarCierre] = useState(false)
 
   const cargar = useCallback(async () => {
     if (!rid) {
@@ -127,9 +129,11 @@ export default function CajaTab() {
           setCargando(true)
           await cargar()
           setError('La respuesta de cierre se perdió. Revisa el historial y el turno abierto antes de repetirlo.')
+          setConfirmarCierre(false)
         } else setError(res.error)
         return
       }
+      setConfirmarCierre(false)
       setDeclarado('')
       setObservaciones('')
       setCargando(true)
@@ -308,7 +312,11 @@ export default function CajaTab() {
                 <button
                   type="button"
                   data-guia="cerrar-caja"
-                  onClick={() => void cerrar()}
+                  onClick={() => {
+                    const falla = errorAlCerrarTurno(montoDeclarado, turno)
+                    if (falla) setError(falla)
+                    else { setError(null); setConfirmarCierre(true) }
+                  }}
                   disabled={guardando || declarado.trim() === ''}
                   className="btn btn-primary min-h-11 px-5"
                 >
@@ -376,6 +384,28 @@ export default function CajaTab() {
           </div>
         )}
       </div>
+
+      {turno && arqueo && confirmarCierre ? (
+        <Modal titulo="Confirma el cierre de caja" onCerrar={() => { if (!guardando) setConfirmarCierre(false) }} ancho="max-w-lg">
+          <p className="text-sm leading-relaxed text-zinc-300">Revisa el arqueo y las mesas pendientes. La caja se cerrará cuando confirmes.</p>
+          <ResumenConfirmacionAccion resumen={confirmarCierreCaja({
+            declarado: fmtPEN(montoDeclarado),
+            esperado: fmtPEN(arqueo.esperado),
+            diferencia: fmtPEN(montoDeclarado - arqueo.esperado),
+            mesasPendientes: porCobrar.length,
+            totalPendiente: fmtPEN(totalPendiente),
+            observaciones: observaciones.trim(),
+          })} />
+          {error ? <div role="alert" className="aviso mt-4 border-danger-500/40 bg-danger-500/10 text-danger-500">{error}</div> : null}
+          {guardando ? <div role="status" aria-live="polite" className="aviso mt-4 border-brand-500/30 bg-brand-500/10 text-brand-300"><Spinner className="mr-2 h-4 w-4 align-middle" />Guardando el arqueo y la auditoría…</div> : null}
+          <div className="mt-6 flex flex-wrap justify-end gap-2">
+            <button type="button" disabled={guardando} onClick={() => setConfirmarCierre(false)} className="btn btn-outline min-h-11 px-4">Volver a caja</button>
+            <button type="button" disabled={guardando || !declarado.trim() || Number.isNaN(montoDeclarado)} onClick={() => void cerrar()} className="btn btn-primary min-h-11 px-4">
+              {guardando ? 'Cerrando…' : 'Confirmar cierre de caja'}
+            </button>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   )
 }

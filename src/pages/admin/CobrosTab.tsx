@@ -8,8 +8,10 @@ import { esPinValido, MOTIVOS_ANULACION_COBRO, errorAlAnularCobro } from '../../
 import type { Cuenta } from '../../types/database'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
-import { IconoInfo, Modal } from '../../components/ui'
+import { IconoInfo, Modal, ResumenConfirmacionAccion } from '../../components/ui'
 import { AvisoPin, CampoPin, usePinAutorizacion } from '../../components/pin'
+import { confirmarAnulacionCuenta } from '../../domain/security/confirmaciones'
+import { mensajeOperacion } from '../../domain/security/mensajeOperacion'
 import { Boleta } from '../mesero/CerrarCuenta'
 
 /**
@@ -276,6 +278,7 @@ function ModalAnularCobro({
   const [motivo, setMotivo] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [revisandoAnulacion, setRevisandoAnulacion] = useState(false)
   const vivo = useRef(true)
 
   useEffect(() => () => {
@@ -291,18 +294,26 @@ function ModalAnularCobro({
     const res = await getApi().anularCuenta(rid, cuenta.id, motivo, pin)
     if (!vivo.current) return
     setEnviando(false)
-    if (res.error) return setError(res.error)
+    if (res.error) return setError(mensajeOperacion(res.error, 'No se pudo anular la boleta. Actualiza la lista e inténtalo de nuevo.'))
     await onAnulada(`Se anuló la boleta de ${fmtPEN(cuenta.total)}. Devuelve ${fmtPEN(res.data?.monto_reembolsado ?? cuenta.total)}.`)
+  }
+
+  function revisarAnulacion() {
+    const errorLocal = errorAlAnularCobro(motivo)
+    if (errorLocal) return setError(errorLocal)
+    setError(null)
+    setRevisandoAnulacion(true)
   }
 
   return (
     <Modal titulo="Anular cobro" onCerrar={onCerrar} ancho="max-w-sm">
-      <p className="text-sm leading-relaxed text-zinc-300">
-        La boleta de <strong className="text-zinc-100">{fmtPEN(cuenta.total)}</strong> queda anulada: sale de las
-        ventas del mes y el efectivo devuelto descuenta del arqueo de la gaveta. No se borra.
-      </p>
+      {!revisandoAnulacion ? (
+        <>
+          <p className="text-sm leading-relaxed text-zinc-300">
+            Revisa el motivo y el PIN. Antes de devolver el dinero verás un resumen de la boleta y sus efectos.
+          </p>
 
-      <div className="mt-4">
+          <div className="mt-4">
         <label className="label" htmlFor="cobro-motivo">
           Motivo
         </label>
@@ -329,10 +340,25 @@ function ModalAnularCobro({
             </button>
           ))}
         </div>
-      </div>
+          </div>
 
-      {consultandoPin ? <AvisoPin visible /> : null}
-      {requierePin ? <CampoPin pin={pin} onChange={setPin} /> : null}
+          {consultandoPin ? <AvisoPin visible /> : null}
+          {requierePin ? <CampoPin pin={pin} onChange={setPin} /> : null}
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-zinc-300">Confirma que estos datos estén correctos. El cobro se anulará solo después de pulsar el botón final.</p>
+          <ResumenConfirmacionAccion resumen={confirmarAnulacionCuenta({
+            boleta: cuenta.numero ?? cuenta.id.slice(0, 8),
+            total: fmtPEN(cuenta.total),
+            propina: fmtPEN(cuenta.propina ?? 0),
+            reembolso: fmtPEN(cuenta.total + (cuenta.propina ?? 0)),
+            motivo: motivo.trim(),
+            requierePin,
+          })} pinVerificando={consultandoPin} />
+          {requierePin ? <CampoPin pin={pin} onChange={setPin} etiqueta="Confirma el PIN del gerente" /> : null}
+        </>
+      )}
 
       {enviando && (
         <div role="status" aria-live="polite" className="aviso mt-4 border-brand-500/30 bg-brand-500/10 text-brand-300">
@@ -346,16 +372,21 @@ function ModalAnularCobro({
       )}
 
       <div className="mt-6 flex flex-wrap justify-end gap-2">
-        <button type="button" onClick={onCerrar} className="btn btn-outline min-h-11 px-4">
+        {revisandoAnulacion ? (
+          <button type="button" disabled={enviando} onClick={() => { setRevisandoAnulacion(false); setError(null) }} className="btn btn-outline min-h-11 px-4">
+            Volver a editar
+          </button>
+        ) : null}
+        <button type="button" disabled={enviando} onClick={onCerrar} className="btn btn-outline min-h-11 px-4">
           Cancelar
         </button>
         <button
           type="button"
-          onClick={() => void confirmar()}
+          onClick={() => revisandoAnulacion ? void confirmar() : revisarAnulacion()}
           disabled={enviando || consultandoPin || (requierePin && !esPinValido(pin))}
-          className="btn min-h-11 bg-danger-500 px-4 text-white transition-colors hover:bg-danger-500/90"
+          className="btn min-h-11 px-4 bg-danger-500 text-white transition-colors hover:bg-danger-500/90"
         >
-          {enviando ? 'Anulando boleta…' : 'Anular cobro'}
+          {enviando ? 'Anulando boleta…' : revisandoAnulacion ? 'Confirmar anulación y devolución' : 'Revisar antes de anular'}
         </button>
       </div>
     </Modal>

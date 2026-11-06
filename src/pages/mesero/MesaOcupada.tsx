@@ -7,6 +7,13 @@ import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 import { Campo, ConfirmDialog, IconoLapiz, Modal } from '../../components/ui'
 import { CampoPin, usePinAutorizacion } from '../../components/pin'
+import { ResumenConfirmacionAccion } from '../../components/ui'
+import {
+  confirmarAnulacionItem,
+  confirmarCambioMesero,
+  confirmarMovimientoConsumo,
+} from '../../domain/security/confirmaciones'
+import { mensajeOperacion } from '../../domain/security/mensajeOperacion'
 import Precuenta from '../../components/Precuenta'
 import type { Zona } from '../../types/database'
 
@@ -60,11 +67,45 @@ export default function MesaOcupada({
   const [guardandoOperacion, setGuardandoOperacion] = useState(false)
   const [errorOperacion, setErrorOperacion] = useState<string | null>(null)
   const [cargandoOpcionesMesa, setCargandoOpcionesMesa] = useState(false)
+  const [confirmandoOperacion, setConfirmandoOperacion] = useState(false)
   // El servidor vuelve a validar el PIN en las operaciones sensibles.
   const { pin, setPin, requierePin, cargando: cargandoPin } = usePinAutorizacion(anulando || operacionMesa ? restaurante?.id : null)
   const meseroResponsable = meseros.find((m) => m.id === meseroResponsableId)
   const meserosDisponibles = meseros.filter((m) => m.id !== meseroResponsableId)
   const asignadaAOtro = usuario?.rol === 'mesero' && Boolean(meseroResponsableId) && meseroResponsableId !== usuario?.id
+
+  async function abrirOperacionMesa(operacion: Exclude<OperacionMesa, null>) {
+    const rid = restaurante?.id
+    if (!rid) return
+    setCargandoOpcionesMesa(true)
+    setErrorOperacion(null)
+    setMeseroSeleccionado('')
+    setMesaSeleccionada('')
+    setMotivoOperacion('')
+    setPin('')
+    setConfirmandoOperacion(false)
+    try {
+      const [usuarios, mesasActualizadas] = await Promise.all([
+        getApi().getMeseros(rid),
+        operacion === 'mover-consumo' ? getApi().getMesas(rid) : Promise.resolve(null),
+      ])
+      if (usuarios.error || mesasActualizadas?.error) {
+        setErrorOperacion(mensajeOperacion(usuarios.error ?? mesasActualizadas?.error, 'No se pudieron actualizar las opciones. Revisa tu conexión e inténtalo de nuevo.'))
+        return
+      }
+      setMeseros((usuarios.data ?? []).filter((u) => u.activo !== false && u.rol === 'mesero'))
+      if (mesasActualizadas) {
+        const listaMesas = mesasActualizadas.data ?? []
+        setMesasLibres(listaMesas.filter((m) => m.id !== mesa.id && m.estado === 'libre'))
+        setMeseroResponsableId(listaMesas.find((m) => m.id === mesa.id)?.mesero_responsable_id ?? mesa.mesero_responsable_id ?? null)
+      }
+      setOperacionMesa(operacion)
+    } catch {
+      setErrorOperacion('No se pudieron actualizar las opciones. Revisa tu conexión e inténtalo de nuevo.')
+    } finally {
+      setCargandoOpcionesMesa(false)
+    }
+  }
 
   useEffect(() => {
     const rid = restaurante?.id
@@ -170,7 +211,7 @@ export default function MesaOcupada({
     try {
       const { error: apiErr } = await getApi().anularItem(restaurante.id, anulando.pedidoId, anulando.item.id, pin)
       if (apiErr) {
-        setErrorAnulacion(apiErr)
+        setErrorAnulacion(mensajeOperacion(apiErr, 'No se pudo anular el ítem. Actualiza la comanda e inténtalo de nuevo.'))
         return
       }
       setAnulando(null)
@@ -204,7 +245,7 @@ export default function MesaOcupada({
         }
         const res = await api.asignarMesaMesero(restaurante.id, mesa.id, destino.id, requierePin ? pin : null, motivo)
         if (res.error) {
-          setErrorOperacion(res.error)
+          setErrorOperacion(mensajeOperacion(res.error, 'No se pudo pasar la mesa. Actualiza las mesas e inténtalo de nuevo.'))
           return
         }
         setMeseroResponsableId(destino.id)
@@ -212,6 +253,7 @@ export default function MesaOcupada({
         setMeseroSeleccionado('')
         setMotivoOperacion('')
         setPin('')
+        setConfirmandoOperacion(false)
         setFlash(`Mesa asignada a ${destino.nombre}. Las comandas anteriores conservan su mesero original.`)
         await cargar(true)
         return
@@ -224,7 +266,7 @@ export default function MesaOcupada({
       }
       const res = await api.moverConsumoMesa(restaurante.id, mesa.id, destino.id, requierePin ? pin : null, motivo)
       if (res.error) {
-        setErrorOperacion(res.error)
+        setErrorOperacion(mensajeOperacion(res.error, 'No se pudo mover el consumo. Actualiza las mesas e inténtalo de nuevo.'))
         return
       }
       const zona = zonas.find((z) => z.id === destino.zona_id)?.nombre
@@ -233,6 +275,7 @@ export default function MesaOcupada({
       setMesaSeleccionada('')
       setMotivoOperacion('')
       setPin('')
+      setConfirmandoOperacion(false)
       onConsumoMovido(`Consumo movido de ${mesa.nombre} a ${ubicacion}. Cocina verá las comandas bajo la mesa nueva.`)
     } catch {
       setErrorOperacion('No se pudo completar la operación. Actualiza las mesas antes de volver a intentarlo.')
@@ -367,7 +410,7 @@ export default function MesaOcupada({
         <button
           type="button"
           disabled={!hayPedidos || asignadaAOtro || cargandoOpcionesMesa}
-          onClick={() => { setErrorOperacion(null); setMeseroSeleccionado(''); setMotivoOperacion(''); setPin(''); setOperacionMesa('pasar-mesero') }}
+          onClick={() => void abrirOperacionMesa('pasar-mesero')}
           className="btn btn-outline min-h-12 px-4 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Pasar a otro mesero
@@ -375,7 +418,7 @@ export default function MesaOcupada({
         <button
           type="button"
           disabled={!hayPedidos || asignadaAOtro || cargandoOpcionesMesa || mesasLibres.length === 0}
-          onClick={() => { setErrorOperacion(null); setMesaSeleccionada(''); setMotivoOperacion(''); setPin(''); setOperacionMesa('mover-consumo') }}
+          onClick={() => void abrirOperacionMesa('mover-consumo')}
           className="btn btn-outline min-h-12 px-4 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Mover consumo a otra mesa
@@ -416,11 +459,19 @@ export default function MesaOcupada({
             </>
           }
           extra={
-            requierePin ? (
-              <CampoPin pin={pin} onChange={setPin} />
-            ) : null
+            <>
+              <ResumenConfirmacionAccion pinVerificando={cargandoPin} resumen={confirmarAnulacionItem({
+                producto: anulando.item.nombre_producto,
+                cantidad: anulando.item.cantidad,
+                importe: fmtPEN(anulando.item.cantidad * anulando.item.precio_unitario),
+                mesa: mesa.nombre,
+                liberaMesa: itemsVigentes(items).filter((item) => item.id !== anulando.item.id).length === 0,
+                requierePin,
+              })} />
+              {requierePin ? <CampoPin pin={pin} onChange={setPin} /> : null}
+            </>
           }
-          disabled={requierePin && pin.length === 0}
+          disabled={cargandoPin || (requierePin && pin.length === 0)}
           error={errorAnulacion}
           onConfirmar={() => void confirmarAnulacion()}
           onCancelar={() => {
@@ -434,9 +485,9 @@ export default function MesaOcupada({
       {operacionMesa && (
         <Modal
           titulo={operacionMesa === 'pasar-mesero' ? 'Pasar mesa a otro mesero' : 'Mover consumo a otra mesa'}
-          onCerrar={() => { if (!guardandoOperacion) { setOperacionMesa(null); setMotivoOperacion(''); setPin('') } }}
+          onCerrar={() => { if (!guardandoOperacion) { setOperacionMesa(null); setMotivoOperacion(''); setPin(''); setConfirmandoOperacion(false) } }}
         >
-          {operacionMesa === 'pasar-mesero' ? (
+          {!confirmandoOperacion && operacionMesa === 'pasar-mesero' ? (
             <>
               <p className="text-sm leading-relaxed text-zinc-300">
                 La mesa seguirá siendo la misma. El nuevo responsable recibirá las próximas comandas; los pedidos y ventas anteriores conservan el mesero que los registró.
@@ -448,7 +499,7 @@ export default function MesaOcupada({
               </select>
               {meserosDisponibles.length === 0 ? <p className="mt-2 text-xs text-zinc-500">No hay otros meseros activos disponibles.</p> : null}
             </>
-          ) : (
+          ) : !confirmandoOperacion ? (
             <>
               <p className="text-sm leading-relaxed text-zinc-300">
                 Moveremos las comandas aún no cobradas a una mesa libre. Los pagos ya emitidos y su historial no cambian.
@@ -463,32 +514,68 @@ export default function MesaOcupada({
               </select>
               {mesasLibres.length === 0 ? <p className="mt-2 text-xs text-zinc-500">No hay mesas libres para recibir el consumo.</p> : null}
             </>
+          ) : null}
+          {!confirmandoOperacion ? (
+            <>
+              <label className="label mt-4" htmlFor="mesa-motivo-operacion">Motivo</label>
+              <textarea
+                id="mesa-motivo-operacion"
+                value={motivoOperacion}
+                onChange={(e) => { setMotivoOperacion(e.target.value.slice(0, 300)); setErrorOperacion(null) }}
+                className="input min-h-20 resize-y"
+                maxLength={300}
+                placeholder={operacionMesa === 'pasar-mesero' ? 'Ej. Cambio de turno' : 'Ej. Cliente pidió cambiar de mesa'}
+              />
+              {requierePin ? <CampoPin pin={pin} onChange={setPin} etiqueta="PIN del administrador o gerente" /> : null}
+            </>
+          ) : (
+            <ResumenConfirmacionAccion pinVerificando={cargandoPin} resumen={operacionMesa === 'pasar-mesero'
+              ? confirmarCambioMesero({
+                mesa: mesa.nombre,
+                anterior: meseroResponsable?.nombre ?? 'Sin asignar',
+                nuevo: meseros.find((m) => m.id === meseroSeleccionado)?.nombre ?? 'Mesero seleccionado',
+                comandas: pedidos.length,
+                importe: fmtPEN(total),
+                motivo: motivoOperacion.trim(),
+                requierePin,
+              })
+              : confirmarMovimientoConsumo({
+                origen: mesa.nombre,
+                destino: mesasLibres.find((m) => m.id === mesaSeleccionada)?.nombre ?? 'Mesa seleccionada',
+                comandas: pedidos.length,
+                importe: fmtPEN(total),
+                motivo: motivoOperacion.trim(),
+                requierePin,
+              })} />
           )}
-          <label className="label mt-4" htmlFor="mesa-motivo-operacion">Motivo</label>
-          <textarea
-            id="mesa-motivo-operacion"
-            value={motivoOperacion}
-            onChange={(e) => { setMotivoOperacion(e.target.value.slice(0, 300)); setErrorOperacion(null) }}
-            className="input min-h-20 resize-y"
-            maxLength={300}
-            placeholder={operacionMesa === 'pasar-mesero' ? 'Ej. Cambio de turno' : 'Ej. Cliente pidió cambiar de mesa'}
-          />
-          {requierePin ? <CampoPin pin={pin} onChange={setPin} etiqueta="PIN del administrador o gerente" /> : null}
-          <p className="mt-2 text-xs text-zinc-500">El cambio quedará registrado con el usuario, las mesas y el motivo.</p>
           {errorOperacion ? <div role="alert" className="aviso mt-4 border-danger-500/40 bg-danger-500/10 text-danger-500">{errorOperacion}</div> : null}
           {guardandoOperacion ? (
             <div role="status" aria-live="polite" className="aviso mt-4 border-brand-500/30 bg-brand-500/10 text-brand-300"><Spinner className="mr-2 h-4 w-4 align-middle" />Guardando el cambio de mesa…</div>
           ) : null}
           <div className="mt-6 flex flex-wrap justify-end gap-2">
-            <button type="button" disabled={guardandoOperacion} onClick={() => { setOperacionMesa(null); setMotivoOperacion(''); setPin('') }} className="btn btn-outline min-h-11 px-4">Cancelar</button>
-            <button
-              type="button"
-              disabled={guardandoOperacion || cargandoPin || motivoOperacion.trim().length < 5 || (requierePin && pin.length === 0) || (operacionMesa === 'pasar-mesero' ? !meseroSeleccionado : !mesaSeleccionada)}
-              onClick={() => void confirmarOperacionMesa()}
-              className="btn min-h-11 px-4"
-            >
-              {guardandoOperacion ? 'Guardando…' : operacionMesa === 'pasar-mesero' ? 'Pasar mesa' : 'Mover consumo'}
-            </button>
+            <button type="button" disabled={guardandoOperacion} onClick={() => { setOperacionMesa(null); setMotivoOperacion(''); setPin(''); setConfirmandoOperacion(false) }} className="btn btn-outline min-h-11 px-4">Cancelar</button>
+            {confirmandoOperacion ? (
+              <>
+                <button type="button" disabled={guardandoOperacion} onClick={() => { setConfirmandoOperacion(false); setErrorOperacion(null) }} className="btn btn-outline min-h-11 px-4">Volver a editar</button>
+                <button
+                  type="button"
+                  disabled={guardandoOperacion || cargandoPin || (requierePin && pin.length === 0)}
+                  onClick={() => void confirmarOperacionMesa()}
+                  className="btn min-h-11 px-4"
+                >
+                  {guardandoOperacion ? 'Guardando…' : 'Confirmar y guardar'}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                disabled={guardandoOperacion || cargandoPin || motivoOperacion.trim().length < 5 || (requierePin && pin.length === 0) || (operacionMesa === 'pasar-mesero' ? !meseroSeleccionado : !mesaSeleccionada)}
+                onClick={() => { setErrorOperacion(null); setConfirmandoOperacion(true) }}
+                className="btn min-h-11 px-4"
+              >
+                Revisar y confirmar
+              </button>
+            )}
           </div>
         </Modal>
       )}

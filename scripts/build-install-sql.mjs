@@ -38,6 +38,7 @@ const GENERADOS = ['TODO_EN_UNO.sql']
 const FUENTES_VERSIONADAS = {
   'migracion_password_recovery.sql': '../migrations/20261022120000_password_recovery.sql',
   'migracion_admin_email_recovery.sql': '../migrations/20261103032730_admin_email_recovery.sql',
+  'operaciones_auditoria.sql': '../migrations/20261106075551_auditar_operaciones_caja_mesa.sql',
 }
 
 // -----------------------------------------------------------------------------
@@ -101,6 +102,7 @@ const ORDEN = [
   '../migrations/20261105212734_proteger_cierre_mesa_reasignada.sql',
   '../migrations/20261106064127_listar_meseros_activos_mismo_restaurante.sql',
   '../migrations/20261106070508_proteger_traslados_mesa_con_pin_y_auditoria.sql',
+  '../migrations/20261106075551_auditar_operaciones_caja_mesa.sql',
 ]
 
 const fallos = []

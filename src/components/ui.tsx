@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
+import type { ResumenConfirmacion } from '../domain/security/confirmaciones'
 
 type IconoProps = { className?: string }
 
@@ -210,6 +211,27 @@ export function ConfirmDialog({
         </button>
       </div>
     </Modal>
+  )
+}
+
+/** Resumen obligatorio para confirmar una operación sensible antes de enviarla. */
+export function ResumenConfirmacionAccion({ resumen, pinVerificando = false }: { resumen: ResumenConfirmacion; pinVerificando?: boolean }) {
+  const filas = [
+    ['Acción', resumen.accion],
+    ['Datos afectados', resumen.datosAfectados],
+    ['PIN del gerente', pinVerificando ? 'Comprobando la configuración de seguridad de este restaurante…' : resumen.pinGerente],
+    ['Auditoría', resumen.auditoria],
+  ] as const
+
+  return (
+    <dl data-testid="resumen-confirmacion" className="mt-4 divide-y divide-surface-700 rounded-xl border border-surface-700 bg-surface-900/80 px-3">
+      {filas.map(([titulo, detalle]) => (
+        <div key={titulo} className="py-2.5">
+          <dt className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">{titulo}</dt>
+          <dd className="mt-0.5 text-sm leading-relaxed text-zinc-200">{detalle}</dd>
+        </div>
+      ))}
+    </dl>
   )
 }
 

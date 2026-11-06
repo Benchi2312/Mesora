@@ -15,6 +15,7 @@ import { computeMetricas, type MetricasAdmin } from '../domain/reporting/metrica
 import { arqueoTurno, errorAlAbrirTurno, errorAlCerrarTurno, redondear } from '../domain/cashier/caja'
 import { completarPartes, resumirPago, type PagoParte } from '../domain/cashier/pagos'
 import { MENSAJE_PIN_INCORRECTO, errorAlAnularCobro } from '../domain/security/autorizacion'
+import { mensajeOperacion } from '../domain/security/mensajeOperacion'
 import { esMetodoPagoValido } from '../types/database'
 import { calcularEstadisticasGlobales, type EstadisticasGlobales } from '../domain/reporting/estadisticas'
 import type {
@@ -672,7 +673,7 @@ const realApi: DataApi = {
       p_pin: pin,
       p_motivo: motivo,
     })
-    return { data: null, error: error?.message ?? null }
+    return { data: null, error: mensajeOperacion(error?.message, 'No se pudo pasar la mesa. Actualiza las mesas e inténtalo de nuevo.') }
   },
   async moverConsumoMesa(rid, origenId, destinoId, pin, motivo) {
     const { error } = await supabase.rpc('mover_consumo_mesa', {
@@ -682,7 +683,7 @@ const realApi: DataApi = {
       p_pin: pin,
       p_motivo: motivo,
     })
-    return { data: null, error: error?.message ?? null }
+    return { data: null, error: mensajeOperacion(error?.message, 'No se pudo mover el consumo. Actualiza las mesas e inténtalo de nuevo.') }
   },
   async getPersonal(rid) {
     const { data, error } = await supabase
@@ -771,7 +772,7 @@ const realApi: DataApi = {
       p_item_id: itemId,
       p_pin: pin,
     })
-    return { data: null, error: error?.message ?? null }
+    return { data: null, error: mensajeOperacion(error?.message, 'No se pudo anular el ítem. Actualiza la comanda e inténtalo de nuevo.') }
   },
   async anularCuenta(rid, cuentaId, motivo, pin = null) {
     const controller = new AbortController()
@@ -808,7 +809,7 @@ const realApi: DataApi = {
           error: 'La operación tardó más de 25 segundos y no se pudo confirmar. Actualiza las boletas antes de volver a intentarlo.',
         }
       }
-      return { data: null, error: error.message }
+      return { data: null, error: mensajeOperacion(error.message, 'No se pudo anular la boleta. Actualiza la lista e inténtalo de nuevo.') }
     } catch (causa) {
       const mensaje = causa instanceof Error ? causa.message : ''
       if (vencio || esFalloDeRed(mensaje)) {
@@ -1568,7 +1569,7 @@ const realApi: DataApi = {
       p_monto_declarado: montoDeclarado,
       p_observaciones: observaciones ?? null,
     })
-    if (error) return { data: null, error: error.message }
+    if (error) return { data: null, error: mensajeOperacion(error.message, 'No se pudo cerrar la caja. Actualiza el turno e inténtalo de nuevo.') }
     if (!data) return { data: null, error: 'No se pudo cerrar el turno de caja.' }
     // La RPC devuelve la fila ya congelada (esperado/diferencia); se relee para
     // que el tipo sea el de la app y no el del cliente de Supabase.
@@ -1577,7 +1578,7 @@ const realApi: DataApi = {
       .select('*')
       .eq('id', (data as TurnoCaja).id)
       .single()
-    if (gErr) return { data: null, error: gErr.message }
+    if (gErr) return { data: null, error: mensajeOperacion(gErr.message, 'El cierre se guardó, pero no se pudo mostrar el resumen. Actualiza caja para revisarlo.') }
     return { data: guardado as TurnoCaja, error: null }
   },
 }
@@ -2359,6 +2360,20 @@ function crearApiDesde(
     item.anulado_por = apiMode.operadorId
     item.anulado_at = ahora
     pedido.updated_at = ahora
+    registrarAuditoria('comanda_item_anular', {
+      restauranteId: rid,
+      entidad: 'pedido_item',
+      entidadId: item.id,
+      descripcion: `${item.nombre_producto} anulado en la mesa ${mesaActual?.nombre ?? 'sin nombre'}.`,
+      detalle: {
+        pedido_id: pedido.id,
+        mesa_id: pedido.mesa_id,
+        mesa_nombre: mesaActual?.nombre ?? null,
+        producto: item.nombre_producto,
+        cantidad: item.cantidad,
+        precio_unitario: item.precio_unitario,
+      },
+    })
 
     // Si era el último ítem vigente, la comanda deja de existir para cocina y caja.
     if (!ds.items.some((it) => it.pedido_id === pedidoId && it.anulado !== true)) {
@@ -2415,6 +2430,19 @@ function crearApiDesde(
     cuenta.anulada_por = apiMode.operadorId
     cuenta.motivo_anulacion = motivo.trim()
     cuenta.monto_reembolsado = redondear(cuenta.total + (cuenta.propina ?? 0))
+    registrarAuditoria('cuenta_anular', {
+      restauranteId: rid,
+      entidad: 'cuenta',
+      entidadId: cuenta.id,
+      descripcion: `Boleta ${cuenta.numero ?? cuenta.id} anulada; se registró la devolución.`,
+      detalle: {
+        numero: cuenta.numero ?? null,
+        total: cuenta.total,
+        propina: cuenta.propina ?? 0,
+        reembolso: cuenta.monto_reembolsado,
+        motivo: cuenta.motivo_anulacion,
+      },
+    })
     persiste()
     return { data: cuenta, error: null }
   },
@@ -3615,6 +3643,19 @@ function crearApiDesde(
     t.monto_esperado = arqueo.esperado
     t.diferencia = arqueo.diferencia
     t.observaciones = observaciones?.trim() || null
+    registrarAuditoria('caja_turno_cerrar', {
+      restauranteId: rid,
+      entidad: 'caja_turno',
+      entidadId: t.id,
+      descripcion: 'Turno de caja cerrado con el arqueo declarado.',
+      detalle: {
+        turno_id: t.id,
+        monto_declarado: t.monto_declarado,
+        monto_esperado: t.monto_esperado,
+        diferencia: t.diferencia,
+        observaciones: t.observaciones,
+      },
+    })
     persiste()
     return { data: t, error: null }
   },
