@@ -3546,6 +3546,39 @@ const movimientoCorrectoQa = await api.moverConsumoMesa(RID, mesaTraspasoQa.data
 const auditoriaMovimientoQa = localSeed.auditLogs.find((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaTraspasoQa.data.id)
 check('29f · con PIN correcto se mueve la comanda y queda auditada', !movimientoCorrectoQa.error && localSeed.pedidos.find((p) => p.id === pedidoTraspasoQa.data).mesa_id === mesaDestinoQa.data.id && auditoriaMovimientoQa?.detalle?.mesa_destino_id === mesaDestinoQa.data.id && auditoriaMovimientoQa.detalle?.motivo === 'Cliente cambió de mesa')
 
+titulo('30 · Impresión térmica por estación, auditoría idempotente y reimpresión')
+const impresionDomain = await servidor.ssrLoadModule('/src/domain/restaurant/impresionComandas.ts')
+check('30a · 58 y 80 mm son los anchos admitidos', JSON.stringify(impresionDomain.ANCHOS_PAPEL_COMANDA) === '[58,80]')
+check('30b · cada producto cae en su estación y respeta legado de bebidas',
+  impresionDomain.estacionDeProducto({ estacion: 'otros', es_bebida: false }) === 'otros' &&
+  impresionDomain.estacionDeProducto({ estacion: null, es_bebida: true }) === 'bar' &&
+  impresionDomain.estacionDeProducto({ estacion: null, es_bebida: false }) === 'cocina')
+check('30c · el filtro de impresión contiene solo la estación seleccionada',
+  impresionDomain.itemsDeEstacion([
+    { id: 'c', estacion: 'cocina', es_bebida: false },
+    { id: 'b', estacion: 'bar', es_bebida: true },
+    { id: 'o', estacion: 'otros', es_bebida: false },
+  ], 'bar').map((i) => i.id).join(',') === 'b')
+check('30d · el motivo de reimpresión y el mensaje de no confirmación son claros',
+  impresionDomain.validarMotivoReimpresion('Papel atascado') &&
+  !impresionDomain.validarMotivoReimpresion('no') &&
+  impresionDomain.MENSAJE_IMPRESION_NO_CONFIRMADA === 'La comanda fue registrada, pero no se pudo confirmar la impresión.')
+const pedidoParaImprimir = localSeed.pedidos.find((p) => p.id === pedidoTraspasoQa.data)
+const itemParaImprimir = localSeed.items.find((it) => it.pedido_id === pedidoParaImprimir.id)
+itemParaImprimir.estacion = 'cocina'
+const antesAuditImpresion = localSeed.auditLogs.filter((l) => l.entidad_id === pedidoParaImprimir.id && ['comanda_imprimir', 'comanda_reimprimir'].includes(l.accion)).length
+const solicitudImpresionQa = crypto.randomUUID()
+const primeraImpresionQa = await api.registrarImpresionComanda(RID, pedidoParaImprimir.id, 'cocina', solicitudImpresionQa)
+const reintentoImpresionQa = await api.registrarImpresionComanda(RID, pedidoParaImprimir.id, 'cocina', solicitudImpresionQa)
+check('30e · el primer registro queda asociado al actor, fecha y mesa', !primeraImpresionQa.error && primeraImpresionQa.data?.accion === 'comanda_imprimir' && localSeed.auditLogs.some((l) => l.actor_id === meseroMariaQa.id && l.entidad_id === pedidoParaImprimir.id && l.detalle?.mesa_id === pedidoParaImprimir.mesa_id && l.created_at))
+check('30f · reintentar la misma solicitud no duplica auditoría', !reintentoImpresionQa.error && localSeed.auditLogs.filter((l) => l.entidad_id === pedidoParaImprimir.id && ['comanda_imprimir', 'comanda_reimprimir'].includes(l.accion)).length === antesAuditImpresion + 1)
+const solicitudReimpresionQa = crypto.randomUUID()
+const motivoPendienteQa = await api.registrarImpresionComanda(RID, pedidoParaImprimir.id, 'cocina', solicitudReimpresionQa)
+const reimpresionQa = await api.registrarImpresionComanda(RID, pedidoParaImprimir.id, 'cocina', solicitudReimpresionQa, 'Papel no salió')
+const auditoriaReimpresionQa = localSeed.auditLogs.find((l) => l.accion === 'comanda_reimprimir' && l.entidad_id === pedidoParaImprimir.id && l.detalle?.solicitud_id === solicitudReimpresionQa)
+check('30g · reimpresión pide motivo y audita usuario/fecha/mesa/motivo', motivoPendienteQa.data?.estado === 'requiere_motivo' && reimpresionQa.data?.accion === 'comanda_reimprimir' && auditoriaReimpresionQa?.actor_id === meseroMariaQa.id && auditoriaReimpresionQa.created_at && auditoriaReimpresionQa.detalle?.mesa_id === pedidoParaImprimir.mesa_id && auditoriaReimpresionQa.detalle?.motivo === 'Papel no salió')
+check('30h · la impresión no crea ni modifica pedidos', localSeed.pedidos.find((p) => p.id === pedidoParaImprimir.id)?.estado === 'pendiente' && localSeed.pedidos.filter((p) => p.id === pedidoParaImprimir.id).length === 1)
+
 await servidor.close()
 rmSync(ENV_DIR, { recursive: true, force: true })
 

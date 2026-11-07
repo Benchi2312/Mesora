@@ -23,6 +23,8 @@ export type AccionAuditoria =
   | 'mesa_transferir_responsable'
   | 'mesa_mover_consumo'
   | 'comanda_item_anular'
+  | 'comanda_imprimir'
+  | 'comanda_reimprimir'
   | 'cuenta_anular'
   | 'caja_turno_cerrar'
 
@@ -47,6 +49,8 @@ const ETIQUETAS: Record<AccionAuditoria, string> = {
   mesa_transferir_responsable: 'Responsable de mesa cambiado',
   mesa_mover_consumo: 'Consumo movido entre mesas',
   comanda_item_anular: 'Ítem de comanda anulado',
+  comanda_imprimir: 'Comanda enviada a impresión',
+  comanda_reimprimir: 'Comanda reimpresa',
   cuenta_anular: 'Boleta anulada y reembolsada',
   caja_turno_cerrar: 'Turno de caja cerrado',
 }
@@ -70,6 +74,8 @@ const CATEGORIAS: Record<AccionAuditoria, CategoriaAuditoria> = {
   mesa_transferir_responsable: 'otros',
   mesa_mover_consumo: 'otros',
   comanda_item_anular: 'otros',
+  comanda_imprimir: 'otros',
+  comanda_reimprimir: 'otros',
   cuenta_anular: 'otros',
   caja_turno_cerrar: 'otros',
 }

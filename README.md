@@ -20,6 +20,8 @@ Consultas comerciales: [mesoratech@gmail.com](mailto:mesoratech@gmail.com).
 Documentación: [estado y pendientes del MVP](./docs/ESTADO_MVP.md) ·
 [guía del primer turno](./docs/GUIA_PRIMER_TURNO.md) ·
 [operación y contingencias](./docs/OPERACION_PILOTO.md) ·
+[impresión de comandas](./docs/OPERACION_COMANDAS.md) ·
+[runbook de backups y restauración](./docs/RESPALDOS.md) ·
 [datos de contacto y soporte](./docs/DATOS_CONTACTO_SOPORTE.md) ·
 [propuesta de retención de datos](./docs/PROPUESTA_RETENCION_DATOS.md) ·
 [situación de licencia](./docs/LICENCIA_REPOSITORIO.md) ·
@@ -40,8 +42,9 @@ ese recorrido para que cada rol trabaje con la misma información.
 - **Salón:** organiza zonas y mesas, registra pedidos y permite consultar el
   consumo de cada cuenta. El mesero puede entregar una mesa a otro responsable o
   trasladar su consumo a una mesa libre, sin cambiar quién registró cada comanda.
-- **Cocina:** recibe comandas y actualiza su avance para que el equipo de salón
-  pueda seguir el estado.
+- **Cocina:** recibe comandas separadas por estación (cocina, bar y otros),
+  actualiza su avance e imprime en papel térmico de 58 mm u 80 mm. Las
+  reimpresiones quedan registradas en auditoría.
 - **Caja:** reúne cobros, pagos y turnos; facilita el arqueo y el cierre de
   caja.
 - **Administración:** ofrece reportes para revisar ventas, productos y bebidas,
@@ -131,8 +134,9 @@ npm run dev                  # vite
 npm run build                # tsc && vite build
 npm run preview              # sirve dist/
 npm run typecheck            # tsc --noEmit
-npm run verificar            # 510 checks de reglas de negocio (backend local)
+npm run verificar            # reglas de negocio (backend local)
 npm run verificar:precuenta  # QA de precuenta, impresión/PDF y ausencia de escrituras
+npm run verificar:impresion  # QA térmica, doble clic, red y reimpresión
 npm run verificar:configuracion # QA del guardado de Datos del local, REST y dominio
 npm run verificar:sql        # PostgreSQL aislado: instalación, permisos, flujo y restauración
 npm run verificar:responsive # QA responsive del sistema y la landing
@@ -150,6 +154,7 @@ npm run sql:install
 npm run verificar:sql
 npm run verificar
 npm run verificar:precuenta
+npm run verificar:impresion
 npm run verificar:configuracion
 npm run verificar:responsive
 npm run build
@@ -159,8 +164,8 @@ npm run build
 `src/lib/api.ts` y `src/lib/localSeed.ts` con los mismos módulos que usa la app,
 sobre un `localStorage` en memoria. Cubre dos comandas en la misma mesa, el
 cierre de cuenta (total, subtotales por pedido, mesa liberada, cocina limpia), el
-rechazo del cobro doble, la whitelist de métodos de pago, la separación
-cocina/barra por `es_bebida`, la edición y anulación de ítems, las métricas del
+rechazo del cobro doble, la whitelist de métodos de pago, las estaciones
+históricas de preparación y la clasificación de bebidas para reportes, la edición y anulación de ítems, las métricas del
 dashboard, la caja por turnos y el round-trip de `localStorage` simulando un F5.
 
 `npm run verificar:responsive` usa Playwright con Chromium: recorre landing,
@@ -269,7 +274,8 @@ supabase/
   migrations/              migraciones versionadas para actualizaciones acotadas
   qa/                      pruebas SQL con rollback; no se instalan en producción
 scripts/
-  verificar-flujo.mjs      suite de reglas de negocio (510 checks)
+  verificar-flujo.mjs      suite de reglas de negocio
+  verificar-impresion.mjs   impresión térmica, idempotencia y errores de red
   verificar-configuracion.mjs guardado, errores y dominio del local
   verificar-precuenta.mjs  vista, PDF, impresión y consumo actualizado
   verificar-sql.mjs        instalación y circuito SQL en PostgreSQL aislado
@@ -373,18 +379,20 @@ indicado en SUPABASE_SETUP.md; no se vuelve a pegar el instalador completo.
 El orden de fuentes y su cobertura se verifican con npm run sql:install.
 ## Estado actual
 
-Implementado. Última verificación registrada (`npm run verificar`: 510 checks;
-`npm run verificar:responsive`: sistema en 4 viewports y landing en 16 anchos):
+Base implementada. El Bloque 3 añade la impresión de comandas y el runbook
+operativo; la migración aún debe aplicarse en Supabase antes del uso real.
+Resultados de verificación de este bloque se registran al final de esta sección:
 
 - Auth (email/password), lectura de rol desde `usuarios`, rutas protegidas por rol y bloqueo por suscripción vencida.
 - **Vista Mesero**: grilla de mesas por zona con responsable visible, toma de pedido desde el menú (categorías, promociones, notas por ítem), envío de comanda atómica (`crear_pedido`), **varias comandas por mesa** con pantalla intermedia que acumula el total, entrega de la mesa a otro mesero y traslado del consumo a una mesa libre, y cierre de cuenta con método de pago, pago dividido, propina y boleta imprimible (`cerrar_cuenta`), con **edición y anulación de ítems** desde la comanda abierta.
-- **Vista Cocina**: comandas en columnas por estado (pendientes / en preparación / listos) con cronómetro de espera, avance de estado y separación cocina/barra por `es_bebida`. Cada dispositivo puede activar un aviso sonoro para nuevas comandas pendientes; la primera carga es silenciosa y el navegador requiere activar audio desde la pantalla.
+- **Vista Cocina**: comandas en columnas por estado (pendientes / en preparación / listos) con cronómetro de espera, avance de estado y estaciones cocina/bar/otros. La impresión admite papel de 58/80 mm, solicita confirmación del operador y registra las reimpresiones con motivo. Cada dispositivo puede activar un aviso sonoro para nuevas comandas pendientes; la primera carga es silenciosa y el navegador requiere activar audio desde la pantalla.
 - **Vista Admin**: dashboard de ventas (hoy/mes, ticket promedio, top productos, ventas por mesero, métodos de pago y horarios pico) y sección **Ventas** con filtros por periodo/estado, detalle de consumo por cuenta, pagos divididos, anulaciones, ranking de productos/bebidas, meseros y mesas. Es un reporte interno: la facturación electrónica continúa en el sistema fiscal del restaurante. También incluye **Caja por turnos** con arqueo y aviso (no bloqueo) de mesas sin cobrar, **Cobros** con anulación, reimpresión de boletas y PIN requerido para cajeros, gestión de zonas, mesas, categorías y productos, personal y datos del local. Las reimpresiones conservan el número original, quedan marcadas como copia y no crean un pago nuevo. Export CSV y reportes imprimibles.
 - **Vista Super Admin**: restaurantes, administradores, usuarios, suscripciones, estadísticas, auditoría, notificaciones, soporte de restaurantes, consultas comerciales y configuración global. Los avisos de tickets, contactos e incidencias se envían al correo comercial mediante una cola con reintentos.
 - **Modo local** (solo desarrollo, activación explícita con VITE_MESORA_MODO_LOCAL=true): login y roles simulados sobre un dataset de prueba, persistencia en localStorage y botón de reset en /login. Sin esa variable, la app falla cerrada si Supabase no está configurado.
 - **Modo demo** (`/demo`): las 4 vistas sin login, con recorrido guiado que escribe por ti ("Hazlo por mí"), persistencia en `localStorage` y botón para vaciarlo.
 - **Rendimiento**: code-splitting por ruta; la landing y el login no descargan el panel.
 - **Instalador generado**: `supabase/TODO_EN_UNO.sql` (30 piezas SQL ordenadas, 19 tablas operativas con RLS y grants). Instalación vacía, restauración aislada, políticas, recuperación y controles de acceso verificados con `npm run verificar:sql`.
+- **Bloque 3**: la migración añade estación de producto y snapshot de comanda, RPC de auditoría idempotente y permisos acotados. SQL QA cubre aislamiento por restaurante, duplicados de solicitud y motivo de reimpresión. La RPC todavía no está aplicada al Supabase remoto.
 - **Seguridad del piloto**: funciones de negocio sin EXECUTE anónimo, search_path fijo, registro público desactivado y contraseña mínima de ocho caracteres en el proyecto revisado.
 - **Revisión RLS (2 nov 2026)**: la migración aplicada limita la configuración global al superadmin y deja públicos solo el precio y el contacto que muestra la landing; también separa políticas de catálogo/mesas. Ver [informe de seguridad](./docs/REVISION_SEGURIDAD_SUPABASE.md).
 - **Diagnóstico**: categorías de API/render/JavaScript/promesas en logs PostgreSQL, sin mensajes originales, PIN ni tokens. Requiere sesión; límite por pestaña de 20 intentos/10 minutos y deduplicación de 60 segundos. Desactivar con `VITE_MESORA_DIAGNOSTICO=false` y reconstruir. Los fallos de funciones y correo generan incidentes resumidos en Notificaciones del superadministrador; requieren abrir el panel, sin aviso externo automático.
@@ -413,7 +421,7 @@ de forma coherente; las suites locales y SQL cubren los circuitos principales.
 
 GitHub Actions ejecuta `npm ci`, `npm run sql:install`, `npm run verificar:sql`, `npm run verificar`,
 `npm run typecheck`, `npm run verificar:precuenta`,
-`npm run verificar:configuracion`, `npm run verificar:responsive`, comprobación
+`npm run verificar:configuracion`, `npm run verificar:impresion`, `npm run verificar:responsive`, comprobación
 de tipos de la Edge Function y `npm run build` al abrir un pull request o actualizar
 `main`/`master`. Para que se active, Mesora debe ser
 la raíz del repositorio GitHub.

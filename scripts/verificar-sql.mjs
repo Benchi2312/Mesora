@@ -101,6 +101,8 @@ try {
   console.log('SQL QA: circuito completo de restaurante y arqueo aprobado')
   await pg.exec(readFileSync(new URL('../supabase/qa/bloque2_roles_filtros_rollback.sql', import.meta.url), 'utf8'))
   console.log('SQL QA: filtros de Cobros/Auditoría, aislamiento tenant y estado lógico aprobados')
+  await pg.exec(readFileSync(new URL('../supabase/qa/impresion_comandas_rollback.sql', import.meta.url), 'utf8'))
+  console.log('SQL QA: estaciones históricas, auditoría idempotente y motivo de reimpresión aprobados')
   await pg.exec(`
     begin;
     do $$

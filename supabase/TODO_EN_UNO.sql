@@ -18,14 +18,14 @@
 --   - Si algo falla, los comentarios de bloque indican donde revisar.
 --   - Generado por npm run sql:install. Edita los fuentes, no este archivo.
 --
--- Contenido: 46 archivos · sha256(cuerpo) = e18dceb9925a
--- Orden: 00_schema_base.sql → ../migrations/20261022120000_password_recovery.sql → ../migrations/20261103032730_admin_email_recovery.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql → ../migrations/20261031075708_reporte_ventas_dashboard.sql → ../migrations/20261029052901_datos_local_dominio.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql → ../migrations/20261030173318_seguridad_rpc_piloto.sql → ../migrations/20261030173320_consultas_pendientes_piloto.sql → ../migrations/20261030173503_diagnostico_piloto.sql → ../migrations/20261030173925_indice_mesas_zona.sql → ../migrations/20261102081247_acotar_politicas_rls_piloto.sql → ../migrations/20261104065434_contacto_guardrails_incidentes.sql → ../migrations/20261104065733_confirmar_password_auth_trigger.sql → ../migrations/20261104172538_bandeja_comercial_alertas.sql → ../migrations/20261105033712_soporte_conversaciones_seguimiento.sql → ../migrations/20261105034329_soporte_mensajes_suscripcion.sql → ../migrations/20261105042359_cerrar_borrado_directo_soporte.sql → ../migrations/20261105042814_indexar_foreign_keys_soporte.sql → ../migrations/20261105050740_fijar_actor_historial_suscripciones.sql → ../migrations/20261105050911_revoke_direct_access_internal_tables.sql → ../migrations/20261105055856_limitar_consulta_vigencia_suscripcion.sql → ../migrations/20261105212322_transferir_mesas_y_reimprimir_boletas.sql → ../migrations/20261105212447_indizar_responsables_y_reimpresiones.sql → ../migrations/20261105212734_proteger_cierre_mesa_reasignada.sql → ../migrations/20261106064127_listar_meseros_activos_mismo_restaurante.sql → ../migrations/20261106070508_proteger_traslados_mesa_con_pin_y_auditoria.sql → ../migrations/20261106075551_auditar_operaciones_caja_mesa.sql → ../migrations/20261107043104_bloque2_seguridad_personal_auditoria.sql → ../migrations/20261107063406_auditoria_item_descripcion_utf8.sql
+-- Contenido: 47 archivos · sha256(cuerpo) = 075cfcd76596
+-- Orden: 00_schema_base.sql → ../migrations/20261022120000_password_recovery.sql → ../migrations/20261103032730_admin_email_recovery.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql → ../migrations/20261031075708_reporte_ventas_dashboard.sql → ../migrations/20261029052901_datos_local_dominio.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql → ../migrations/20261030173318_seguridad_rpc_piloto.sql → ../migrations/20261030173320_consultas_pendientes_piloto.sql → ../migrations/20261030173503_diagnostico_piloto.sql → ../migrations/20261030173925_indice_mesas_zona.sql → ../migrations/20261102081247_acotar_politicas_rls_piloto.sql → ../migrations/20261104065434_contacto_guardrails_incidentes.sql → ../migrations/20261104065733_confirmar_password_auth_trigger.sql → ../migrations/20261104172538_bandeja_comercial_alertas.sql → ../migrations/20261105033712_soporte_conversaciones_seguimiento.sql → ../migrations/20261105034329_soporte_mensajes_suscripcion.sql → ../migrations/20261105042359_cerrar_borrado_directo_soporte.sql → ../migrations/20261105042814_indexar_foreign_keys_soporte.sql → ../migrations/20261105050740_fijar_actor_historial_suscripciones.sql → ../migrations/20261105050911_revoke_direct_access_internal_tables.sql → ../migrations/20261105055856_limitar_consulta_vigencia_suscripcion.sql → ../migrations/20261105212322_transferir_mesas_y_reimprimir_boletas.sql → ../migrations/20261105212447_indizar_responsables_y_reimpresiones.sql → ../migrations/20261105212734_proteger_cierre_mesa_reasignada.sql → ../migrations/20261106064127_listar_meseros_activos_mismo_restaurante.sql → ../migrations/20261106070508_proteger_traslados_mesa_con_pin_y_auditoria.sql → ../migrations/20261106075551_auditar_operaciones_caja_mesa.sql → ../migrations/20261107043104_bloque2_seguridad_personal_auditoria.sql → ../migrations/20261107063406_auditoria_item_descripcion_utf8.sql → ../migrations/20261107201714_bloque3_impresion_comandas.sql
 -- =============================================================================
 
 
 
 -- #############################################################################
--- # 1/46 · 00_schema_base.sql
+-- # 1/47 · 00_schema_base.sql
 -- #############################################################################
 
 -- -- Mesora: schema base para instalaciones NUEVAS.
@@ -197,7 +197,7 @@ $$;
 
 
 -- #############################################################################
--- # 2/46 · ../migrations/20261022120000_password_recovery.sql
+-- # 2/47 · ../migrations/20261022120000_password_recovery.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -276,7 +276,7 @@ grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
--- # 3/46 · ../migrations/20261103032730_admin_email_recovery.sql
+-- # 3/47 · ../migrations/20261103032730_admin_email_recovery.sql
 -- #############################################################################
 
 -- -- Recuperación por correo verificado para administradores de restaurante.
@@ -433,7 +433,7 @@ comment on table private.admin_recovery_rate_limits is 'Límites por usuario par
 
 
 -- #############################################################################
--- # 4/46 · 00_seguridad_rpcs.sql
+-- # 4/47 · 00_seguridad_rpcs.sql
 -- #############################################################################
 
 -- -- Mesora · Control de acceso en el SERVIDOR (ejecutar tras 00_schema_base.sql).
@@ -544,7 +544,7 @@ grant execute on function public.validar_acceso_restaurante(uuid) to authenticat
 
 
 -- #############################################################################
--- # 5/46 · migracion_items_anulables.sql
+-- # 5/47 · migracion_items_anulables.sql
 -- #############################################################################
 
 -- -- Mesora · Edición y anulación de ítems de una comanda.
@@ -891,7 +891,7 @@ $$;
 
 
 -- #############################################################################
--- # 6/46 · migracion_productos_es_bebida.sql
+-- # 6/47 · migracion_productos_es_bebida.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -930,7 +930,7 @@ select r.nombre as restaurante,
 
 
 -- #############################################################################
--- # 7/46 · ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql
+-- # 7/47 · ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql
 -- #############################################################################
 
 -- -- Conserva la clasificación de cocina/barra al momento de vender y entrega
@@ -1086,7 +1086,7 @@ grant execute on function public.reporte_ventas_restaurante(uuid, timestamptz, t
 
 
 -- #############################################################################
--- # 8/46 · ../migrations/20261031075708_reporte_ventas_dashboard.sql
+-- # 8/47 · ../migrations/20261031075708_reporte_ventas_dashboard.sql
 -- #############################################################################
 
 -- -- Conserva la clasificación de cocina/barra al momento de vender y entrega
@@ -1273,7 +1273,7 @@ grant execute on function public.reporte_ventas_restaurante(uuid, timestamptz, t
 
 
 -- #############################################################################
--- # 9/46 · ../migrations/20261029052901_datos_local_dominio.sql
+-- # 9/47 · ../migrations/20261029052901_datos_local_dominio.sql
 -- #############################################################################
 
 -- -- Datos del local: dominio opcional para identificar al personal.
@@ -1309,7 +1309,7 @@ grant update (dominio) on public.restaurantes to authenticated;
 
 
 -- #############################################################################
--- # 10/46 · pin_autorizacion.sql
+-- # 10/47 · pin_autorizacion.sql
 -- #############################################################################
 
 -- -- Mesora · PIN de autorización + anulación de cobros.
@@ -1568,7 +1568,7 @@ $$;
 
 
 -- #############################################################################
--- # 11/46 · rpc_crear_pedido.sql
+-- # 11/47 · rpc_crear_pedido.sql
 -- #############################################################################
 
 -- -- Mesora · RPC: crear pedido (comanda) de forma atómica.
@@ -1699,7 +1699,7 @@ $$;
 
 
 -- #############################################################################
--- # 12/46 · rpc_cerrar_cuenta.sql
+-- # 12/47 · rpc_cerrar_cuenta.sql
 -- #############################################################################
 
 -- -- Mesora · RPC: cerrar cuenta y registrar el pago en una sola transacción.
@@ -2022,7 +2022,7 @@ $$;
 
 
 -- #############################################################################
--- # 13/46 · rpc_anular_cuenta.sql
+-- # 13/47 · rpc_anular_cuenta.sql
 -- #############################################################################
 
 -- -- Mesora · Anulación de cobros (void de una boleta ya emitida).
@@ -2238,7 +2238,7 @@ comment on function public.anular_cuenta(uuid, uuid, text, text) is
 
 
 -- #############################################################################
--- # 14/46 · caja_turnos.sql
+-- # 14/47 · caja_turnos.sql
 -- #############################################################################
 
 -- -- Mesora · Caja por turnos: tabla `caja_turnos` + RPC de apertura y cierre.
@@ -2534,7 +2534,7 @@ $$;
 
 
 -- #############################################################################
--- # 15/46 · 01_rls_completo.sql
+-- # 15/47 · 01_rls_completo.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3431,7 +3431,7 @@ select c.relname as tabla,
 
 
 -- #############################################################################
--- # 16/46 · admin_super_restaurante.sql
+-- # 16/47 · admin_super_restaurante.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3638,7 +3638,7 @@ select a.attname as columna,
 
 
 -- #############################################################################
--- # 17/46 · usuarios_super_admin.sql
+-- # 17/47 · usuarios_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3865,7 +3865,7 @@ select c.relname as tabla,
 
 
 -- #############################################################################
--- # 18/46 · estadisticas_super_admin.sql
+-- # 18/47 · estadisticas_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4083,7 +4083,7 @@ select p.proname,
 
 
 -- #############################################################################
--- # 19/46 · soporte.sql
+-- # 19/47 · soporte.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4218,7 +4218,7 @@ select
 
 
 -- #############################################################################
--- # 20/46 · suscripciones_super_admin.sql
+-- # 20/47 · suscripciones_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4658,7 +4658,7 @@ select
 
 
 -- #############################################################################
--- # 21/46 · auditoria.sql
+-- # 21/47 · auditoria.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -5016,7 +5016,7 @@ select
 
 
 -- #############################################################################
--- # 22/46 · configuracion_global.sql
+-- # 22/47 · configuracion_global.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -5304,7 +5304,7 @@ select
 
 
 -- #############################################################################
--- # 23/46 · seguridad_piloto.sql
+-- # 23/47 · seguridad_piloto.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -5441,7 +5441,7 @@ grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
--- # 24/46 · ../migrations/20261030173318_seguridad_rpc_piloto.sql
+-- # 24/47 · ../migrations/20261030173318_seguridad_rpc_piloto.sql
 -- #############################################################################
 
 -- -- Cierra la API de funciones a anónimos y preserva el acceso autenticado real.
@@ -5484,7 +5484,7 @@ alter default privileges in schema public revoke execute on functions from publi
 
 
 -- #############################################################################
--- # 25/46 · ../migrations/20261030173320_consultas_pendientes_piloto.sql
+-- # 25/47 · ../migrations/20261030173320_consultas_pendientes_piloto.sql
 -- #############################################################################
 
 -- -- Consultas acotadas a lo pendiente. JSON evita truncar el agregado por el
@@ -5576,7 +5576,7 @@ $$;
 
 
 -- #############################################################################
--- # 26/46 · ../migrations/20261030173503_diagnostico_piloto.sql
+-- # 26/47 · ../migrations/20261030173503_diagnostico_piloto.sql
 -- #############################################################################
 
 -- -- Diagnóstico mínimo: únicamente categorías y rutas normalizadas, sin mensajes,
@@ -5602,7 +5602,7 @@ grant execute on function public.registrar_error_cliente(text,text,text) to auth
 
 
 -- #############################################################################
--- # 27/46 · ../migrations/20261030173925_indice_mesas_zona.sql
+-- # 27/47 · ../migrations/20261030173925_indice_mesas_zona.sql
 -- #############################################################################
 
 -- -- Cubre también la FK compuesta que garantiza zona y mesa del mismo local.
@@ -5610,7 +5610,7 @@ create index if not exists idx_mesas_zona_restaurante on public.mesas(zona_id, r
 
 
 -- #############################################################################
--- # 28/46 · ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
+-- # 28/47 · ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
 -- #############################################################################
 
 -- -- Acota las políticas de catálogo/mesas a usuarios autenticados y separa
@@ -5724,7 +5724,7 @@ commit;
 
 
 -- #############################################################################
--- # 29/46 · ../migrations/20261104065434_contacto_guardrails_incidentes.sql
+-- # 29/47 · ../migrations/20261104065434_contacto_guardrails_incidentes.sql
 -- #############################################################################
 
 -- -- Protección del contacto comercial y registro de fallos operativos.
@@ -5901,7 +5901,7 @@ grant execute on function public.mesora_system_alerts() to authenticated;
 
 
 -- #############################################################################
--- # 30/46 · ../migrations/20261104065733_confirmar_password_auth_trigger.sql
+-- # 30/47 · ../migrations/20261104065733_confirmar_password_auth_trigger.sql
 -- #############################################################################
 
 -- -- Solo una contrasena cambiada en Supabase Auth puede desmarcar la clave temporal.
@@ -6086,7 +6086,7 @@ grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
--- # 31/46 · ../migrations/20261104172538_bandeja_comercial_alertas.sql
+-- # 31/47 · ../migrations/20261104172538_bandeja_comercial_alertas.sql
 -- #############################################################################
 
 -- -- Bandeja comercial privada y avisos por correo con reintentos.
@@ -6370,7 +6370,7 @@ grant execute on function public.mesora_update_commercial_lead(uuid,text) to aut
 
 
 -- #############################################################################
--- # 32/46 · ../migrations/20261105033712_soporte_conversaciones_seguimiento.sql
+-- # 32/47 · ../migrations/20261105033712_soporte_conversaciones_seguimiento.sql
 -- #############################################################################
 
 -- -- Conversaciones de soporte visibles únicamente para el restaurante afectado y Mesora.
@@ -6475,7 +6475,7 @@ grant execute on function public.mesora_update_commercial_followup(uuid,text,tex
 
 
 -- #############################################################################
--- # 33/46 · ../migrations/20261105034329_soporte_mensajes_suscripcion.sql
+-- # 33/47 · ../migrations/20261105034329_soporte_mensajes_suscripcion.sql
 -- #############################################################################
 
 -- -- La suscripción vencida bloquea también las escrituras del módulo de soporte.
@@ -6501,7 +6501,7 @@ create policy soporte_mensajes_insert on public.soporte_mensajes
 
 
 -- #############################################################################
--- # 34/46 · ../migrations/20261105042359_cerrar_borrado_directo_soporte.sql
+-- # 34/47 · ../migrations/20261105042359_cerrar_borrado_directo_soporte.sql
 -- #############################################################################
 
 -- -- Revocar el privilegio SQL de borrado además de no definir una policy DELETE.
@@ -6510,7 +6510,7 @@ revoke delete on public.soporte_mensajes from public, anon, authenticated;
 
 
 -- #############################################################################
--- # 35/46 · ../migrations/20261105042814_indexar_foreign_keys_soporte.sql
+-- # 35/47 · ../migrations/20261105042814_indexar_foreign_keys_soporte.sql
 -- #############################################################################
 
 -- -- Índices para cubrir claves foráneas detectadas en el análisis de Supabase.
@@ -6523,7 +6523,7 @@ create index if not exists admin_recovery_tokens_usuario_id_idx
 
 
 -- #############################################################################
--- # 36/46 · ../migrations/20261105050740_fijar_actor_historial_suscripciones.sql
+-- # 36/47 · ../migrations/20261105050740_fijar_actor_historial_suscripciones.sql
 -- #############################################################################
 
 -- -- Evita que el cliente suplante al autor de una acción de suscripción.
@@ -6552,7 +6552,7 @@ create trigger trg_fijar_actor_historial_suscripciones
 
 
 -- #############################################################################
--- # 37/46 · ../migrations/20261105050911_revoke_direct_access_internal_tables.sql
+-- # 37/47 · ../migrations/20261105050911_revoke_direct_access_internal_tables.sql
 -- #############################################################################
 
 -- -- Estas tablas internas solo se usan desde RPC privilegiadas.
@@ -6563,7 +6563,7 @@ revoke all on public.restaurante_pins from anon, authenticated;
 
 
 -- #############################################################################
--- # 38/46 · ../migrations/20261105055856_limitar_consulta_vigencia_suscripcion.sql
+-- # 38/47 · ../migrations/20261105055856_limitar_consulta_vigencia_suscripcion.sql
 -- #############################################################################
 
 -- -- Limita la consulta directa del estado de suscripción al superadmin y a
@@ -6600,7 +6600,7 @@ comment on function public.suscripcion_vigente(uuid) is
 
 
 -- #############################################################################
--- # 39/46 · ../migrations/20261105212322_transferir_mesas_y_reimprimir_boletas.sql
+-- # 39/47 · ../migrations/20261105212322_transferir_mesas_y_reimprimir_boletas.sql
 -- #############################################################################
 
 -- -- Mesora · responsabilidad de mesas, traslado de consumo y reimpresión de recibos
@@ -7277,7 +7277,7 @@ select p.proname,
 
 
 -- #############################################################################
--- # 40/46 · ../migrations/20261105212447_indizar_responsables_y_reimpresiones.sql
+-- # 40/47 · ../migrations/20261105212447_indizar_responsables_y_reimpresiones.sql
 -- #############################################################################
 
 -- -- Indices de las nuevas claves foraneas y busquedas de responsable.
@@ -7294,7 +7294,7 @@ create index if not exists reimpresion_pin_intentos_usuario_idx
 
 
 -- #############################################################################
--- # 41/46 · ../migrations/20261105212734_proteger_cierre_mesa_reasignada.sql
+-- # 41/47 · ../migrations/20261105212734_proteger_cierre_mesa_reasignada.sql
 -- #############################################################################
 
 -- -- Una vez transferida la responsabilidad, el mesero anterior no puede cobrar
@@ -7346,7 +7346,7 @@ revoke all on function public.validar_responsable_cierre_cuenta() from public, a
 
 
 -- #############################################################################
--- # 42/46 · ../migrations/20261106064127_listar_meseros_activos_mismo_restaurante.sql
+-- # 42/47 · ../migrations/20261106064127_listar_meseros_activos_mismo_restaurante.sql
 -- #############################################################################
 
 -- -- Permite mostrar nombres de compañeros en cocina y en el traspaso de mesa.
@@ -7408,7 +7408,7 @@ commit;
 
 
 -- #############################################################################
--- # 43/46 · ../migrations/20261106070508_proteger_traslados_mesa_con_pin_y_auditoria.sql
+-- # 43/47 · ../migrations/20261106070508_proteger_traslados_mesa_con_pin_y_auditoria.sql
 -- #############################################################################
 
 -- -- Refuerza ambos traslados de mesa con motivo auditable y PIN del restaurante.
@@ -7764,7 +7764,7 @@ commit;
 
 
 -- #############################################################################
--- # 44/46 · ../migrations/20261106075551_auditar_operaciones_caja_mesa.sql
+-- # 44/47 · ../migrations/20261106075551_auditar_operaciones_caja_mesa.sql
 -- #############################################################################
 
 -- -- Registra anulaciones de ítems, boletas y cierres de caja sin abrir permisos
@@ -7932,7 +7932,7 @@ commit;
 
 
 -- #############################################################################
--- # 45/46 · ../migrations/20261107043104_bloque2_seguridad_personal_auditoria.sql
+-- # 45/47 · ../migrations/20261107043104_bloque2_seguridad_personal_auditoria.sql
 -- #############################################################################
 
 -- begin;
@@ -8277,7 +8277,7 @@ commit;
 
 
 -- #############################################################################
--- # 46/46 · ../migrations/20261107063406_auditoria_item_descripcion_utf8.sql
+-- # 46/47 · ../migrations/20261107063406_auditoria_item_descripcion_utf8.sql
 -- #############################################################################
 
 -- -- Corrige la codificación de la descripción de anulaciones nuevas.
@@ -8335,5 +8335,223 @@ end;
 $$;
 
 revoke all on function public.auditar_anulacion_item_operativa() from public, anon, authenticated;
+
+commit;
+
+
+-- #############################################################################
+-- # 47/47 · ../migrations/20261107201714_bloque3_impresion_comandas.sql
+-- #############################################################################
+
+-- -- Mesora · Bloque 3: estaciones de preparación e impresión de comandas.
+-- No altera pagos, boletas, roles ni políticas existentes.
+begin;
+
+alter table public.productos
+  add column if not exists estacion text;
+
+update public.productos
+   set estacion = case when coalesce(es_bebida, false) then 'bar' else 'cocina' end
+ where estacion is null or estacion not in ('cocina', 'bar', 'otros');
+
+alter table public.productos
+  alter column estacion set default 'cocina',
+  alter column estacion set not null;
+
+alter table public.productos
+  drop constraint if exists productos_estacion_check;
+alter table public.productos
+  add constraint productos_estacion_check check (estacion in ('cocina', 'bar', 'otros'));
+
+alter table public.pedido_items
+  add column if not exists estacion text;
+
+update public.pedido_items pi
+   set estacion = case when coalesce(pi.es_bebida, false) then 'bar' else pr.estacion end
+  from public.productos pr
+ where pi.producto_id = pr.id
+   and pi.estacion is null;
+
+update public.pedido_items
+   set estacion = case when coalesce(es_bebida, false) then 'bar' else 'cocina' end
+ where estacion is null or estacion not in ('cocina', 'bar', 'otros');
+
+alter table public.pedido_items
+  alter column estacion set default 'cocina',
+  alter column estacion set not null;
+
+alter table public.pedido_items
+  drop constraint if exists pedido_items_estacion_check;
+alter table public.pedido_items
+  add constraint pedido_items_estacion_check check (estacion in ('cocina', 'bar', 'otros'));
+
+-- Snapshot inmutable de la estación al crear el ítem; cambiar el menú después
+-- no mueve comandas históricas de una estación a otra.
+create or replace function public.fijar_estacion_snapshot_pedido_item()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.producto_id is null then
+    new.estacion := coalesce(new.estacion, 'cocina');
+    return new;
+  end if;
+
+  select pr.estacion
+    into new.estacion
+    from public.productos pr
+    join public.pedidos p
+      on p.id = new.pedido_id
+     and p.restaurante_id = pr.restaurante_id
+   where pr.id = new.producto_id;
+
+  if not found then
+    raise exception 'El producto no pertenece a la comanda.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists pedido_items_fijar_estacion on public.pedido_items;
+create trigger pedido_items_fijar_estacion
+before insert or update of producto_id on public.pedido_items
+for each row execute function public.fijar_estacion_snapshot_pedido_item();
+revoke all on function public.fijar_estacion_snapshot_pedido_item() from public, anon, authenticated;
+
+-- La solicitud UUID hace idempotente el registro aun si la respuesta de red se
+-- pierde después de que Postgres guardó la auditoría.
+create unique index if not exists audit_logs_comanda_impresion_solicitud_unique
+  on public.audit_logs ((detalle ->> 'solicitud_id'))
+  where accion in ('comanda_imprimir', 'comanda_reimprimir')
+    and detalle ? 'solicitud_id';
+
+create or replace function public.registrar_impresion_comanda(
+  p_restaurante_id uuid,
+  p_pedido_id uuid,
+  p_estacion text,
+  p_solicitud_id uuid,
+  p_motivo text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_rol text;
+  v_actor_nombre text;
+  v_restaurante_nombre text;
+  v_mesa_id uuid;
+  v_mesa_nombre text;
+  v_estado_pedido text;
+  v_accion_existente text;
+  v_es_reimpresion boolean;
+  v_accion text;
+  v_motivo text := nullif(btrim(coalesce(p_motivo, '')), '');
+begin
+  if auth.uid() is null then
+    raise exception 'Inicia sesión para registrar la impresión.';
+  end if;
+  if p_solicitud_id is null then
+    raise exception 'No se pudo identificar esta solicitud de impresión. Inténtalo de nuevo.';
+  end if;
+  if p_estacion is null or p_estacion not in ('cocina', 'bar', 'otros') then
+    raise exception 'Selecciona una estación válida.';
+  end if;
+
+  perform public.validar_acceso_restaurante(p_restaurante_id);
+
+  select u.rol::text, u.nombre
+    into v_rol, v_actor_nombre
+    from public.usuarios u
+   where u.id = auth.uid()
+     and u.restaurante_id = p_restaurante_id
+     and coalesce(u.activo, true);
+  if coalesce(v_rol, '') not in ('admin_restaurante', 'mesero', 'cocina') then
+    raise exception 'Tu perfil no tiene permiso para imprimir comandas.';
+  end if;
+
+  select p.mesa_id, p.estado, r.nombre, m.nombre
+    into v_mesa_id, v_estado_pedido, v_restaurante_nombre, v_mesa_nombre
+    from public.pedidos p
+    join public.restaurantes r on r.id = p.restaurante_id
+    join public.mesas m on m.id = p.mesa_id and m.restaurante_id = p.restaurante_id
+   where p.id = p_pedido_id
+     and p.restaurante_id = p_restaurante_id
+   for update of p;
+  if not found then
+    raise exception 'No se encontró la comanda de este restaurante.';
+  end if;
+  if v_estado_pedido = 'anulado' then
+    raise exception 'La comanda está anulada y no se puede imprimir.';
+  end if;
+  if not exists (
+    select 1 from public.pedido_items pi
+     where pi.pedido_id = p_pedido_id
+       and pi.estacion = p_estacion
+       and pi.anulado is not true
+  ) then
+    raise exception 'Esta comanda no tiene productos pendientes para esa estación.';
+  end if;
+
+  -- Repetir el mismo request_id devuelve el resultado previo sin crear otra fila.
+  select l.accion into v_accion_existente
+    from public.audit_logs l
+   where l.detalle ->> 'solicitud_id' = p_solicitud_id::text
+     and l.actor_id = auth.uid()
+     and l.restaurante_id = p_restaurante_id
+     and l.entidad = 'pedido'
+     and l.entidad_id = p_pedido_id
+     and l.detalle ->> 'estacion' = p_estacion
+   limit 1;
+  if found then
+    return jsonb_build_object('estado', 'registrada', 'accion', v_accion_existente);
+  end if;
+  if exists (select 1 from public.audit_logs l where l.detalle ->> 'solicitud_id' = p_solicitud_id::text) then
+    raise exception 'La solicitud de impresión ya se usó para otra comanda.';
+  end if;
+
+  select exists (
+    select 1 from public.audit_logs l
+     where l.restaurante_id = p_restaurante_id
+       and l.entidad = 'pedido'
+       and l.entidad_id = p_pedido_id
+       and l.accion in ('comanda_imprimir', 'comanda_reimprimir')
+       and l.detalle ->> 'estacion' = p_estacion
+  ) into v_es_reimpresion;
+
+  if v_es_reimpresion and v_motivo is null then
+    return jsonb_build_object('estado', 'requiere_motivo');
+  end if;
+  if v_es_reimpresion and (length(v_motivo) < 5 or length(v_motivo) > 300) then
+    raise exception 'Escribe un motivo de reimpresión de entre 5 y 300 caracteres.';
+  end if;
+
+  v_accion := case when v_es_reimpresion then 'comanda_reimprimir' else 'comanda_imprimir' end;
+  insert into public.audit_logs (
+    actor_id, actor_rol, actor_nombre, restaurante_id, restaurante_nombre,
+    entidad, entidad_id, accion, descripcion, detalle
+  ) values (
+    auth.uid(), v_rol, v_actor_nombre, p_restaurante_id, v_restaurante_nombre,
+    'pedido', p_pedido_id, v_accion,
+    case when v_es_reimpresion then 'Comanda reimpresa en ' else 'Comanda enviada a impresión en ' end
+      || initcap(p_estacion) || ', mesa ' || v_mesa_nombre || '.',
+    jsonb_build_object(
+      'solicitud_id', p_solicitud_id,
+      'pedido_id', p_pedido_id,
+      'mesa_id', v_mesa_id,
+      'mesa_nombre', v_mesa_nombre,
+      'estacion', p_estacion,
+      'motivo', v_motivo
+    )
+  );
+  return jsonb_build_object('estado', 'registrada', 'accion', v_accion);
+end;
+$$;
+
+revoke all on function public.registrar_impresion_comanda(uuid, uuid, text, uuid, text) from public;
+revoke all on function public.registrar_impresion_comanda(uuid, uuid, text, uuid, text) from anon;
+grant execute on function public.registrar_impresion_comanda(uuid, uuid, text, uuid, text) to authenticated;
 
 commit;

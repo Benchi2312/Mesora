@@ -105,6 +105,77 @@ Edge Functions, configuracion de Auth/SMTP/hosting ni todas las claves de
 cifrado del proyecto. Mantener esas copias y configuraciones por separado.
 Documentar responsable, frecuencia y retencion antes del primer turno real.
 
+## Runbook operativo recomendado (Bloque 3)
+
+Este calendario es una recomendación para el piloto; **no hay un trabajo
+programado ni un destino externo configurado por el repositorio**. El propietario
+de Mesora debe acordar y activar la custodia externa antes de depender de ella.
+
+| Control | Recomendación | Estado actual |
+| --- | --- | --- |
+| Frecuencia | Exportación SQL diaria; otra copia antes de cada migración o cambio de esquema. | Se puede ejecutar con el script manual descrito arriba; no está programado. |
+| Retención | 30 copias diarias y 12 cierres mensuales, sujeto a coste y política de datos. | No hay política de purga automática. El responsable debe depurar copias vencidas de forma segura. |
+| Responsable | Dueño/operador de la plataforma Mesora ejecuta y verifica la copia; administrador del restaurante aprueba la ventana sin escrituras y confirma el impacto operativo. | No hay guardia automatizada. Registrar nombre y fecha en el control operativo del equipo. |
+| Ubicación | Mantener una copia cifrada fuera del equipo y fuera de Git, con acceso limitado al dueño y recuperación de la clave por un segundo medio seguro. | La carpeta local de `%LOCALAPPDATA%` no es offsite ni está cifrada por el exportador. La copia DPAPI depende del perfil Windows. La ubicación externa aún debe configurarse. |
+| Prueba de restauración | Mensual durante el piloto y después de cambios de esquema; siempre en un proyecto aislado. | Hay restauración PGlite automatizada en QA, pero aún falta ensayar la copia operativa en otro proyecto Supabase aislado. |
+
+### Crear, custodiar y verificar una copia
+
+1. Acordar una ventana sin ventas ni cambios de esquema y confirmar que el
+   proyecto de Supabase seleccionado sea el correcto.
+2. Desde PowerShell privado, ejecutar el preflight y después el exportador:
+
+   ```powershell
+   powershell -NoProfile -File scripts/respaldar-supabase.ps1 -Comprobar
+   powershell -NoProfile -File scripts/respaldar-supabase.ps1 -VentanaSinEscriturasConfirmada
+   ```
+
+3. Revisar `manifest.json`: proyecto, estado `exportado_pendiente_restauracion`,
+   cinco archivos declarados y SHA-256 de cada archivo. Recalcular los hashes
+   con `Get-FileHash` y compararlos con el manifiesto.
+4. Copiar la carpeta completa a la ubicación privada cifrada acordada. Restringir
+   acceso, comprobar que la copia externa conserva los hashes y registrar fecha,
+   responsable y ubicación lógica (no credenciales ni claves).
+5. No considerar un archivo con estado `incompleto`, una copia local sin custodia
+   externa o un hash discordante como respaldo válido.
+
+### Restaurar y probar en un destino aislado
+
+1. Crear/seleccionar un proyecto de recuperación separado, confirmar versión de
+   PostgreSQL/extensiones y desactivar correos e integraciones salientes. Nunca
+   restaurar la prueba sobre producción.
+2. Recuperar el conjunto completo desde la ubicación cifrada, validar el
+   manifiesto y los SHA-256, e instalar `psql` compatible. Obtener la conexión
+   del panel del proyecto de destino y mantenerla solo en la terminal privada;
+   no incluirla en scripts, logs, archivos del proyecto ni chat.
+3. Seguir la guía oficial de Supabase para cargar roles, esquema y datos. Detener
+   la operación ante el primer error; no continuar con scripts parciales. Las
+   consultas SQL deben usar `ON_ERROR_STOP` y transacción cuando el procedimiento
+   admita transacción. Restaurar el historial de migraciones solo después de
+   revisar que concuerda con el esquema recuperado.
+4. Revisar permisos, políticas RLS, Auth, extensiones, plantillas SMTP, Storage,
+   secretos de Edge Functions, hosting, claves de cifrado e integraciones por
+   separado. El dump SQL no contiene todo ese estado.
+5. Comparar conteos y relaciones de restaurantes, usuarios, mesas, comandas,
+   ítems, cuentas, pagos, correlativos y turnos. Probar acceso por rol, lectura,
+   apertura de caja, pedido, cocina, cobro y cierre en el proyecto aislado.
+6. Registrar resultado, errores, responsable y tiempo de recuperación. Marcar
+   `restauracion_verificada=true` solo después de completar la prueba real y
+   actualizar el manifiesto fuera del repositorio.
+
+### Lista de verificación de restaurabilidad
+
+- [ ] Proyecto destino aislado; sin escrituras ni correos hacia clientes.
+- [ ] Manifiesto y hashes válidos para todos los archivos requeridos.
+- [ ] Roles, esquema, datos e historial aplicados sin errores.
+- [ ] Extensiones, RLS, permisos y restricciones verificados.
+- [ ] Conteos de usuarios, restaurantes, mesas, comandas, pagos y caja comparados.
+- [ ] Acceso por rol y flujo operativo básico completados en el destino.
+- [ ] Auth, archivos de Storage, secretos y configuración de correo/hosting
+      recuperados desde su custodia separada.
+- [ ] Tiempo de recuperación, responsable, fecha y resultado registrados.
+- [ ] Copia restaurada eliminada o protegida según la política al acabar la prueba.
+
 Referencias oficiales:
 
 - [Supabase: respaldo y restauracion con CLI](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore).

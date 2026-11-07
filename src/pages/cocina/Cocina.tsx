@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PageHeader from '../../components/PageHeader'
 import { getApi, type ItemResumen, type MeseroResumen, type PedidoConItems } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
-import { fmtFecha, fmtPEN } from '../../lib/format'
+import { fmtPEN } from '../../lib/format'
 import { useElapsed } from '../../lib/useElapsed'
 import { enDemo } from '../../lib/api'
 import type { EstadoPedido, Mesa } from '../../types/database'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
-import { Modal } from '../../components/ui'
+import ComandaImprimible from '../../components/ComandaImprimible'
+import { ESTACIONES_COMANDA, NOMBRES_ESTACION_COMANDA, estacionDeProducto, type EstacionComanda } from '../../domain/restaurant/impresionComandas'
 
 /* Íconos SVG de línea (consistentes con el resto de la app) */
 function IconoOlla({ className = 'h-5 w-5' }: { className?: string }) {
@@ -19,7 +20,6 @@ function IconoOlla({ className = 'h-5 w-5' }: { className?: string }) {
     </svg>
   )
 }
-
 function IconoVaso({ className = 'h-5 w-5' }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -78,14 +78,12 @@ const COLUMNAS: { estado: EstadoPedido; titulo: string; boton: string; color: st
   },
 ]
 
-type Estacion = 'cocina' | 'barra'
-
 export default function Cocina() {
   const { restaurante } = useCurrentContext()
   const [pedidos, setPedidos] = useState<PedidoConItems[]>([])
   const [mesas, setMesas] = useState<Mesa[]>([])
   const [meseros, setMeseros] = useState<MeseroResumen[]>([])
-  const [estacion, setEstacion] = useState<Estacion>('cocina')
+  const [estacion, setEstacion] = useState<EstacionComanda>('cocina')
   const [sonidoActivo, setSonidoActivo] = useState(false)
   const [avisoNuevo, setAvisoNuevo] = useState('')
   const audioContext = useRef<AudioContext | null>(null)
@@ -95,7 +93,7 @@ export default function Cocina() {
   /** Ids de comandas cuyo avance está en vuelo (evita el doble toque). */
   const [avanzando, setAvanzando] = useState<ReadonlySet<string>>(() => new Set())
   /** Comanda que se está previsualizando para imprimir en la impresora de la estación. */
-  const [ticket, setTicket] = useState<{ p: PedidoConItems; mesaNombre: string } | null>(null)
+  const [ticket, setTicket] = useState<{ p: PedidoConItems; mesaNombre: string; meseroNombre: string; estacion: EstacionComanda } | null>(null)
 
   const cargar = useCallback(async () => {
     const rid = restaurante?.id
@@ -112,13 +110,13 @@ export default function Cocina() {
         return
       }
       const pedidosNuevos = pRes.data ?? []
-      const idsDeEstacion = new Set(pedidosNuevos.filter((p) => p.estado === 'pendiente' && p.items.some((it) => estacion === 'barra' ? it.es_bebida : !it.es_bebida)).map((p) => p.id))
+      const idsDeEstacion = new Set(pedidosNuevos.filter((p) => p.estado === 'pendiente' && p.items.some((it) => estacionDeProducto(it) === estacion)).map((p) => p.id))
       if (pedidosConocidos.current === null) pedidosConocidos.current = idsDeEstacion
       else {
         const nuevos = [...idsDeEstacion].filter((id) => !pedidosConocidos.current?.has(id))
         if (nuevos.length) {
           const cuenta = nuevos.length
-          setAvisoNuevo(`${cuenta === 1 ? 'Nueva comanda' : `${cuenta} comandas nuevas`} en ${estacion === 'cocina' ? 'cocina' : 'barra'}.`)
+          setAvisoNuevo(`${cuenta === 1 ? 'Nueva comanda' : `${cuenta} comandas nuevas`} en ${NOMBRES_ESTACION_COMANDA[estacion].toLowerCase()}.`)
           if (sonidoActivo) void reproducirAviso()
         }
         pedidosConocidos.current = idsDeEstacion
@@ -237,28 +235,20 @@ export default function Cocina() {
   const nombreMesa = new Map(mesas.map((m) => [m.id, m.nombre]))
   const nombreMesero = new Map(meseros.map((u) => [u.id, u.nombre]))
 
-  // Divide cada pedido en sus ítems de cocina (comida) y de barra (bebidas).
-  const { cocina, barra } = useMemo(() => {
-    const cocina: PedidoConItems[] = []
-    const barra: PedidoConItems[] = []
+  // Conserva la estación capturada al crear cada ítem; admite otros destinos.
+  const pedidosPorEstacion = useMemo(() => {
+    const resultado: Record<EstacionComanda, PedidoConItems[]> = { cocina: [], bar: [], otros: [] }
     for (const p of pedidos) {
-      const itemsComida = p.items.filter((it) => !it.es_bebida)
-      const itemsBebida = p.items.filter((it) => it.es_bebida)
-      // Lo anulado se muestra en la estación donde se prepara, para que nadie
-      // lo cocine por error ni se entere a medias.
-      const anuladosComida = p.anulados.filter((it) => !it.es_bebida)
-      const anuladosBebida = p.anulados.filter((it) => it.es_bebida)
-      if (itemsComida.length > 0 || anuladosComida.length > 0) {
-        cocina.push({ ...p, items: itemsComida, anulados: anuladosComida })
-      }
-      if (itemsBebida.length > 0 || anuladosBebida.length > 0) {
-        barra.push({ ...p, items: itemsBebida, anulados: anuladosBebida })
+      for (const destino of ESTACIONES_COMANDA) {
+        const items = p.items.filter((it) => estacionDeProducto(it) === destino)
+        const anulados = p.anulados.filter((it) => estacionDeProducto(it) === destino)
+        if (items.length > 0 || anulados.length > 0) resultado[destino].push({ ...p, items, anulados })
       }
     }
-    return { cocina, barra }
+    return resultado
   }, [pedidos])
 
-  const activos = estacion === 'cocina' ? cocina : barra
+  const activos = pedidosPorEstacion[estacion]
   const porEstado = (estado: EstadoPedido) => activos.filter((p) => p.estado === estado)
 
   if (cargando)
@@ -271,8 +261,8 @@ export default function Cocina() {
   return (
     <div>
       <PageHeader
-        titulo="Cocina y barra"
-        descripcion="Comandas en vivo, separadas por estación y tiempo de espera."
+        titulo="Estaciones de preparación"
+        descripcion="Comandas en vivo separadas por cocina, bar y otros destinos."
       />
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-surface-700 bg-surface-900 px-4 py-3">
@@ -289,51 +279,28 @@ export default function Cocina() {
         </div>
       )}
 
-      {/* Selector de estación (Cocina / Barra) — táctil */}
-      <div className="mb-6 grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={() => setEstacion('cocina')}
-          aria-pressed={estacion === 'cocina'}
-          className={`flex min-h-14 touch-manipulation items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-base font-semibold transition active:scale-[0.98] ${
-            estacion === 'cocina'
-              ? 'border-brand-500 bg-brand-500/15 text-brand-400 shadow-sm shadow-brand-500/10'
-              : 'border-surface-700 bg-surface-800 text-zinc-300 hover:border-surface-500'
-          }`}
-        >
-          <IconoOlla />
-          Cocina
-          <span className="rounded-full border border-surface-600 px-2.5 py-0.5 text-sm tabular-nums">
-            {cocina.length}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setEstacion('barra')}
-          aria-pressed={estacion === 'barra'}
-          className={`flex min-h-14 touch-manipulation items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-base font-semibold transition active:scale-[0.98] ${
-            estacion === 'barra'
-              ? 'border-brand-500 bg-brand-500/15 text-brand-400 shadow-sm shadow-brand-500/10'
-              : 'border-surface-700 bg-surface-800 text-zinc-300 hover:border-surface-500'
-          }`}
-        >
-          <IconoVaso />
-          Barra
-          <span className="rounded-full border border-surface-600 px-2.5 py-0.5 text-sm tabular-nums">
-            {barra.length}
-          </span>
-        </button>
+      {/* Selector táctil de estación */}
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {ESTACIONES_COMANDA.map((destino) => (
+          <button
+            key={destino}
+            type="button"
+            onClick={() => setEstacion(destino)}
+            aria-pressed={estacion === destino}
+            className={`flex min-h-14 touch-manipulation items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-base font-semibold transition active:scale-[0.98] ${estacion === destino ? 'border-brand-500 bg-brand-500/15 text-brand-400 shadow-sm shadow-brand-500/10' : 'border-surface-700 bg-surface-800 text-zinc-300 hover:border-surface-500'}`}
+          >
+            {destino === 'cocina' ? <IconoOlla /> : destino === 'bar' ? <IconoVaso /> : <IconoNota />}
+            {NOMBRES_ESTACION_COMANDA[destino]}
+            <span className="rounded-full border border-surface-600 px-2.5 py-0.5 text-sm tabular-nums">{pedidosPorEstacion[destino].length}</span>
+          </button>
+        ))}
       </div>
 
       {activos.length === 0 && (
         <EstadoVacio
-          icono={estacion === 'cocina' ? <IconoOlla className="h-6 w-6" /> : <IconoVaso className="h-6 w-6" />}
-          titulo={`No hay comandas en ${estacion === 'cocina' ? 'cocina' : 'la barra'}`}
-          descripcion={
-            estacion === 'cocina'
-              ? 'Cuando un mesero envíe una comanda con comida aparecerá aquí.'
-              : 'Cuando un mesero envíe una comanda con bebidas aparecerá aquí.'
-          }
+          icono={estacion === 'cocina' ? <IconoOlla className="h-6 w-6" /> : estacion === 'bar' ? <IconoVaso className="h-6 w-6" /> : <IconoNota className="h-6 w-6" />}
+          titulo={`No hay comandas en ${NOMBRES_ESTACION_COMANDA[estacion].toLowerCase()}`}
+          descripcion={`Cuando un mesero envíe una comanda para ${NOMBRES_ESTACION_COMANDA[estacion].toLowerCase()}, aparecerá aquí.`}
         />
       )}
 
@@ -368,7 +335,7 @@ export default function Cocina() {
                      boton={col.boton}
                      onAvanzar={() => void avanzar(p)}
                      avanzando={avanzando.has(p.id)}
-                     onImprimir={() => setTicket({ p, mesaNombre: nombreMesa.get(p.mesa_id) ?? '—' })}
+                     onImprimir={() => setTicket({ p, mesaNombre: nombreMesa.get(p.mesa_id) ?? '—', meseroNombre: nombreMesero.get(p.mesero_id) ?? 'No asignado', estacion })}
                    />
                  ))}
                </div>
@@ -376,12 +343,15 @@ export default function Cocina() {
            )
          })}
        </div>
-       {ticket && (
-         <TicketComanda
+      {ticket && restaurante && (
+         <ComandaImprimible
            pedido={ticket.p}
+           restauranteNombre={restaurante?.nombre ?? 'Restaurante'}
            mesaNombre={ticket.mesaNombre}
-           estacion={estacion}
+           meseroNombre={ticket.meseroNombre}
+           estacion={ticket.estacion}
            onCerrar={() => setTicket(null)}
+           registrarImpresion={(solicitudId, motivo) => getApi().registrarImpresionComanda(restaurante.id, ticket.p.id, ticket.estacion, solicitudId, motivo)}
          />
        )}
      </div>
@@ -465,6 +435,7 @@ function TarjetaComanda({
         </button>
         <button
           type="button"
+          data-imprimir-comanda={p.id}
           onClick={onImprimir}
           className="min-h-12 touch-manipulation rounded-xl border border-surface-700 px-4 py-2.5 text-sm font-medium text-zinc-300 transition hover:border-brand-500 hover:text-brand-500 active:scale-[0.98]"
         >
@@ -476,111 +447,4 @@ function TarjetaComanda({
       </div>
     </div>
   )
-}
-
-function TicketComanda({
-  pedido,
-  mesaNombre,
-  estacion,
-  onCerrar,
-}: {
-  pedido: PedidoConItems
-  mesaNombre: string
-  estacion: Estacion
-  onCerrar: () => void
-}) {
-  const { restaurante } = useCurrentContext()
-  const nombreMesero = useMeseroNombre(pedido.mesero_id)
-  useEffect(() => {
-    const id = setTimeout(() => {
-      window.print()
-      onCerrar()
-    }, 150)
-    return () => clearTimeout(id)
-  }, [onCerrar])
-
-  const items = pedido.items
-  const anulados = pedido.anulados
-
-  return (
-    <Modal titulo={`Comanda de ${estacion === 'cocina' ? 'cocina' : 'barra'}`} onCerrar={onCerrar} ancho="max-w-xs">
-      <div className="boleta-print mx-auto w-full max-w-xs overflow-hidden rounded-xl border border-surface-800 bg-surface-900 text-xs shadow-lg shadow-black/30">
-        <div className="border-b border-dashed border-surface-700 p-3 text-center">
-          <p className="text-sm font-extrabold tracking-tight text-zinc-100">{restaurante?.nombre ?? 'Restaurante'}</p>
-          <p className="mt-0.5 text-[10px] uppercase tracking-widest text-zinc-400">
-            Comanda · {estacion === 'cocina' ? 'Cocina' : 'Barra'}
-          </p>
-          <p className="mt-1 font-mono text-[10px] text-brand-400">{pedido.id.slice(0, 8).toUpperCase()}</p>
-        </div>
-        <div className="space-y-0.5 border-b border-dashed border-surface-700 px-3 py-2 text-[10px] text-zinc-400">
-          <div className="flex items-center justify-between">
-            <span>Mesa</span>
-            <span className="text-zinc-200">{mesaNombre}</span>
-          </div>
-          {nombreMesero && (
-            <div className="flex items-center justify-between">
-              <span>Mesero</span>
-              <span className="text-zinc-200">{nombreMesero}</span>
-            </div>
-          )}
-          <div className="flex items-center justify-between">
-            <span>Hora</span>
-            <span className="text-zinc-200">{fmtFecha(pedido.created_at)}</span>
-          </div>
-        </div>
-        <div className="border-b border-dashed border-surface-700 px-3 py-2">
-          <ul className="space-y-1.5 text-[11px]">
-            {items.map((it) => (
-              <li key={it.id}>
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-zinc-100">
-                    <span className="font-semibold text-brand-400">{it.cantidad}×</span> {it.nombre_producto}
-                  </span>
-                </div>
-                {it.nota && (
-                  <p className="mt-0.5 flex items-center gap-1.5 text-[10px] text-warn-400">
-                    <IconoNota />
-                    {it.nota}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-          {anulados.length > 0 && (
-            <ul className="mt-2 space-y-1 rounded-md border border-danger-500/40 bg-danger-500/10 px-2 py-1.5 text-[10px] text-danger-500">
-              {anulados.map((it) => (
-                <li key={it.id} className="line-through">
-                  {it.cantidad}× {it.nombre_producto} — anulado
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <div className="p-3 text-center text-[10px] text-zinc-500">
-          <p>--- Listo para imprimir ---</p>
-          <p className="mt-1 inline-flex items-center justify-center gap-1"><img src="/marca/simbolo-recibo.svg" alt="" className="marca-recibo-oscuro h-6 w-6" />Generado con Mesora</p>
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
-function useMeseroNombre(meseroId: string): string | undefined {
-  const { restaurante } = useCurrentContext()
-  const [nombre, setNombre] = useState<string | undefined>()
-  useEffect(() => {
-    let activo = true
-    async function cargar() {
-      if (!restaurante) return
-      const api = getApi()
-      const res = await api.getMeseros(restaurante.id)
-      if (activo && res.data) {
-        const u = res.data.find((x) => x.id === meseroId)
-        setNombre(u?.nombre)
-      }
-    }
-    void cargar()
-    return () => { activo = false }
-  }, [restaurante, meseroId])
-  return nombre
 }

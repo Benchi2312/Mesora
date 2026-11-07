@@ -6,6 +6,7 @@ import { PREFILL_GUIA, prefillDe } from '../../demo/guia'
 import { escribirSecuencia } from '../../demo/escritura'
 import type { DatosProducto } from '../../lib/api'
 import type { CategoriaProducto, Producto } from '../../types/database'
+import { ESTACIONES_COMANDA, NOMBRES_ESTACION_COMANDA, type EstacionComanda } from '../../domain/restaurant/impresionComandas'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 import { fmtPEN } from '../../lib/format'
@@ -24,6 +25,7 @@ type ModalProducto = {
   esPromocion: boolean
   precioPromocion: string
   esBebida: boolean
+  estacion: EstacionComanda
 } | null
 type Confirmar = { tipo: 'categoria' | 'producto'; id: string; nombre: string } | null
 /** Campo del formulario que el autocompletado está rellenando ahora mismo. */
@@ -118,6 +120,7 @@ export default function MenuTab() {
       esPromocion: false,
       precioPromocion: '',
       esBebida: false,
+      estacion: 'cocina',
     })
     setCategoriaAuto(categoriaId)
     setCorrida((n) => n + 1)
@@ -330,6 +333,7 @@ export default function MenuTab() {
       es_promocion: m.esPromocion,
       precio_promocion: precioPromocion,
       es_bebida: m.esBebida,
+      estacion: m.estacion,
     }
     const api = getApi()
     const res =
@@ -383,6 +387,7 @@ export default function MenuTab() {
       esPromocion: false,
       precioPromocion: '',
       esBebida: false,
+      estacion: 'cocina',
     })
   }
 
@@ -400,6 +405,7 @@ export default function MenuTab() {
       esPromocion: Boolean(p.es_promocion),
       precioPromocion: p.precio_promocion != null ? String(p.precio_promocion) : '',
       esBebida: p.es_bebida === true,
+      estacion: p.estacion ?? (p.es_bebida === true ? 'bar' : 'cocina'),
     })
   }
 
@@ -664,6 +670,20 @@ export default function MenuTab() {
               />
             </Campo>
 
+            <Campo etiqueta="Estación de preparación" htmlFor="producto-estacion" error={null}>
+              <select
+                id="producto-estacion"
+                value={modalProducto.estacion}
+                onChange={(e) => setModalProducto({ ...modalProducto, estacion: e.target.value as EstacionComanda })}
+                className="input h-11"
+              >
+                {ESTACIONES_COMANDA.map((estacion) => (
+                  <option key={estacion} value={estacion}>{NOMBRES_ESTACION_COMANDA[estacion]}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-zinc-500">Las comandas se separan por esta estación y conservan esta selección aunque luego edites el menú.</p>
+            </Campo>
+
             <Campo etiqueta={null} htmlFor={undefined} error={null}>
               <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm text-zinc-300">
                 <input
@@ -749,7 +769,7 @@ export default function MenuTab() {
                     </svg>
                   )}
                 </span>
-                Es bebida (se prepara en la barra, no en la cocina)
+                Es bebida (para reportes de ventas)
               </label>
             </Campo>
 

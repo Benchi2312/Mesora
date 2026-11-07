@@ -188,6 +188,33 @@ body {
   filter: invert(1);
 }
 
+.comanda-print {
+  box-sizing: border-box;
+  width: 80mm;
+  max-width: 100%;
+  padding: 4mm;
+  background: #fff;
+  color: #111827;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10pt;
+  line-height: 1.3;
+}
+.comanda-print[data-paper-width='58'] { width: 58mm; }
+.comanda-cabecera { padding-bottom: 3mm; text-align: center; border-bottom: 1px dashed #444; }
+.comanda-restaurante { display: block; font-size: 13pt; overflow-wrap: anywhere; }
+.comanda-estacion { margin-top: 1mm; font-size: 9pt; font-weight: 700; letter-spacing: .08em; }
+.comanda-numero { margin-top: 1mm; font-family: monospace; font-size: 9pt; }
+.comanda-metadatos { display: grid; gap: 1mm; padding: 3mm 0; border-bottom: 1px dashed #444; }
+.comanda-metadatos div { display: flex; justify-content: space-between; gap: 2mm; }
+.comanda-metadatos strong { text-align: right; overflow-wrap: anywhere; }
+.comanda-items { margin: 0; padding: 3mm 0; list-style: none; border-bottom: 1px dashed #444; }
+.comanda-items li + li { margin-top: 2.5mm; }
+.comanda-item-linea { display: grid; grid-template-columns: 12mm 1fr; gap: 1mm; align-items: start; }
+.comanda-item-linea strong { white-space: nowrap; }
+.comanda-item-linea span, .comanda-observacion { overflow-wrap: anywhere; }
+.comanda-observacion { margin: 1mm 0 0 13mm; font-size: 9pt; }
+.comanda-pie { padding-top: 2mm; text-align: center; font-size: 8pt; }
+
 @media print {
   body * {
     visibility: hidden;
@@ -237,6 +264,27 @@ body {
   .precuenta-print thead {
     display: table-header-group;
   }
+
+  .comanda-print,
+  .comanda-print * {
+    visibility: visible;
+    color: #111827 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    border-color: #52525b !important;
+  }
+  .comanda-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    max-width: none;
+    margin: 0;
+    padding: 3mm;
+    break-inside: avoid;
+  }
+  .comanda-print[data-paper-width='58'] { width: 58mm; }
+  .comanda-panel > :not(.comanda-print) { display: none !important; }
 
   /* Reporte del admin: `body.imprimir-reporte` lo pone DashboardTab antes de
      llamar a window.print(). Se usa visibility (y no display) para no romper

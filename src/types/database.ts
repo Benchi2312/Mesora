@@ -134,6 +134,9 @@ export type CategoriaProducto = {
   created_at: string
 }
 
+/** Estación de preparación; independiente de la clasificación de venta. */
+export type EstacionComanda = 'cocina' | 'bar' | 'otros'
+
 export type Producto = {
   id: string
   restaurante_id: string
@@ -147,6 +150,8 @@ export type Producto = {
   precio_promocion?: number | null
   /** El producto se prepara en la barra, no en la cocina. Lo define el admin. */
   es_bebida?: boolean | null
+  /** Destino operativo de impresión; se copia al ítem al crear la comanda. */
+  estacion?: EstacionComanda | null
   created_at: string
 }
 
@@ -179,6 +184,8 @@ export type PedidoItem = {
   anulado_at?: string | null
   /** Clasificación histórica para reportes, congelada al crear la comanda. */
   es_bebida?: boolean | null
+  /** Estación histórica para preparación e impresión. */
+  estacion?: EstacionComanda | null
   created_at: string
 }
 
@@ -579,6 +586,16 @@ export interface Database {
       anular_cuenta: {
         Args: { p_restaurante_id: string; p_cuenta_id: string; p_motivo: string; p_pin?: string | null }
         Returns: Cuenta
+      }
+      registrar_impresion_comanda: {
+        Args: {
+          p_restaurante_id: string
+          p_pedido_id: string
+          p_estacion: EstacionComanda
+          p_solicitud_id: string
+          p_motivo?: string | null
+        }
+        Returns: { estado: 'requiere_motivo' } | { estado: 'registrada'; accion: 'comanda_imprimir' | 'comanda_reimprimir' }
       }
       /** ¿El restaurante tiene PIN de autorización? Lo usa la UI para pedirlo. */
       tiene_pin_autorizacion: { Args: { p_restaurante_id: string }; Returns: boolean }

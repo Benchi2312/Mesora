@@ -28,6 +28,7 @@ import type {
   BandejaComercial,
   ConsultaComercial,
   Cuenta,
+  EstacionComanda,
   Mesa,
   MetodoPago,
   Pago,
@@ -47,6 +48,7 @@ import type {
   Usuario,
   Zona,
 } from '../types/database'
+import { estacionDeProducto } from '../domain/restaurant/impresionComandas'
 import {
   calcularAlertas,
   type AlertaAdministrativa,
@@ -161,8 +163,12 @@ export type ItemComanda = {
 
 export type ItemResumen = Pick<
   PedidoItem,
-  'id' | 'pedido_id' | 'producto_id' | 'nombre_producto' | 'cantidad' | 'precio_unitario' | 'nota' | 'anulado'
+  'id' | 'pedido_id' | 'producto_id' | 'nombre_producto' | 'cantidad' | 'precio_unitario' | 'nota' | 'anulado' | 'estacion'
 > & { es_bebida?: boolean }
+
+export type ResultadoRegistroImpresion =
+  | { estado: 'requiere_motivo' }
+  | { estado: 'registrada'; accion: 'comanda_imprimir' | 'comanda_reimprimir' }
 
 /**
  * Campos editables de un ítem ya enviado a cocina. Se mandan SIEMPRE los dos
@@ -240,6 +246,7 @@ export type DatosProducto = {
   disponible: boolean
   /** El producto se prepara en la barra, no en la cocina (gaseosas, jugos, cafés…). */
   es_bebida?: boolean | null
+  estacion?: EstacionComanda
   imagen_url?: string | null
 }
 
@@ -405,6 +412,14 @@ export interface DataApi {
   getPedidoItems(ids: string[]): Promise<Res<ItemResumen[]>>
   /** Pedidos activos (no 'entregado') para la pantalla de cocina. */
   getPedidosActivos(rid: string): Promise<Res<PedidoConItems[]>>
+  /** Registra impresión/reimpresión de una estación; la solicitud es idempotente. */
+  registrarImpresionComanda(
+    rid: string,
+    pedidoId: string,
+    estacion: EstacionComanda,
+    solicitudId: string,
+    motivo?: string | null,
+  ): Promise<Res<ResultadoRegistroImpresion>>
   crearPedido(rid: string, mesaId: string, items: ItemComanda[]): Promise<Res<string>>
   /**
    * Corrige cantidad y nota de un ítem de una comanda ABIERTA (no cobrada).
@@ -756,7 +771,7 @@ const realApi: DataApi = {
     if (pList.length === 0) return { data: [], error: null }
     const { data: items, error: itErr } = await supabase
       .from('pedido_items')
-      .select('id, pedido_id, producto_id, nombre_producto, cantidad, precio_unitario, nota, anulado')
+      .select('id, pedido_id, producto_id, nombre_producto, cantidad, precio_unitario, nota, anulado, es_bebida, estacion')
       .in('pedido_id', pList.map((p) => p.id))
     if (itErr) return { data: null, error: itErr.message }
 
@@ -764,7 +779,8 @@ const realApi: DataApi = {
     const marcaBebida = await mapaEsBebida(rid, (items ?? []) as PedidoItem[])
     const todos = ((items ?? []) as PedidoItem[]).map((it) => ({
       ...it,
-      es_bebida: marcaBebida(it.producto_id),
+      es_bebida: it.es_bebida ?? marcaBebida(it.producto_id),
+      estacion: it.estacion ?? estacionDeProducto({ estacion: it.estacion, es_bebida: it.es_bebida ?? marcaBebida(it.producto_id) }),
     }))
     const conItems = pList
       .map((p) => {
@@ -777,6 +793,16 @@ const realApi: DataApi = {
       })
       .filter((p) => p.items.length > 0)
     return { data: conItems, error: null }
+  },
+  async registrarImpresionComanda(rid, pedidoId, estacion, solicitudId, motivo) {
+    const { data, error } = await supabase.rpc('registrar_impresion_comanda', {
+      p_restaurante_id: rid,
+      p_pedido_id: pedidoId,
+      p_estacion: estacion,
+      p_solicitud_id: solicitudId,
+      p_motivo: motivo ?? null,
+    })
+    return { data: data as ResultadoRegistroImpresion | null, error: error?.message ?? null }
   },
   async crearPedido(rid, mesaId, items) {
     const { data, error } = await supabase.rpc('crear_pedido', {
@@ -2297,7 +2323,14 @@ function crearApiDesde(
       .map((p) => {
         const suyos = ds.items
           .filter((it) => it.pedido_id === p.id)
-          .map((it) => ({ ...it, es_bebida: esBebidaEn(ds, rid, it.producto_id) }))
+          .map((it) => {
+            const es_bebida = it.es_bebida ?? esBebidaEn(ds, rid, it.producto_id)
+            return {
+              ...it,
+              es_bebida,
+              estacion: it.estacion ?? estacionDeProducto({ estacion: it.estacion, es_bebida }),
+            }
+          })
         return {
           ...p,
           items: suyos.filter((it) => it.anulado !== true),
@@ -2306,6 +2339,67 @@ function crearApiDesde(
       })
       .filter((p) => p.items.length > 0)
     return { data: conItems, error: null }
+  },
+  async registrarImpresionComanda(rid, pedidoId, estacion, solicitudId, motivo) {
+    const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
+    if (acceso) return { data: null, error: acceso }
+    await espera(80)
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+    if (!actor || !['admin_restaurante', 'mesero', 'cocina'].includes(actor.rol)) {
+      return { data: null, error: 'Tu perfil no tiene permiso para imprimir comandas.' }
+    }
+    const pedido = ds.pedidos.find((p) => p.id === pedidoId && p.restaurante_id === rid)
+    if (!pedido) return { data: null, error: 'No se encontró la comanda de este restaurante.' }
+    if (pedido.estado === 'anulado') return { data: null, error: 'La comanda está anulada y no se puede imprimir.' }
+
+    const itemsVigentes = ds.items.filter((it) => it.pedido_id === pedidoId && it.anulado !== true)
+    const tieneEstacion = itemsVigentes.some((it) => {
+      const fallback = it.es_bebida ?? esBebidaEn(ds, rid, it.producto_id)
+      return (it.estacion ?? estacionDeProducto({ estacion: it.estacion, es_bebida: fallback })) === estacion
+    })
+    if (!tieneEstacion) return { data: null, error: 'Esta comanda no tiene productos pendientes para esa estación.' }
+
+    const solicitudExistente = ds.auditLogs.find((l) => l.detalle?.solicitud_id === solicitudId)
+    if (solicitudExistente) {
+      if (solicitudExistente.actor_id === actor.id && solicitudExistente.restaurante_id === rid && solicitudExistente.entidad_id === pedidoId && solicitudExistente.detalle?.estacion === estacion) {
+        return {
+          data: { estado: 'registrada', accion: solicitudExistente.accion as 'comanda_imprimir' | 'comanda_reimprimir' },
+          error: null,
+        }
+      }
+      return { data: null, error: 'La solicitud de impresión ya se usó para otra comanda.' }
+    }
+
+    const anteriores = ds.auditLogs.filter((l) =>
+      l.restaurante_id === rid && l.entidad === 'pedido' && l.entidad_id === pedidoId &&
+      ['comanda_imprimir', 'comanda_reimprimir'].includes(l.accion) && l.detalle?.estacion === estacion,
+    )
+    const motivoLimpio = motivo?.trim() ?? ''
+    if (anteriores.length > 0 && !motivoLimpio) {
+      return { data: { estado: 'requiere_motivo' }, error: null }
+    }
+    if (anteriores.length > 0 && (motivoLimpio.length < 5 || motivoLimpio.length > 300)) {
+      return { data: null, error: 'Escribe un motivo de reimpresión de entre 5 y 300 caracteres.' }
+    }
+
+    const mesa = ds.mesas.find((m) => m.id === pedido.mesa_id && m.restaurante_id === rid)
+    const accion = anteriores.length > 0 ? 'comanda_reimprimir' : 'comanda_imprimir'
+    registrarAuditoria(accion, {
+      restauranteId: rid,
+      entidad: 'pedido',
+      entidadId: pedidoId,
+      descripcion: `${accion === 'comanda_reimprimir' ? 'Comanda reimpresa' : 'Comanda enviada a impresión'} en ${estacion}, mesa ${mesa?.nombre ?? 'sin mesa'}.`,
+      detalle: {
+        solicitud_id: solicitudId,
+        pedido_id: pedidoId,
+        mesa_id: pedido.mesa_id,
+        mesa_nombre: mesa?.nombre ?? null,
+        estacion,
+        motivo: accion === 'comanda_reimprimir' ? motivoLimpio : null,
+      },
+    })
+    persiste()
+    return { data: { estado: 'registrada', accion }, error: null }
   },
   async crearPedido(rid, mesaId, items) {
     const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
@@ -2341,6 +2435,8 @@ function crearApiDesde(
       updated_at: ahora,
     })
     for (const it of items) {
+      const producto = ds.productos.find((p) => p.id === it.producto_id && p.restaurante_id === rid)
+      const es_bebida = producto?.es_bebida ?? false
       ds.items.push({
         id: crypto.randomUUID(),
         pedido_id: id,
@@ -2350,6 +2446,8 @@ function crearApiDesde(
         precio_unitario: it.precio_unitario,
         nota: it.nota ?? null,
         anulado: false,
+        es_bebida,
+        estacion: producto ? estacionDeProducto(producto) : estacionDeProducto({ es_bebida }),
         created_at: ahora,
       })
     }
@@ -3542,6 +3640,7 @@ function crearApiDesde(
       es_promocion: datos.es_promocion ?? false,
       precio_promocion: datos.es_promocion && datos.precio_promocion ? datos.precio_promocion : null,
       es_bebida: datos.es_bebida ?? false,
+      estacion: datos.estacion ?? (datos.es_bebida ? 'bar' : 'cocina'),
       created_at: new Date().toISOString(),
     }
     ds.productos.push(producto)
@@ -3566,6 +3665,7 @@ function crearApiDesde(
       producto.precio_promocion = cambios.precio_promocion ? cambios.precio_promocion : null
     }
     if (cambios.es_bebida !== undefined) producto.es_bebida = cambios.es_bebida === true
+    if (cambios.estacion !== undefined) producto.estacion = cambios.estacion
     persiste()
     return { data: producto, error: null }
   },

@@ -22,6 +22,7 @@ jobs:
       - run: npm run verificar
       - run: npm run typecheck
       - run: npx playwright install --with-deps chromium
+      - run: npm run verificar:impresion
       - run: npm run verificar:acceso
       - run: npm run verificar:contacto
       - run: npx --yes deno test --allow-env supabase/functions/contacto-comercial/index_test.ts
