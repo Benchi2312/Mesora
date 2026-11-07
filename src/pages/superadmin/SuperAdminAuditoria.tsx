@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { getApi } from '../../lib/api'
 import type { AuditLog, Restaurante, Rol } from '../../types/database'
 import { fmtFecha } from '../../lib/format'
+import { normalizarContenidoUtf8, normalizarTextoUtf8 } from '../../domain/platform/normalizarUtf8'
 import { rolLabel } from '../../domain/security/roles'
 import {
   CATEGORIAS_AUDITORIA,
@@ -170,9 +171,11 @@ export default function SuperAdminAuditoria() {
                 {filtrados.map((l) => {
                   const categoria = categoriaDeAccion(l.accion)
                   const abierto = detalles.has(l.id)
+                  const descripcion = l.descripcion ? normalizarTextoUtf8(l.descripcion) : null
+                  const detalle = normalizarContenidoUtf8(l.detalle)
                   const detalleJson =
-                    l.detalle && Object.keys(l.detalle).length > 0
-                      ? JSON.stringify(l.detalle, null, 2)
+                    detalle && Object.keys(detalle).length > 0
+                      ? JSON.stringify(detalle, null, 2)
                       : null
                   return (
                       <Fragment key={l.id}>
@@ -201,7 +204,7 @@ export default function SuperAdminAuditoria() {
                         </td>
                         <td className="px-4 py-3.5">
                           <div className="flex justify-end">
-                            {(l.descripcion || detalleJson) && (
+                            {(descripcion || detalleJson) && (
                               <button
                                 type="button"
                                 className="btn btn-outline min-h-11 px-3 text-xs"
@@ -214,12 +217,12 @@ export default function SuperAdminAuditoria() {
                           </div>
                         </td>
                       </tr>
-                      {abierto && (l.descripcion || detalleJson) && (
+                      {abierto && (descripcion || detalleJson) && (
                         <tr>
                           <td colSpan={5} className="bg-surface-950/60 px-4 py-4">
-                            {l.descripcion && (
+                            {descripcion && (
                               <p className="text-sm leading-relaxed text-zinc-200">
-                                {l.descripcion}
+                                {descripcion}
                               </p>
                             )}
                             {detalleJson && (

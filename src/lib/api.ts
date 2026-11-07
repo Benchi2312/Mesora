@@ -16,6 +16,7 @@ import { arqueoTurno, errorAlAbrirTurno, errorAlCerrarTurno, redondear } from '.
 import { completarPartes, resumirPago, type PagoParte } from '../domain/cashier/pagos'
 import { MENSAJE_PIN_INCORRECTO, errorAlAnularCobro } from '../domain/security/autorizacion'
 import { mensajeOperacion } from '../domain/security/mensajeOperacion'
+import { normalizarContenidoUtf8 } from '../domain/platform/normalizarUtf8'
 import type { RolPersonal } from '../domain/security/personal'
 export type { RolPersonal } from '../domain/security/personal'
 import { esMetodoPagoValido } from '../types/database'
@@ -1178,7 +1179,7 @@ const realApi: DataApi = {
       .order('created_at', { ascending: false })
       .limit(500)
     if (error) return { data: null, error: error.message }
-    return { data: (data ?? []) as AuditLog[], error: null }
+    return { data: normalizarContenidoUtf8((data ?? []) as AuditLog[]), error: null }
   },
   async getAuditoriaRestaurante(filtros) {
     const { data, error } = await supabase.rpc('admin_listar_auditoria_restaurante', {
@@ -1191,7 +1192,10 @@ const realApi: DataApi = {
     })
     if (error) return { data: null, error: error.message }
     const resultado = data as unknown as PaginaAuditoria | null
-    return { data: { items: resultado?.items ?? [], total: resultado?.total ?? 0 }, error: null }
+    return {
+      data: { items: normalizarContenidoUtf8(resultado?.items ?? []), total: resultado?.total ?? 0 },
+      error: null,
+    }
   },
   // ---------------------------------------------------------- Soporte (real)
   async getTickets() {
@@ -2420,7 +2424,7 @@ function crearApiDesde(
       restauranteId: rid,
       entidad: 'pedido_item',
       entidadId: item.id,
-      descripcion: `${item.nombre_producto} anulado en la mesa ${mesaActual?.nombre ?? 'sin nombre'}.`,
+      descripcion: '\u00cdtem \u00ab' + item.nombre_producto + '\u00bb anulado en ' + (mesaActual?.nombre ?? 'una mesa') + '.',
       detalle: {
         pedido_id: pedido.id,
         mesa_id: pedido.mesa_id,

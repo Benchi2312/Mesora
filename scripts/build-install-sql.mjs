@@ -39,6 +39,7 @@ const FUENTES_VERSIONADAS = {
   'migracion_password_recovery.sql': '../migrations/20261022120000_password_recovery.sql',
   'migracion_admin_email_recovery.sql': '../migrations/20261103032730_admin_email_recovery.sql',
   'operaciones_auditoria.sql': '../migrations/20261106075551_auditar_operaciones_caja_mesa.sql',
+  'auditoria_item_descripcion_utf8.sql': '../migrations/20261107063406_auditoria_item_descripcion_utf8.sql',
 }
 
 // -----------------------------------------------------------------------------
@@ -104,6 +105,7 @@ const ORDEN = [
   '../migrations/20261106070508_proteger_traslados_mesa_con_pin_y_auditoria.sql',
   '../migrations/20261106075551_auditar_operaciones_caja_mesa.sql',
   '../migrations/20261107043104_bloque2_seguridad_personal_auditoria.sql',
+  '../migrations/20261107063406_auditoria_item_descripcion_utf8.sql',
 ]
 
 const fallos = []

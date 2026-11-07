@@ -14,6 +14,7 @@ import {
   confirmarMovimientoConsumo,
 } from '../../domain/security/confirmaciones'
 import { mensajeOperacion } from '../../domain/security/mensajeOperacion'
+import { ejecutarAnulacionItem } from '../../domain/security/anulacionItem'
 import Precuenta from '../../components/Precuenta'
 import type { Zona } from '../../types/database'
 
@@ -141,35 +142,42 @@ export default function MesaOcupada({
    * para recargar sin volver a tapar la pantalla con el spinner.
    */
   const cargar = useCallback(
-    async (silencioso: boolean) => {
+    async (
+      silencioso: boolean,
+      opciones?: { silenciarErrores?: boolean },
+    ): Promise<{ ok: boolean; pedidos: PedidoResumen[] }> => {
       const rid = restaurante?.id
-      if (!rid) return
+      if (!rid) return { ok: false, pedidos: [] }
       if (!silencioso) setCargando(true)
       try {
         const api = getApi()
         const pedRes = await api.getPedidosDeMesa(rid, mesa.id)
-        if (!vivo.current) return
+        if (!vivo.current) return { ok: false, pedidos: [] }
         if (pedRes.error) {
-          setError(pedRes.error)
-          return
+          if (!opciones?.silenciarErrores) setError(pedRes.error)
+          return { ok: false, pedidos: [] }
         }
         const pList = pedRes.data ?? []
         setPedidos(pList)
         if (pList.length === 0) {
           setItems([])
           setError(null)
-          return
+          return { ok: true, pedidos: pList }
         }
         const itsRes = await api.getPedidoItems(pList.map((p) => p.id))
-        if (!vivo.current) return
+        if (!vivo.current) return { ok: false, pedidos: [] }
         if (itsRes.error) {
-          setError(itsRes.error)
-          return
+          if (!opciones?.silenciarErrores) setError(itsRes.error)
+          return { ok: false, pedidos: pList }
         }
         setItems(itsRes.data ?? [])
         setError(null)
+        return { ok: true, pedidos: pList }
       } catch {
-        if (vivo.current) setError('No se pudieron actualizar las comandas. Comprueba tu conexión e inténtalo de nuevo.')
+        if (vivo.current && !opciones?.silenciarErrores) {
+          setError('No se pudieron actualizar las comandas. Comprueba tu conexión e inténtalo de nuevo.')
+        }
+        return { ok: false, pedidos: [] }
       } finally {
         if (vivo.current) setCargando(false)
       }
@@ -205,25 +213,33 @@ export default function MesaOcupada({
   const hayPedidos = pedidos.length > 0
 
   async function confirmarAnulacion() {
-    if (!restaurante || !anulando) return
+    if (!restaurante || !anulando || anulandoEnCurso) return
     setAnulandoEnCurso(true)
     setErrorAnulacion(null)
-    try {
-      const { error: apiErr } = await getApi().anularItem(restaurante.id, anulando.pedidoId, anulando.item.id, pin)
-      if (apiErr) {
-        setErrorAnulacion(mensajeOperacion(apiErr, 'No se pudo anular el ítem. Actualiza la comanda e inténtalo de nuevo.'))
-        return
-      }
-      setAnulando(null)
-      setPin('')
-      setFlash(`Se anuló ${anulando.item.nombre_producto}.`)
-      await cargar(true)
-    } catch {
-      setErrorAnulacion('No se pudo confirmar la anulación. Actualiza la comanda antes de volver a intentarlo.')
-      await cargar(true)
-    } finally {
-      setAnulandoEnCurso(false)
+    const api = getApi()
+    const resultado = await ejecutarAnulacionItem({
+      anular: async () => {
+        const { error: apiErr } = await api.anularItem(restaurante.id, anulando.pedidoId, anulando.item.id, pin)
+        return { error: apiErr }
+      },
+      verificarAnulado: async () => {
+        const lectura = await api.getPedidoItems([anulando.pedidoId])
+        return !lectura.error && Boolean(lectura.data?.some((item) => item.id === anulando.item.id && item.anulado))
+      },
+      recargar: async () => {
+        const lectura = await cargar(true, { silenciarErrores: true })
+        return { ok: lectura.ok, comandasAbiertas: lectura.pedidos.length }
+      },
+    })
+    setAnulandoEnCurso(false)
+    if (resultado.estado === 'error') {
+      setErrorAnulacion(mensajeOperacion(resultado.mensaje, 'No se pudo anular el ítem. Actualiza la comanda e inténtalo de nuevo.'))
+      return
     }
+    setAnulando(null)
+    setPin('')
+    setError(null)
+    setFlash(resultado.mensaje)
   }
 
   async function confirmarOperacionMesa() {
@@ -320,7 +336,7 @@ export default function MesaOcupada({
         </div>
       )}
       {flash && (
-        <div className="aviso mb-4 border-ok-500/40 bg-ok-500/10 text-ok-500">{flash}</div>
+        <div role="status" aria-live="polite" className="aviso mb-4 border-ok-500/40 bg-ok-500/10 text-ok-500">{flash}</div>
       )}
       {asignadaAOtro && (
         <div role="status" className="aviso mb-4 border-brand-500/30 bg-brand-500/10 text-brand-300">

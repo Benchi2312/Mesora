@@ -163,6 +163,10 @@ const {
   TEXTO_AUDITORIA,
 } = await servidor.ssrLoadModule('/src/domain/security/confirmaciones.ts')
 const { mensajeOperacion } = await servidor.ssrLoadModule('/src/domain/security/mensajeOperacion.ts')
+const { ejecutarAnulacionItem, MENSAJE_ITEM_ANULADO_MESA_LIBERADA } =
+  await servidor.ssrLoadModule('/src/domain/security/anulacionItem.ts')
+const { normalizarTextoUtf8, normalizarContenidoUtf8 } =
+  await servidor.ssrLoadModule('/src/domain/platform/normalizarUtf8.ts')
 
 // ----------------------------------------------------------------- aserciones
 let ok = 0
@@ -611,6 +615,16 @@ check(
 
 // ---------------------------------------------------------------------------
 titulo('12 - Editar y anular ítems de una comanda abierta')
+const descripcionMojibake = '\u00c3\u008dtem \u00c2\u00abCheesecake\u00c2\u00bb anulado en Mesa 1.'
+const descripcionUtf8 = '\u00cdtem \u00abCheesecake\u00bb anulado en Mesa 1.'
+const auditoriaJsonLeida = JSON.parse(JSON.stringify({
+  descripcion: descripcionMojibake,
+  detalle: { producto: 'Cheesecake', nota: descripcionMojibake },
+}))
+const auditoriaNormalizada = normalizarContenidoUtf8(auditoriaJsonLeida)
+check('12a0 · la descripción histórica recupera tildes y comillas angulares', normalizarTextoUtf8(descripcionMojibake) === descripcionUtf8)
+check('12a1 · los caracteres UTF-8 sobreviven JSON y también se normaliza el detalle', auditoriaNormalizada.descripcion === descripcionUtf8 && auditoriaNormalizada.detalle.nota === descripcionUtf8)
+
 const MESA12 = 'm-5'
 const comandaC = await api.crearPedido(RID, MESA12, [pedir(prod('p-1'), 2, 'sin cebolla'), pedir(prod('p-8'), 1)])
 check('12a · la comanda de prueba se creó', !comandaC.error, comandaC.error ?? '')
@@ -656,9 +670,11 @@ check(
 const cocinaAntes = (await api.getPedidosActivos(RID)).data.find((p) => p.id === idC)
 check('12l · cocina ve la comanda completa antes de anular', cocinaAntes.items.length === 2 && cocinaAntes.anulados.length === 0)
 
+const auditoriasAntesDeCeviche = localSeed.auditLogs.filter((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemCeviche.id).length
 const an = await api.anularItem(RID, idC, itemCeviche.id)
 check('12m · anular el ítem no falla', !an.error, an.error ?? '')
 const trasAnular = (await api.getPedidoItems([idC])).data
+check('12o2 · el primer intento deja exactamente una auditoría', localSeed.auditLogs.filter((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemCeviche.id).length - auditoriasAntesDeCeviche === 1)
 check('12n · el ítem queda marcado, no borrado', trasAnular.length === 2 && trasAnular.find((i) => i.id === itemCeviche.id).anulado === true)
 check('12o · queda registrado quién y cuándo lo anuló', !!trasAnular.find((i) => i.id === itemCeviche.id).anulado_at && !!trasAnular.find((i) => i.id === itemCeviche.id).anulado_por)
 check('12o1 · la anulación del ítem deja auditoría local', localSeed.auditLogs.some((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemCeviche.id))
@@ -674,8 +690,35 @@ check(
 check('12t · anular dos veces el mismo ítem no falla (idempotente)', (await api.anularItem(RID, idC, itemCeviche.id)).error === null)
 
 // -- anular el último ítem: la comanda muere y la mesa se libera
-const an2 = await api.anularItem(RID, idC, itemChicha.id)
-check('12u · anular el último ítem no falla', !an2.error, an2.error ?? '')
+check('12t1 · repetir una anulación no duplica la auditoría', localSeed.auditLogs.filter((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemCeviche.id).length - auditoriasAntesDeCeviche === 1)
+const auditoriasAntesDelUltimo = localSeed.auditLogs.filter((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemChicha.id).length
+const an2 = await ejecutarAnulacionItem({
+  anular: async () => {
+    const { error } = await api.anularItem(RID, idC, itemChicha.id)
+    return { error }
+  },
+  verificarAnulado: async () => (await api.getPedidoItems([idC])).data.some((item) => item.id === itemChicha.id && item.anulado),
+  recargar: async () => {
+    const resultado = await api.getPedidosDeMesa(RID, MESA12)
+    return { ok: !resultado.error, comandasAbiertas: resultado.data?.length ?? 0 }
+  },
+})
+check('12u1 · el último ítem se informa como anulado correctamente', an2.estado === 'exito')
+check('12u2 · la mesa liberada muestra el aviso verde esperado', an2.estado === 'exito' && an2.mensaje === MENSAJE_ITEM_ANULADO_MESA_LIBERADA)
+check('12u3 · la escritura confirmada creó una sola auditoría', localSeed.auditLogs.filter((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemChicha.id).length - auditoriasAntesDelUltimo === 1)
+check('12u4 · el registro nuevo conserva tildes y comillas angulares', localSeed.auditLogs.find((l) => l.entidad_id === itemChicha.id)?.descripcion === '\u00cdtem \u00ab' + itemChicha.nombre_producto + '\u00bb anulado en Mesa 5.')
+
+let intentosMutacion = 0
+const respuestaPerdida = await ejecutarAnulacionItem({
+  anular: async () => {
+    intentosMutacion++
+    return { error: 'respuesta perdida después de guardar' }
+  },
+  verificarAnulado: async () => true,
+  recargar: async () => ({ ok: true, comandasAbiertas: 0 }),
+})
+check('12u5 · una mutación confirmada tras perder respuesta no genera error ni reintento', respuestaPerdida.estado === 'exito' && respuestaPerdida.mensaje === MENSAJE_ITEM_ANULADO_MESA_LIBERADA && intentosMutacion === 1)
+check('12u · anular el último ítem no falla', an2.estado === 'exito')
 check('12v · la comanda queda "anulado"', localSeed.pedidos.find((p) => p.id === idC).estado === 'anulado')
 check('12w · la comanda anulada ya no aparece para cobrar', !(await api.getPedidosDeMesa(RID, MESA12)).data.some((p) => p.id === idC))
 check('12x · cocina ya no la muestra', !(await api.getPedidosActivos(RID)).data.some((p) => p.id === idC))

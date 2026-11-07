@@ -8,8 +8,12 @@ declare
   admin_id uuid := gen_random_uuid(); mesero uuid := gen_random_uuid();
   cocina uuid := gen_random_uuid(); cajero uuid := gen_random_uuid();
   zona uuid := gen_random_uuid(); mesa uuid := gen_random_uuid();
-  plato uuid := gen_random_uuid(); bebida uuid := gen_random_uuid();
+  mesa_ultima uuid := gen_random_uuid();
+  plato uuid := gen_random_uuid(); bebida uuid := gen_random_uuid(); postre uuid := gen_random_uuid();
   p1 uuid; p2 uuid; item_cancelado uuid; cuenta uuid; turno uuid;
+  p_ultimo uuid; item_ultimo uuid; cantidad_auditorias integer;
+  descripcion_auditoria text; serializada jsonb;
+  descripcion_esperada text := U&'\00CDtem \00ABCheesecake\00BB anulado en Mesa UTF8.';
   resumen jsonb; c public.cuentas; cierre public.caja_turnos;
   denegado boolean; rol_inicial text := current_user;
 begin
@@ -23,8 +27,10 @@ begin
     (cocina,r,'cocina','Cocina QA',true),(cajero,r,'cajero','Cajero QA',true);
   insert into public.zonas(id,restaurante_id,nombre) values(zona,r,'Zona QA');
   insert into public.mesas(id,restaurante_id,zona_id,nombre) values(mesa,r,zona,'Mesa QA');
+  insert into public.mesas(id,restaurante_id,zona_id,nombre) values(mesa_ultima,r,zona,'Mesa UTF8');
   insert into public.productos(id,restaurante_id,nombre,precio,disponible,es_bebida) values
-    (plato,r,'Plato QA',22.50,true,false),(bebida,r,'Bebida QA',5.50,true,true);
+    (plato,r,'Plato QA',22.50,true,false),(bebida,r,'Bebida QA',5.50,true,true),
+    (postre,r,'Cheesecake',7.50,true,false);
 
   perform set_config('request.jwt.claim.sub',admin_id::text,true);
   execute 'set local role authenticated';
@@ -66,6 +72,46 @@ begin
        and detalle->>'producto'='Bebida QA'
        and detalle->>'mesa_id'=mesa::text
   ) then raise exception 'La anulación del ítem no quedó en auditoría'; end if;
+
+  -- Una comanda de un solo ítem debe anularse, liberar su mesa y dejar una
+  -- descripción UTF-8 íntegra también al pasar por JSONB.
+  perform set_config('request.jwt.claim.sub',mesero::text,true);
+  execute 'set local role authenticated';
+  p_ultimo := public.crear_pedido(r,mesa_ultima,jsonb_build_array(
+    jsonb_build_object('producto_id',postre,'cantidad',1)));
+  select id into item_ultimo from public.pedido_items where pedido_id=p_ultimo;
+  perform public.anular_item_comanda(r,p_ultimo,item_ultimo,'4242');
+  perform public.anular_item_comanda(r,p_ultimo,item_ultimo,'4242');
+  if (select anulado from public.pedido_items where id=item_ultimo) is not true then
+    raise exception 'El backend no confirmó el estado anulado del último ítem';
+  end if;
+  if (select estado from public.pedidos where id=p_ultimo)<>'anulado' then
+    raise exception 'La comanda de un solo ítem no quedó anulada';
+  end if;
+  if jsonb_array_length(public.pedidos_pendientes_mesa(r,mesa_ultima))<>0 then
+    raise exception 'La mesa conserva comandas abiertas después de anular el último ítem';
+  end if;
+  if (select estado from public.mesas where id=mesa_ultima)<>'libre' then
+    raise exception 'No se liberó la mesa al anular su último ítem';
+  end if;
+  execute format('set local role %I',rol_inicial);
+  select count(*) into cantidad_auditorias from public.audit_logs
+   where entidad_id=item_ultimo and accion='comanda_item_anular';
+  if cantidad_auditorias<>1 then
+    raise exception 'Se esperaba una auditoría del ítem y se encontraron %',cantidad_auditorias;
+  end if;
+  select descripcion, to_jsonb(descripcion) into descripcion_auditoria, serializada
+    from public.audit_logs where entidad_id=item_ultimo and accion='comanda_item_anular';
+  if descripcion_auditoria<>descripcion_esperada then
+    raise exception 'Descripción UTF-8 incorrecta: %',descripcion_auditoria;
+  end if;
+  if serializada #>> '{}'<>descripcion_esperada then
+    raise exception 'La descripción UTF-8 cambió al serializarse como JSON';
+  end if;
+  if (select detalle->>'producto' from public.audit_logs
+      where entidad_id=item_ultimo and accion='comanda_item_anular')<>'Cheesecake' then
+    raise exception 'El JSON de auditoría perdió el nombre del producto';
+  end if;
 
   perform set_config('request.jwt.claim.sub',cocina::text,true);
   execute 'set local role authenticated';

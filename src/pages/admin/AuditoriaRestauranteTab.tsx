@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getApi } from '../../lib/api'
 import type { FiltrosAuditoriaRestaurante } from '../../lib/api'
 import type { AuditLog } from '../../types/database'
+import { normalizarContenidoUtf8, normalizarTextoUtf8 } from '../../domain/platform/normalizarUtf8'
 import { fmtFecha } from '../../lib/format'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
@@ -118,11 +119,13 @@ export default function AuditoriaRestauranteTab() {
             : <div className="space-y-3">
               {items.map((l) => {
                 const abierto = abiertos.has(l.id)
-                const detalle = l.detalle && Object.keys(l.detalle).length ? JSON.stringify(l.detalle, null, 2) : null
+                const descripcion = normalizarTextoUtf8(l.descripcion || l.accion)
+                const detalleNormalizado = normalizarContenidoUtf8(l.detalle)
+                const detalle = detalleNormalizado && Object.keys(detalleNormalizado).length ? JSON.stringify(detalleNormalizado, null, 2) : null
                 return <article key={l.id} className="card min-w-0 p-4 sm:p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="break-words font-semibold text-zinc-100">{l.descripcion || l.accion}</p>
+                      <p className="break-words font-semibold text-zinc-100">{descripcion}</p>
                       <p className="mt-1 text-sm text-zinc-400">{l.actor_nombre ?? 'Usuario del sistema'}{l.actor_rol ? ` · ${l.actor_rol}` : ''}</p>
                       <p className="mt-1 text-xs text-zinc-500">{l.entidad ?? 'Registro'}{l.entidad_id ? ` · ${l.entidad_id}` : ''}</p>
                     </div>

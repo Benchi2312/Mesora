@@ -437,6 +437,87 @@ async function correrPantalla(browser, vp, pantalla) {
   }
 }
 
+async function correrAnulacionUltimoItem(browser) {
+  const vp = { w: 390, h: 844, nombre: '390x844_anulacion_ultimo_item' }
+  const ctx = await browser.newContext({ viewport: { width: vp.w, height: vp.h } })
+  const page = await ctx.newPage()
+  const mensajeEsperado = '\u00cdtem anulado correctamente. La mesa qued\u00f3 liberada porque no ten\u00eda m\u00e1s comandas abiertas.'
+  let etapa = 'iniciar sesión local'
+  try {
+    page.setDefaultTimeout(6000)
+    await page.goto(URL + '/demo/admin', { waitUntil: 'networkidle', timeout: 45000 })
+    etapa = 'preparar una mesa y una comanda de un ítem'
+    const setup = await page.evaluate(async () => {
+      const { getApi } = await import('/src/lib/api.ts')
+      const api = getApi()
+      const zona = await api.crearZona('r-demo', 'QA visual')
+      if (zona.error || !zona.data) throw new Error(zona.error ?? 'No se creó la zona QA')
+      const mesa = await api.crearMesa('r-demo', { nombre: 'Mesa QA', zona_id: zona.data.id })
+      if (mesa.error || !mesa.data) throw new Error(mesa.error ?? 'No se creó la mesa QA')
+      const producto = await api.crearProducto('r-demo', {
+        nombre: 'Cheesecake QA',
+        categoria_id: null,
+        precio: 9,
+        disponible: true,
+        es_bebida: false,
+      })
+      if (producto.error || !producto.data) throw new Error(producto.error ?? 'No se creó el producto QA')
+      return { mesaId: mesa.data.id, productoId: producto.data.id }
+    })
+    await page.goto(URL + '/demo/mesero', { waitUntil: 'networkidle', timeout: 45000 })
+    etapa = 'cerrar guía del demo'
+    const explorar = page.getByRole('button', { name: 'Explorar por mi cuenta' })
+    if (await explorar.count()) await explorar.first().click()
+    const minimizar = page.getByRole('button', { name: /Minimizar gu/ })
+    if (await minimizar.count()) await minimizar.first().click()
+
+    etapa = 'abrir mesa QA libre'
+    await page.locator('button[data-guia-mesa="' + setup.mesaId + '"]').click()
+    etapa = 'agregar el producto desde el menú'
+    await page.getByRole('button', { name: /Cheesecake QA/ }).click()
+    etapa = 'enviar el pedido a cocina'
+    await page.getByRole('button', { name: 'Enviar comanda a cocina', exact: true }).click()
+    await page.locator('button[data-guia-mesa="' + setup.mesaId + '"]').waitFor()
+    etapa = 'abrir mesa QA ocupada'
+    await page.locator('button[data-guia-mesa="' + setup.mesaId + '"]').click()
+    etapa = 'abrir edición del último ítem'
+    await page.locator('button[aria-label^="Editar "]').first().click()
+    etapa = 'iniciar anulación del último ítem'
+    await page.getByRole('button', { name: 'Anular ítem', exact: true }).click()
+    etapa = 'confirmar anulación del último ítem'
+    await page.getByRole('heading', { name: 'Anular ítem', exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Anular ítem', exact: true }).last().click()
+
+    etapa = 'comprobar aviso verde'
+    const aviso = page.getByRole('status').filter({ hasText: mensajeEsperado })
+    await aviso.waitFor({ timeout: 12000 })
+    const clases = await aviso.getAttribute('class') ?? ''
+    check('anulación del último ítem muestra el mensaje completo', (await aviso.innerText()).trim() === mensajeEsperado)
+    check('anulación confirmada muestra aviso verde', clases.includes('bg-ok-500/10') && clases.includes('text-ok-500'))
+    check('anulación confirmada no muestra error', await page.getByRole('alert').count() === 0)
+    check('la comanda cerrada muestra el estado vacío', await page.getByText('Esta mesa no tiene comandas abiertas', { exact: true }).count() === 1)
+
+    await page.getByRole('button', { name: /Volver a mesas/ }).click()
+    const mesa = page.locator('button[data-guia-mesa="' + setup.mesaId + '"]')
+    await mesa.waitFor()
+    const textoMesa = await mesa.innerText()
+    const mesaLibre = textoMesa.toLocaleLowerCase().includes('libre')
+    check('la mesa anulada aparece libre en el mapa', mesaLibre, textoMesa)
+    if (!mesaLibre) {
+      await page.screenshot({ path: join(CAPTURAS, 'anulacion-mesa-no-libre.png'), fullPage: false })
+    }
+  } catch (e) {
+    fallos++
+    checks++
+    const textoPantalla = await page.locator('body').innerText().catch(() => '')
+    await page.screenshot({ path: join(CAPTURAS, 'anulacion-ultimo-item-falla.png'), fullPage: false }).catch(() => {})
+    console.log('  FALLA flujo visual de anulación del último ítem (' + etapa + ') — ' + String(e).split('\n')[0].slice(0, 200))
+    console.log('    URL=' + page.url() + ' · ' + textoPantalla.replace(/\s+/g, ' ').slice(0, 240))
+  } finally {
+    await ctx.close()
+  }
+}
+
 async function iniciarSesion(page, email) {
   await page.goto(`${URL}/login`, { waitUntil: 'networkidle' })
   await page.fill('#email', email)
@@ -523,10 +604,13 @@ async function run() {
       await correrGuiaCategoria(browser)
     } else if (process.argv.includes('--solo-guia-movil')) {
       for (const vp of VIEWPORTS.filter((vista) => vista.w <= 768)) await correrGuiaMovil(browser, vp)
+    } else if (process.argv.includes('--solo-anulacion-ultimo-item')) {
+      await correrAnulacionUltimoItem(browser)
     } else if (process.argv.includes('--solo-landing')) {
       await correrLandingResponsive(browser)
     } else {
       await correrLandingResponsive(browser)
+      await correrAnulacionUltimoItem(browser)
       for (const vp of VIEWPORTS) {
         console.log(`\nViewport ${vp.nombre}`)
         for (const pantalla of PANTALLAS) await correrPantalla(browser, vp, pantalla)
@@ -550,6 +634,8 @@ async function run() {
   console.log(`\n${'-'.repeat(60)}`)
   const cobertura = process.argv.includes('--solo-guia-categoria')
     ? 'recorrido guiado de categoría en 390x844'
+    : process.argv.includes('--solo-anulacion-ultimo-item')
+      ? 'flujo visual de anulación del último ítem en 390x844'
     : process.argv.includes('--solo-guia-movil')
       ? 'guía móvil en 360x640 y 390x844'
       : process.argv.includes('--solo-landing')
