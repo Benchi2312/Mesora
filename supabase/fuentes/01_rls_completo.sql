@@ -378,16 +378,6 @@ create policy usuarios_update_admin on public.usuarios
     and (select public.puedo_escribir_en(restaurante_id, array['admin_restaurante']))
   );
 
--- No se puede borrar a uno mismo (la app lo bloquea en la UI; acá se cierra).
-drop policy if exists usuarios_delete_admin on public.usuarios;
-create policy usuarios_delete_admin on public.usuarios
-  for delete
-  using (
-    restaurante_id = (select public.mi_restaurante_id())
-    and id <> (select auth.uid())
-    and (select public.puedo_escribir_en(restaurante_id, array['admin_restaurante']))
-  );
-
 -- =============================================================================
 -- 3 · zonas
 -- =============================================================================
@@ -718,7 +708,8 @@ grant insert, delete on public.mesas to authenticated;
 grant update (nombre, zona_id, estado) on public.mesas to authenticated;
 grant insert, update, delete on public.categorias_productos to authenticated;
 grant insert, update, delete on public.productos to authenticated;
-grant insert, update, delete on public.usuarios to authenticated;
+grant insert, update on public.usuarios to authenticated;
+revoke delete on public.usuarios from authenticated;
 grant update on public.pedidos to authenticated;
 
 -- Y la que NO existe, por el motivo de las secciones 8 a 13: pedido_items,

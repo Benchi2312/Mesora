@@ -458,6 +458,36 @@ export interface Database {
         Args: { p_usuario_id: string; p_activo: boolean }
         Returns: Usuario[]
       }
+      /** Solo admin activo del restaurante: cambia estado reversible y registra antes/después. */
+      admin_cambiar_estado_personal: {
+        Args: { p_actor_id: string; p_usuario_id: string; p_activo: boolean; p_motivo?: string | null }
+        Returns: Usuario
+      }
+      /** Auditoría paginada del restaurante del admin autenticado; nunca acepta un restaurante del cliente. */
+      admin_listar_auditoria_restaurante: {
+        Args: {
+          p_desde?: string | null
+          p_hasta?: string | null
+          p_busqueda?: string
+          p_categoria?: string
+          p_offset?: number
+          p_limite?: number
+        }
+        Returns: unknown
+      }
+      /** Admin/cajero activo: lista cobros paginados del propio restaurante y cualquier método de pago del pago dividido. */
+      admin_buscar_cobros: {
+        Args: {
+          p_desde: string
+          p_hasta: string
+          p_estado?: string
+          p_metodo?: string
+          p_busqueda?: string
+          p_offset?: number
+          p_limite?: number
+        }
+        Returns: unknown
+      }
       /** Solo super admin. Designa a un usuario YA del restaurante como admin_restaurante (solo cambia el rol). */
       admin_designar_administrador: {
         Args: { p_restaurante_id: string; p_usuario_id: string }

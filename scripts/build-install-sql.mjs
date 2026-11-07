@@ -103,6 +103,7 @@ const ORDEN = [
   '../migrations/20261106064127_listar_meseros_activos_mismo_restaurante.sql',
   '../migrations/20261106070508_proteger_traslados_mesa_con_pin_y_auditoria.sql',
   '../migrations/20261106075551_auditar_operaciones_caja_mesa.sql',
+  '../migrations/20261107043104_bloque2_seguridad_personal_auditoria.sql',
 ]
 
 const fallos = []

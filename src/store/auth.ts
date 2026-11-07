@@ -8,7 +8,7 @@ import {
   supabaseConfigurado,
   supabaseFaltaConfig,
 } from '../lib/supabase'
-import { cargarDatosLocal, localCredenciales, localSeed } from '../lib/localSeed'
+import { cargarDatosLocal, localCredenciales, localSeed, verificarCredencialLocal } from '../lib/localSeed'
 import type { Restaurante, Usuario } from '../types/database'
 
 /** Clave en localStorage que persiste la sesión del backend local simulado. */
@@ -246,7 +246,7 @@ export const useAuthStore = create<AuthState>()((set, get) => {
         const usuario = localSeed.usuarios.find(
           (u) => u.email?.toLowerCase() === emailNorm && u.activo !== false,
         )
-        if (!usuario || localCredenciales[emailNorm] !== password) {
+        if (!usuario || !(await verificarCredencialLocal(password, localCredenciales[emailNorm]))) {
           return 'Correo o contraseña incorrectos.'
         }
         apiMode.operadorId = usuario.id

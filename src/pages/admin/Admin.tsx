@@ -11,8 +11,9 @@ import CajaTab from './CajaTab'
 import CobrosTab from './CobrosTab'
 import VentasTab from './VentasTab'
 import AvisoSuscripcion from './AvisoSuscripcion'
+import AuditoriaRestauranteTab from './AuditoriaRestauranteTab'
 
-type SeccionTab = 'dashboard' | 'ventas' | 'caja' | 'cobros' | 'mesas' | 'menu' | 'personal' | 'configuracion' | 'soporte'
+type SeccionTab = 'dashboard' | 'ventas' | 'caja' | 'cobros' | 'mesas' | 'menu' | 'personal' | 'configuracion' | 'auditoria' | 'soporte'
 
 const SECCIONES: { id: SeccionTab; label: string }[] = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -23,6 +24,7 @@ const SECCIONES: { id: SeccionTab; label: string }[] = [
   { id: 'menu', label: 'Menú' },
   { id: 'personal', label: 'Personal' },
   { id: 'configuracion', label: 'Datos del local' },
+  { id: 'auditoria', label: 'Auditoría' },
   { id: 'soporte', label: 'Soporte' },
 ]
 
@@ -75,6 +77,7 @@ export default function Admin() {
       {seccion === 'menu' && <MenuTab />}
       {seccion === 'personal' && <PersonalTab />}
       {seccion === 'configuracion' && <ConfiguracionTab />}
+      {seccion === 'auditoria' && <AuditoriaRestauranteTab />}
       {seccion === 'soporte' && <SoporteTab />}
     </div>
   )

@@ -570,10 +570,12 @@ export default function GuiaDemo() {
         type="button"
         data-guia-minimizada
         onClick={() => setAbierta(true)}
-        className="fixed bottom-4 right-4 z-[60] flex min-h-12 touch-manipulation items-center gap-2.5 rounded-full border border-brand-500/40 bg-surface-900/95 py-2 pl-2 pr-5 text-left shadow-xl shadow-black/50 backdrop-blur transition hover:border-brand-500 hover:bg-surface-900 active:scale-95"
+        aria-label={arrancado ? `Abrir recorrido guiado, ${xp} XP, ${totalHechos} de ${TOTAL_PASOS} misiones` : 'Abrir recorrido guiado de Mesora'}
+        title={arrancado ? `Recorrido: ${xp} XP · ${totalHechos}/${TOTAL_PASOS} misiones` : 'Recorrido guiado de Mesora'}
+        className="fixed bottom-4 right-4 z-[60] flex min-h-12 touch-manipulation items-center gap-2.5 rounded-full border border-brand-500/40 bg-surface-900/95 py-2 pl-2 pr-5 text-left shadow-xl shadow-black/50 backdrop-blur transition hover:border-brand-500 hover:bg-surface-900 active:scale-95 max-sm:h-12 max-sm:w-12 max-sm:justify-center max-sm:px-1"
       >
         <NivelBadge nivel={arrancado ? nivel.nivel : 1} frac={arrancado ? (terminado ? 1 : xpFrac) : 0} size="sm" />
-        <span className="grid gap-0.5 leading-tight">
+        <span className="hidden gap-0.5 leading-tight sm:grid">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-brand-400">
             {arrancado ? (terminado ? 'Nivel máximo' : `Nivel ${nivel.nivel} · ${nivel.titulo}`) : 'Demo guiado'}
           </span>
@@ -953,7 +955,7 @@ export default function GuiaDemo() {
                     type="button"
                     onClick={() => (confirmando ? vaciarDemo() : setConfirmando(true))}
                     onBlur={() => setConfirmando(false)}
-                    className={`shrink-0 text-[11px] font-semibold transition ${
+                    className={`min-h-11 shrink-0 rounded-lg px-2 text-xs font-semibold transition ${
                       confirmando ? 'text-danger-500' : 'text-zinc-500 hover:text-zinc-300'
                     }`}
                   >

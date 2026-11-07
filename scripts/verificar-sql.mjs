@@ -99,6 +99,8 @@ try {
   console.log('SQL QA: bandeja comercial privada, avisos y soporte con rollback')
   await pg.exec(readFileSync(new URL('../supabase/qa/flujo_piloto_rollback.sql', import.meta.url), 'utf8'))
   console.log('SQL QA: circuito completo de restaurante y arqueo aprobado')
+  await pg.exec(readFileSync(new URL('../supabase/qa/bloque2_roles_filtros_rollback.sql', import.meta.url), 'utf8'))
+  console.log('SQL QA: filtros de Cobros/Auditoría, aislamiento tenant y estado lógico aprobados')
   await pg.exec(`
     begin;
     do $$

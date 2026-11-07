@@ -103,7 +103,7 @@ begin
   end loop;
 end;
 $$;
-grant update (nombre, rol, activo) on public.usuarios to authenticated;
+grant update (nombre, rol) on public.usuarios to authenticated;
 
 create or replace function public.confirmar_cambio_password()
 returns void

@@ -48,7 +48,7 @@ console.error = (...a) => {
   errorReal(...a)
 }
 const { getApi, esModoLocal, apiMode, enDemo, reiniciarDemoDatos } = await servidor.ssrLoadModule('/src/lib/api.ts')
-const { localSeed, restablecerDatosLocal, cargarDatosLocal, localCredenciales } =
+const { localSeed, restablecerDatosLocal, cargarDatosLocal, localCredenciales, verificarCredencialLocal, PASSWORD_DE_PRUEBA } =
   await servidor.ssrLoadModule('/src/lib/localSeed.ts')
 const { mockZonas, mockRestaurante } = await servidor.ssrLoadModule('/src/lib/mockData.ts')
 // Motor del recorrido guiado del demo: logica pura, se verifica sin navegador.
@@ -107,7 +107,8 @@ const {
   hayFiltrosUsuarios,
   labelUltimoAcceso,
 } = await servidor.ssrLoadModule('/src/lib/usuarios.ts')
-const { suSuscripcionVencida } = await servidor.ssrLoadModule('/src/store/auth.ts')
+const { suSuscripcionVencida, useAuthStore } = await servidor.ssrLoadModule('/src/store/auth.ts')
+const { filtrarPersonal } = await servidor.ssrLoadModule('/src/domain/security/personal.ts')
 // Lógica pura del panel "Estadísticas" del super admin.
 const {
   PRESETS_RANGO,
@@ -188,6 +189,38 @@ const prod = (id) => localSeed.productos.find((p) => p.id === id)
 /** Total que ve el mesero: los ítems anulados no suman. */
 const totalDe = (its) =>
   its.reduce((a, it) => (it.anulado === true ? a : a + it.cantidad * it.precio_unitario), 0)
+
+// El estado compartido representa solicitudes confirmadas; offline y errores
+// conservan la marca de última sincronización exitosa.
+{
+  const windowAnterior = Object.getOwnPropertyDescriptor(globalThis, 'window')
+  const navigatorAnterior = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+  const listeners = {}
+  const almacenSync = new Map()
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: {
+    addEventListener: (nombre, listener) => { listeners[nombre] = listener },
+    localStorage: { getItem: (key) => almacenSync.get(key) ?? null, setItem: (key, value) => almacenSync.set(key, value) },
+  } })
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: true } })
+  const sync = await servidor.ssrLoadModule('/src/lib/estadoConexion.ts')
+  const primeraLecturaSync = sync.obtenerEstadoDeSincronizacion()
+  sync.registrarSincronizacionExitosa()
+  const timestampSync = sync.obtenerEstadoDeSincronizacion().ultimaSincronizacion
+  listeners.offline()
+  const sinRed = sync.obtenerEstadoDeSincronizacion()
+  listeners.online()
+  const reconectando = sync.obtenerEstadoDeSincronizacion()
+  sync.registrarFalloDeSincronizacion()
+  const falloSync = sync.obtenerEstadoDeSincronizacion()
+  sync.registrarSincronizacionExitosa()
+  const recuperadaSync = sync.obtenerEstadoDeSincronizacion()
+  check('0.0 · el estado de conexión detecta desconexión y reconexión', primeraLecturaSync.estado === 'conectado' && sinRed.estado === 'sin_conexion' && reconectando.estado === 'reconectando' && recuperadaSync.estado === 'conectado')
+  check('0.0a · un fallo no cambia la última sincronización exitosa', falloSync.estado === 'error' && falloSync.ultimaSincronizacion === timestampSync && Date.parse(recuperadaSync.ultimaSincronizacion) >= Date.parse(timestampSync))
+  if (windowAnterior) Object.defineProperty(globalThis, 'window', windowAnterior)
+  else delete globalThis.window
+  if (navigatorAnterior) Object.defineProperty(globalThis, 'navigator', navigatorAnterior)
+  else delete globalThis.navigator
+}
 
 restablecerDatosLocal()
 const api = getApi()
@@ -804,18 +837,38 @@ const nuevoAdmin = await api.crearPersonal(RID, {
 })
 check('13j · se crea un admin del restaurante', !nuevoAdmin.error && nuevoAdmin.data?.rol === 'admin_restaurante', nuevoAdmin.error ?? '')
 check('13k · el admin nuevo aparece en el listado de personal', (await api.getPersonal(RID)).data.some((u) => u.id === nuevoAdmin.data?.id))
+const operadorAntesCambioEstado13 = apiMode.operadorId
+const adminEstadoCreado13 = await api.crearPersonal(RID, { nombre: 'Admin de prueba', email: 'admin-estado13@esquina.pe', rol: 'admin_restaurante' })
+const adminEstado13 = localSeed.usuarios.find((u) => u.id === adminEstadoCreado13.data?.id)
+apiMode.operadorId = adminEstado13?.id
+const bajaPersonal13 = await api.cambiarEstadoPersonal(nuevoAdmin.data.id, false, 'Fin de prueba')
 check(
   '13l · desactivar deja al usuario en la lista pero inactivo',
-  (await api.actualizarPersonal(RID, nuevoAdmin.data.id, { activo: false })).data?.activo === false,
+  bajaPersonal13.data?.activo === false,
+  bajaPersonal13.error ?? '',
 )
 check('13m · un usuario inactivo sigue en el listado (con su historial)', (await api.getPersonal(RID)).data.some((u) => u.id === nuevoAdmin.data?.id && u.activo === false))
-await api.eliminarPersonal(RID, nuevoAdmin.data.id)
-check('13n · el usuario eliminado ya no está en el listado', !(await api.getPersonal(RID)).data.some((u) => u.id === nuevoAdmin.data?.id))
+check('13n · el estado de acceso deja actor, antes/después y motivo en auditoría', (() => {
+  const log = localSeed.auditLogs.find((l) => l.accion === 'usuario_desactivar' && l.entidad_id === nuevoAdmin.data?.id)
+  return log?.actor_id === adminEstado13?.id && log.detalle?.activo_anterior === true && log.detalle?.activo_nuevo === false && log.detalle?.motivo === 'Fin de prueba'
+})())
+const altaPersonal13 = await api.cambiarEstadoPersonal(nuevoAdmin.data.id, true, 'Reingreso')
+check('13n2 · reactivar conserva al usuario y su historial', altaPersonal13.data?.activo === true && (await api.getPersonal(RID)).data.some((u) => u.id === nuevoAdmin.data?.id), altaPersonal13.error ?? '')
+check('13n3 · el buscador de personal distingue activos/inactivos y encuentra correo o rol', await (async () => {
+  const activos = filtrarPersonal((await api.getPersonal(RID)).data.map((u) => ({ ...u, activo: u.activo !== false })), { busqueda: 'segundo@', rol: 'admin_restaurante', estado: 'activos' })
+  const inactivos = filtrarPersonal([{ nombre: 'Cajero QA', email: 'caja@qa.pe', rol: 'cajero', activo: false }], { busqueda: 'cajero', rol: 'cajero', estado: 'inactivos' })
+  return activos.some((u) => u.id === nuevoAdmin.data?.id) && inactivos.length === 1
+})())
+const bajaLogin13 = await api.cambiarEstadoPersonal(nuevoAdmin.data.id, false, 'Prueba de login inactivo')
+const intentoLoginInactivo13 = await useAuthStore.getState().signIn(nuevoAdmin.data.email, PASSWORD_DE_PRUEBA)
+check('13n4 · un usuario desactivado no puede iniciar sesión', Boolean(intentoLoginInactivo13), `${bajaLogin13.error ?? ''} ${String(intentoLoginInactivo13 ?? 'no hay error; el usuario inició sesión')}`)
+await api.cambiarEstadoPersonal(nuevoAdmin.data.id, true, 'Restaurar tras prueba de login')
+apiMode.operadorId = operadorAntesCambioEstado13
 
 // -- Restablecer contraseña (Edge Function `reset-password-personal`) ---------
-// El admin del restaurante genera la contraseña nueva del trabajador y se la
-// entrega en persona: es la única vez que se muestra. Las mismas reglas se
-// aplican en local y en la Edge Function (mismos mensajes, mismos códigos).
+// El admin del restaurante fija la clave temporal y se la entrega en persona;
+// la interfaz la enmascara, la Edge Function no la devuelve y local persiste un
+// verificador PBKDF2 con sal. Las reglas son iguales en ambos modos.
 const RID13 = 'r-nuevo'
 const ADMIN13 = localSeed.usuarios.find((u) => u.rol === 'admin_restaurante' && u.restaurante_id === RID13)
 const CAJERO13 = localSeed.usuarios.find((u) => u.rol === 'cajero' && u.restaurante_id === RID)
@@ -837,25 +890,33 @@ const otroAdmin13 = await api.crearPersonal(RID13, {
 })
 
 apiMode.operadorId = ADMIN13?.id
-const reset13 = await api.resetPasswordPersonal(trabajador13.data?.id)
+const resetPassword13 = 'ClaveTemporalQA-2026!'
+const resetInvalido13 = await api.resetPasswordPersonal(trabajador13.data?.id, 'corta')
+check('13o · clave temporal demasiado corta se rechaza antes de llamar a Auth', resetInvalido13.error === 'La clave temporal debe tener entre 10 y 128 caracteres.')
+const reset13 = await api.resetPasswordPersonal(trabajador13.data?.id, resetPassword13)
 check(
-  '13o · el admin del restaurante restablece la contraseña de su personal',
-  !reset13.error &&
-    typeof reset13.data?.password_temporal === 'string' &&
-    reset13.data.password_temporal.length === 12,
+  '13o2 · el admin restablece la clave sin recibirla ni mostrarla de vuelta',
+  !reset13.error && reset13.data === null &&
+    localCredenciales['reset13@mirestaurante.pe'] !== resetPassword13 &&
+    String(localCredenciales['reset13@mirestaurante.pe']).startsWith('pbkdf2$') &&
+    await verificarCredencialLocal(resetPassword13, localCredenciales['reset13@mirestaurante.pe']),
   reset13.error ?? '',
 )
 check(
   '13p · el trabajador queda marcado para cambiar la contraseña al entrar',
   localSeed.usuarios.find((u) => u.id === trabajador13.data?.id)?.debe_cambiar_password === true,
 )
+check('13p2 · la auditoría del reset no contiene la clave', (() => {
+  const log = localSeed.auditLogs.find((l) => l.accion === 'usuario_password_reset' && l.entidad_id === trabajador13.data?.id)
+  return Boolean(log) && !JSON.stringify(log).includes(resetPassword13)
+})())
 
 // Un mesero no puede restablecer la contraseña de nadie.
 apiMode.operadorId = mesero13.data?.id
 const resetDeMesero13 = await api.resetPasswordPersonal(trabajador13.data?.id)
 check(
   '13q · un mesero NO puede restablecer contraseñas',
-  resetDeMesero13.error === 'Solo un administrador de restaurante activo puede restablecer contraseñas.',
+  resetDeMesero13.error === 'Solo un administrador activo puede restablecer contraseñas de su personal.',
   resetDeMesero13.error ?? '',
 )
 
@@ -878,7 +939,7 @@ check(
 
 apiMode.operadorId = operadorPrevio13
 for (const creado of [trabajador13, mesero13, otroAdmin13]) {
-  if (creado.data?.id) await api.eliminarPersonal(RID13, creado.data.id)
+  if (creado.data?.id) await api.cambiarEstadoPersonal(creado.data.id, false, 'Cierre de pruebas QA')
 }
 
 // ---------------------------------------------------------------------------
@@ -1701,6 +1762,36 @@ check(
   (await api.anularCuenta(RID, cuentaAnulable.id, 'Error de cobro', '2468')).error === 'Esta boleta ya fue anulada',
 )
 
+// -- Búsqueda/paginación de cobros y filtros tenant-scoped de auditoría
+apiMode.operadorId = adminId
+const desdeTodo = '2000-01-01T00:00:00.000Z'
+const hastaTodo = '2100-01-01T00:00:00.000Z'
+const cuentaFiltrable19 = localSeed.cuentas.find((c) => c.restaurante_id === RID && c.estado === 'pagada' && c.numero && c.mesa_nombre_snapshot && c.mesero_nombre_snapshot)
+const criteriosCobro19 = { desde: desdeTodo, hasta: hastaTodo, estado: 'todas', metodo: 'todos', busqueda: '', offset: 0, limite: 100 }
+const buscaBoleta19 = await api.getCuentasFiltradas(RID, { ...criteriosCobro19, busqueda: cuentaFiltrable19?.numero ?? 'boleta-inexistente' })
+check('19z1 · búsqueda de cobros por número de boleta', buscaBoleta19.data?.items.some((c) => c.id === cuentaFiltrable19?.id))
+const buscaMesa19 = await api.getCuentasFiltradas(RID, { ...criteriosCobro19, busqueda: cuentaFiltrable19?.mesa_nombre_snapshot ?? '' })
+check('19z2 · búsqueda de cobros por mesa', buscaMesa19.data?.items.some((c) => c.id === cuentaFiltrable19?.id))
+const buscaMesero19 = await api.getCuentasFiltradas(RID, { ...criteriosCobro19, busqueda: cuentaFiltrable19?.mesero_nombre_snapshot ?? '' })
+check('19z3 · búsqueda de cobros por mesero', buscaMesero19.data?.items.some((c) => c.id === cuentaFiltrable19?.id))
+const buscaMonto19 = await api.getCuentasFiltradas(RID, { ...criteriosCobro19, busqueda: String(cuentaFiltrable19?.total ?? -1).slice(0, 3) })
+check('19z4 · búsqueda de cobros por importe', buscaMonto19.data?.items.some((c) => c.id === cuentaFiltrable19?.id))
+const soloPagadas19 = await api.getCuentasFiltradas(RID, { ...criteriosCobro19, estado: 'pagada' })
+const soloAnuladas19 = await api.getCuentasFiltradas(RID, { ...criteriosCobro19, estado: 'anulada' })
+check('19z5 · filtro de estado pagado/anulado', soloPagadas19.data?.items.every((c) => c.estado === 'pagada') && soloAnuladas19.data?.items.some((c) => c.id === cuentaAnulable.id))
+const metodoAnulado19 = await api.getCuentasFiltradas(RID, { ...criteriosCobro19, estado: 'anulada', metodo: 'efectivo', busqueda: cuentaAnulable.numero ?? '' })
+check('19z6 · filtro de método incluye el detalle del pago', metodoAnulado19.data?.items.some((c) => c.id === cuentaAnulable.id))
+const paginadoCobro19 = await api.getCuentasFiltradas('r-nuevo', { ...criteriosCobro19, limite: 1 })
+check('19z7 · cobros ignora el restaurante enviado y conserva el tenant de la sesión', paginadoCobro19.data?.items.length <= 1 && paginadoCobro19.data.items.every((c) => c.restaurante_id === RID) && paginadoCobro19.data.total >= paginadoCobro19.data.items.length)
+const auditoriaUsuarios19 = await api.getAuditoriaRestaurante({ desde: null, hasta: null, busqueda: 'Reingreso', categoria: 'usuarios', offset: 0, limite: 25 })
+const auditoriaCaja19 = await api.getAuditoriaRestaurante({ desde: null, hasta: null, busqueda: '', categoria: 'caja', offset: 0, limite: 25 })
+const auditoriaCuentas19 = await api.getAuditoriaRestaurante({ desde: null, hasta: null, busqueda: '', categoria: 'cuentas', offset: 0, limite: 25 })
+check('19z8 · auditoría busca usuario/motivo y separa caja de cuentas', auditoriaUsuarios19.data?.items.some((l) => l.accion === 'usuario_reactivar') && auditoriaCaja19.data?.total > 0 && auditoriaCaja19.data.items.every((l) => l.entidad === 'caja_turno' || l.accion.startsWith('caja_')) && auditoriaCuentas19.data?.total > 0 && auditoriaCuentas19.data.items.every((l) => l.entidad === 'cuenta' || l.accion.startsWith('cuenta_')), `usuario=${auditoriaUsuarios19.data?.total}; caja=${auditoriaCaja19.data?.total}; cuentas=${auditoriaCuentas19.data?.total}`)
+apiMode.operadorId = ADMIN13?.id
+const auditoriaAjena19 = await api.getAuditoriaRestaurante({ desde: null, hasta: null, busqueda: 'caja_', categoria: 'todas', offset: 0, limite: 25 })
+check('19z9 · auditoría de otro restaurante no devuelve datos del tenant anterior', auditoriaAjena19.data?.total === 0)
+apiMode.operadorId = adminId
+
 // -- El arqueo de caja descuenta el efectivo devuelto
 const ventasDespuesDeAnular = efectivoDelTurno(
   localSeed.cuentas.filter((c) => c.restaurante_id === RID),
@@ -1814,7 +1905,8 @@ check(
 )
 check(
   '20d · su contraseña quedó registrada (puede iniciar sesión)',
-  localCredenciales['admin@bodega.pe'] === 'ClaveSegura123',
+  String(localCredenciales['admin@bodega.pe'] ?? '').startsWith('pbkdf2$') &&
+    await verificarCredencialLocal('ClaveSegura123', localCredenciales['admin@bodega.pe']),
 )
 check(
   '20e · el administrador NO es super_admin (el rol lo asigna el servidor)',
@@ -2315,7 +2407,8 @@ check(
     alta23.data?.activo === true &&
     !!alta23.data?.created_at &&
     (await api.getUsuariosPlataforma()).data.some((u) => u.id === alta23.data?.id) &&
-    localCredenciales['seccion23@prueba.pe'] === 'ClaveLarga23',
+    String(localCredenciales['seccion23@prueba.pe'] ?? '').startsWith('pbkdf2$') &&
+    await verificarCredencialLocal('ClaveLarga23', localCredenciales['seccion23@prueba.pe']),
   alta23.error ?? '',
 )
 check(
@@ -2426,34 +2519,26 @@ check(
   (await api.adminDesignarAdministrador(RID, M223)).error === 'El usuario está desactivado: actívalo antes de designarlo administrador.',
 )
 
-// -- Restauración: la sección no deja ni usuarios ni credencias basura
+// -- Limpieza reversible: las cuentas de prueba quedan inactivas y conservan historia.
 const errores23 = []
 for (const id23 of [M123, M223, nuevoId23]) {
   if (!id23) continue
-  const fila23 = localSeed.usuarios.find((u) => u.id === id23)
-  if (!fila23) continue
-  const borra23 = await api.eliminarPersonal(fila23.restaurante_id, id23)
-  if (borra23.error) errores23.push(`${fila23.email ?? id23}: ${borra23.error}`)
+  const baja23 = await api.adminCambiarEstadoUsuario(id23, false)
+  if (baja23.error) errores23.push(`${id23}: ${baja23.error}`)
 }
 apiMode.operadorId = operadorPrevio23
-check('23ai · la restauración del personal de prueba corre sin errores', errores23.length === 0, errores23.join(' | '))
+check('23ai · la limpieza reversible del personal de prueba corre sin errores', errores23.length === 0, errores23.join(' | '))
 const final23 = (await api.getUsuariosPlataforma()).data
 check(
-  '23aj · la lista de usuarios final es idéntica a la de antes de la sección',
-  eq(final23, JSON.parse(snapU23)),
-  (() => {
-    if (final23.length !== JSON.parse(snapU23).length) return `largos ${final23.length} vs ${JSON.parse(snapU23).length}`
-    const idsFinal = new Set(final23.map((u) => u.id))
-    const idsSnap = new Set(JSON.parse(snapU23).map((u) => u.id))
-    return [...new Set([...idsFinal, ...idsSnap])].filter((id) => !idsFinal.has(id) || !idsSnap.has(id)).join(', ') ||
-      'mismos ids, algo cambió en un campo'
-  })(),
+  '23aj · el historial conserva todos los usuarios originales y deja las cuentas de prueba inactivas',
+  JSON.parse(snapU23).every((anterior) => eq(final23.find((u) => u.id === anterior.id), anterior)) &&
+    [M123, M223, nuevoId23].every((id) => final23.some((u) => u.id === id && u.activo === false)),
 )
 check(
-  '23ak · no quedaron credenciales de las cuentas de prueba',
-  localCredenciales['seccion23@prueba.pe'] === undefined &&
-    localCredenciales['mesero23@prueba.pe'] === undefined &&
-    localCredenciales['cocina23@prueba.pe'] === undefined,
+  '23ak · los verificadores locales permanecen sin clave en claro tras la baja',
+  String(localCredenciales['seccion23@prueba.pe'] ?? '').startsWith('pbkdf2$') &&
+    String(localCredenciales['mesero23@prueba.pe'] ?? '').startsWith('pbkdf2$') &&
+    String(localCredenciales['cocina23@prueba.pe'] ?? '').startsWith('pbkdf2$'),
 )
 
 // ---------------------------------------------------------------------------
@@ -3064,17 +3149,13 @@ check(
     (await api.getAuditoria()).data.length === logs25.length,
 )
 
-// -- Limpieza: la sección no deja personal de prueba ------------------------
-const limpio25 = []
-for (const [rid25, uid25] of [[RID25, M25]]) {
-  if (!uid25) continue
-  const borra25 = await api.eliminarPersonal(rid25, uid25)
-  if (borra25.error) limpio25.push(String(borra25.error))
-}
+// -- La limpieza lógica conserva la fila y la auditoría, nunca borra usuarios.
+const desactivado25 = await api.adminCambiarEstadoUsuario(M25, false)
 check(
-  '25w · no quedan cuentas de prueba en el dataset ni en las credenciales',
-  limpio25.length === 0 && localCredenciales['ayudante25@prueba.pe'] === undefined,
-  limpio25.join(' | '),
+  '25w · la cuenta de prueba queda inactiva con historial conservado',
+  !desactivado25.error && localSeed.usuarios.some((u) => u.id === M25 && u.activo === false) &&
+    localSeed.auditLogs.some((l) => l.accion === 'usuario_estado' && l.entidad_id === M25),
+  desactivado25.error ?? '',
 )
 apiMode.operadorId = operadorPrevio25
 

@@ -16,6 +16,8 @@ import { arqueoTurno, errorAlAbrirTurno, errorAlCerrarTurno, redondear } from '.
 import { completarPartes, resumirPago, type PagoParte } from '../domain/cashier/pagos'
 import { MENSAJE_PIN_INCORRECTO, errorAlAnularCobro } from '../domain/security/autorizacion'
 import { mensajeOperacion } from '../domain/security/mensajeOperacion'
+import type { RolPersonal } from '../domain/security/personal'
+export type { RolPersonal } from '../domain/security/personal'
 import { esMetodoPagoValido } from '../types/database'
 import { calcularEstadisticasGlobales, type EstadisticasGlobales } from '../domain/reporting/estadisticas'
 import type {
@@ -61,20 +63,47 @@ import {
   mockRestauranteExtra,
   mockUsuarios,
 } from './mockData'
-import { guardarDatosLocal, localCredenciales, localSeed, PASSWORD_DE_PRUEBA } from './localSeed'
-import { generarPasswordTemporal } from '../domain/security/password'
+import { guardarDatosLocal, hashCredencialLocal, localCredenciales, localSeed, PASSWORD_DE_PRUEBA } from './localSeed'
 import type { LocalSeedData } from './localSeed'
 import { formatearNumeroBoleta } from '../domain/cashier/boleta'
 import { prepararDatosLocal, type CambiosDatosLocal } from '../domain/restaurant/datosLocal'
 import { buscarMesaConNombre, mensajeNombreMesaDuplicado } from '../domain/restaurant/mesas'
 import { registrarDiagnostico } from './diagnostico'
 import type { RangoReporteVentas, ReporteVentas } from '../domain/reporting/ventas'
+import {
+  registrarFalloDeSincronizacion,
+  registrarServidorAlcanzable,
+  registrarSincronizacionExitosa,
+} from './estadoConexion'
 
 // -------------------------------------------------------------- Tipos comunes
 export interface Res<T> {
   data: T | null
   error: string | null
 }
+
+export type FiltrosCobros = {
+  desde: string
+  hasta: string
+  estado: 'todas' | 'pagada' | 'anulada'
+  metodo: MetodoPago | 'todos'
+  busqueda: string
+  offset: number
+  limite: number
+}
+
+export type PaginaCobros = { items: Cuenta[]; total: number }
+
+export type FiltrosAuditoriaRestaurante = {
+  desde: string | null
+  hasta: string | null
+  busqueda: string
+  categoria: 'todas' | 'usuarios' | 'mesas' | 'caja' | 'cuentas' | 'pedidos' | 'configuracion'
+  offset: number
+  limite: number
+}
+
+export type PaginaAuditoria = { items: AuditLog[]; total: number }
 
 /** Detecta errores de transporte cuya operacion pudo confirmarse en el servidor. */
 export function esFalloDeRed(error: string | null | undefined): boolean {
@@ -94,12 +123,20 @@ function envolverErroresApi(api: DataApi): DataApi {
         Promise.resolve()
           .then(() => miembro.apply(objetivo, args))
           .then((resultado) => {
+            if (resultado?.error) {
+              if (esFalloDeRed(String(resultado.error))) registrarFalloDeSincronizacion()
+              else registrarServidorAlcanzable()
+            } else {
+              registrarSincronizacionExitosa()
+            }
             if (resultado?.error) registrarDiagnostico('api', String(propiedad))
             return resultado
           })
           .catch((causa: unknown) => {
             registrarDiagnostico('api', String(propiedad))
             const mensaje = causa instanceof Error ? causa.message : ''
+            if (esFalloDeRed(mensaje)) registrarFalloDeSincronizacion()
+            else registrarServidorAlcanzable()
             return {
               data: null,
               error: esFalloDeRed(mensaje)
@@ -205,13 +242,6 @@ export type DatosProducto = {
   imagen_url?: string | null
 }
 
-/** Rol asignable al personal del restaurante desde el panel de admin. */
-/**
- * Roles que el Admin del restaurante puede crear desde el panel. No incluye
- * `super_admin`: ese lo administra la plataforma, no cada local.
- */
-export type RolPersonal = 'mesero' | 'cocina' | 'admin_restaurante' | 'cajero'
-
 /** Roles que un administrador puede tocar (crear, editar, borrar). */
 export const ROLES_PERSONAL: readonly RolPersonal[] = ['mesero', 'cocina', 'admin_restaurante', 'cajero']
 
@@ -314,7 +344,7 @@ export type CambiosMesa = Partial<Pick<DatosMesa, 'nombre' | 'zona_id'>>
 export type CambiosProducto = Partial<DatosProducto>
 
 /** Cambios parciales permitidos al editar un miembro del personal. */
-export type CambiosPersonal = Partial<Pick<DatosPersonal, 'nombre' | 'email' | 'rol'> & { activo?: boolean | null }>
+export type CambiosPersonal = Partial<Pick<DatosPersonal, 'nombre' | 'email' | 'rol'>>
 
 /**
  * Datos del local que el Admin edita y que salen impresos en la boleta. No
@@ -449,6 +479,8 @@ export interface DataApi {
    * porque alimenta el reporte de ventas, que no debe contar anuladas.
    */
   getCuentasDelDia(rid: string): Promise<Res<Cuenta[]>>
+  /** Búsqueda y paginación servidor/tenant-scoped de boletas. */
+  getCuentasFiltradas(rid: string, filtros: FiltrosCobros): Promise<Res<PaginaCobros>>
   /** Valida el rol/PIN en el servidor y devuelve el recibo original para reimpresión. */
   getBoletaReimpresion(rid: string, cuentaId: string, pin?: string | null): Promise<Res<BoletaReimpresion>>
   /**
@@ -510,6 +542,8 @@ export interface DataApi {
    * Solo super admin. Es append-only: no hay forma de editar ni borrar filas.
    */
   getAuditoria(): Promise<Res<AuditLog[]>>
+  /** Auditoría del restaurante del admin actual, limitada y paginada. */
+  getAuditoriaRestaurante(filtros: FiltrosAuditoriaRestaurante): Promise<Res<PaginaAuditoria>>
 
   // ----------------------------------------------------------------- Soporte
   /** Tickets de soporte (más reciente primero). Solo super admin. */
@@ -557,14 +591,12 @@ export interface DataApi {
 
   crearPersonal(rid: string, datos: DatosPersonal): Promise<Res<UsuarioResumen>>
   actualizarPersonal(rid: string, id: string, cambios: CambiosPersonal): Promise<Res<UsuarioResumen>>
-  eliminarPersonal(rid: string, id: string): Promise<Res<null>>
+  cambiarEstadoPersonal(usuarioId: string, activo: boolean, motivo?: string): Promise<Res<UsuarioResumen>>
   /**
-   * Restablece la contraseña de un trabajador del restaurante y devuelve la
-   * contraseña temporal. La clave la genera el SERVIDOR (Edge Function
-   * `reset-password-personal`): el navegador nunca la elige ni la guarda, solo
-   * la muestra una vez al Admin que la pidió.
+   * Aplica una clave temporal enmascarada, no persistida ni devuelta. La Edge
+   * Function usa service_role solo en servidor y obliga al usuario a cambiarla.
    */
-  resetPasswordPersonal(trabajadorId: string): Promise<Res<{ password_temporal: string }>>
+  resetPasswordPersonal(trabajadorId: string, passwordTemporal: string): Promise<Res<null>>
 
   // -------------------------------------------------------------------- Caja
   /** Turno abierto del restaurante, o `null` si la caja está cerrada. */
@@ -1014,6 +1046,20 @@ const realApi: DataApi = {
       .limit(200)
     return { data: (data ?? []) as Cuenta[], error: error?.message ?? null }
   },
+  async getCuentasFiltradas(_rid, filtros) {
+    const { data, error } = await supabase.rpc('admin_buscar_cobros', {
+      p_desde: filtros.desde,
+      p_hasta: filtros.hasta,
+      p_estado: filtros.estado,
+      p_metodo: filtros.metodo,
+      p_busqueda: filtros.busqueda,
+      p_offset: filtros.offset,
+      p_limite: filtros.limite,
+    })
+    if (error) return { data: null, error: error.message }
+    const resultado = data as unknown as PaginaCobros | null
+    return { data: { items: resultado?.items ?? [], total: resultado?.total ?? 0 }, error: null }
+  },
   async getBoletaReimpresion(rid, cuentaId, pin = null) {
     const { data, error } = await supabase.rpc('reimprimir_boleta', {
       p_restaurante_id: rid,
@@ -1133,6 +1179,19 @@ const realApi: DataApi = {
       .limit(500)
     if (error) return { data: null, error: error.message }
     return { data: (data ?? []) as AuditLog[], error: null }
+  },
+  async getAuditoriaRestaurante(filtros) {
+    const { data, error } = await supabase.rpc('admin_listar_auditoria_restaurante', {
+      p_desde: filtros.desde,
+      p_hasta: filtros.hasta,
+      p_busqueda: filtros.busqueda,
+      p_categoria: filtros.categoria,
+      p_offset: filtros.offset,
+      p_limite: filtros.limite,
+    })
+    if (error) return { data: null, error: error.message }
+    const resultado = data as unknown as PaginaAuditoria | null
+    return { data: { items: resultado?.items ?? [], total: resultado?.total ?? 0 }, error: null }
   },
   // ---------------------------------------------------------- Soporte (real)
   async getTickets() {
@@ -1490,10 +1549,10 @@ const realApi: DataApi = {
     return { data: usuario, error: null }
   },
   async actualizarPersonal(rid, id, cambios) {
+    if ('activo' in cambios) return { data: null, error: 'Usa la confirmación segura para cambiar el acceso del personal.' }
     const actualizacion = {
       ...(cambios.nombre !== undefined ? { nombre: cambios.nombre } : {}),
       ...(cambios.rol !== undefined ? { rol: cambios.rol } : {}),
-      ...(cambios.activo !== undefined ? { activo: cambios.activo } : {}),
     }
     const { data, error } = await supabase
       .from('usuarios')
@@ -1506,25 +1565,22 @@ const realApi: DataApi = {
     if (error) return { data: null, error: error.message }
     return { data: data as UsuarioResumen, error: null }
   },
-  async eliminarPersonal(rid, id) {
-    const { error } = await supabase
-      .from('usuarios')
-      .delete()
-      .eq('id', id)
-      .eq('restaurante_id', rid)
-      .in('rol', ROLES_PERSONAL)
-    return { data: null, error: error?.message ?? null }
-  },
-  async resetPasswordPersonal(trabajadorId) {
-    // La cuenta de Auth la toca la Edge Function con service_role: el
-    // navegador solo manda a QUIÉN se le restablece.
-    const { data, error } = await supabase.functions.invoke('reset-password-personal', {
-      body: { trabajador_id: trabajadorId },
+  async cambiarEstadoPersonal(usuarioId, activo, motivo = '') {
+    const { data, error } = await supabase.functions.invoke('personal-cambiar-estado', {
+      body: { usuario_id: usuarioId, activo, motivo },
     })
     if (error) return { data: null, error: await mensajeDeErrorFuncion(error) }
-    const password = (data as { password_temporal?: string } | null)?.password_temporal
-    if (!password) return { data: null, error: 'Respuesta inesperada de la función.' }
-    return { data: { password_temporal: password }, error: null }
+    const usuario = (data as { usuario?: UsuarioResumen } | null)?.usuario
+    return usuario ? { data: usuario, error: null } : { data: null, error: 'No se pudo confirmar el cambio de acceso.' }
+  },
+  async resetPasswordPersonal(trabajadorId, passwordTemporal) {
+    // La cuenta de Auth la toca la Edge Function con service_role; no devuelve ni registra la clave.
+    const { data, error } = await supabase.functions.invoke('reset-password-personal', {
+      body: { trabajador_id: trabajadorId, password_temporal: passwordTemporal },
+    })
+    if (error) return { data: null, error: await mensajeDeErrorFuncion(error) }
+    if (!(data as { ok?: boolean } | null)?.ok) return { data: null, error: 'No se pudo confirmar el cambio de contraseña.' }
+    return { data: null, error: null }
   },
   async getTurnoAbierto(rid) {
     const { data, error } = await supabase
@@ -2633,6 +2689,32 @@ function crearApiDesde(
       error: null,
     }
   },
+  async getCuentasFiltradas(_rid, filtros) {
+    await espera(150)
+    const actor = apiMode.operadorId ? ds.usuarios.find((u) => u.id === apiMode.operadorId) : null
+    if (!actor || actor.activo === false || !['admin_restaurante', 'cajero'].includes(actor.rol) || !actor.restaurante_id) {
+      return { data: null, error: 'Solo el administrador o el cajero activo puede consultar los cobros.' }
+    }
+    const restauranteId = actor.restaurante_id
+    const termino = filtros.busqueda.trim().toLocaleLowerCase()
+    const coincidencias = ds.cuentas.filter((c) => {
+      if (c.restaurante_id !== restauranteId || !c.pagado_at || !['pagada', 'anulada'].includes(c.estado)) return false
+      const fecha = new Date(c.pagado_at).getTime()
+      if (fecha < new Date(filtros.desde).getTime() || fecha >= new Date(filtros.hasta).getTime()) return false
+      if (filtros.estado !== 'todas' && c.estado !== filtros.estado) return false
+      if (filtros.metodo !== 'todos') {
+        const pagos = ds.pagos.filter((p) => p.cuenta_id === c.id)
+        const metodos = pagos.length ? pagos.map((p) => p.metodo_pago) : [c.metodo_pago]
+        if (!metodos.includes(filtros.metodo)) return false
+      }
+      if (!termino) return true
+      const mesa = c.mesa_nombre_snapshot ?? ds.mesas.find((m) => m.id === c.mesa_id)?.nombre ?? ''
+      const mesero = c.mesero_nombre_snapshot ?? ''
+      return [c.numero ?? '', mesa, mesero].some((x) => x.toLocaleLowerCase().includes(termino))
+        || String(c.total).includes(termino.replace(',', '.'))
+    }).sort((a, b) => String(b.pagado_at).localeCompare(String(a.pagado_at)))
+    return { data: { items: coincidencias.slice(filtros.offset, filtros.offset + filtros.limite), total: coincidencias.length }, error: null }
+  },
   async getBoletaReimpresion(rid, cuentaId, pin = null) {
     const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
     if (acceso) return { data: null, error: acceso }
@@ -2816,7 +2898,7 @@ function crearApiDesde(
     ds.usuarios.push(usuario)
     // Misma "cuenta" que crearPersonal: la clave queda registrada para el
     // login local (solo si el backend de prueba pidió credenciales).
-    if (opciones?.credenciales) localCredenciales[email] = datos.password
+    if (opciones?.credenciales) localCredenciales[email] = await hashCredencialLocal(datos.password)
     registrarAuditoria(datos.rol === 'admin_restaurante' ? 'administrador_crear' : 'usuario_crear', {
       restauranteId: datos.restauranteId,
       entidad: 'usuario',
@@ -2844,6 +2926,33 @@ function crearApiDesde(
     if (denegado) return { data: null, error: denegado }
     await espera()
     return { data: ds.auditLogs.map((l) => ({ ...l })), error: null }
+  },
+  async getAuditoriaRestaurante(filtros) {
+    await espera(120)
+    const admin = apiMode.operadorId ? ds.usuarios.find((u) => u.id === apiMode.operadorId) : null
+    if (!admin || admin.rol !== 'admin_restaurante' || admin.activo === false || !admin.restaurante_id) {
+      return { data: null, error: 'Solo un administrador activo puede consultar la auditoría de su restaurante.' }
+    }
+    const termino = filtros.busqueda.trim().toLocaleLowerCase()
+    const coincideCategoria = (l: AuditLog) => {
+      if (filtros.categoria === 'todas') return true
+      if (filtros.categoria === 'usuarios') return l.entidad === 'usuario'
+      if (filtros.categoria === 'mesas') return l.entidad === 'mesa' || l.accion.startsWith('mesa_')
+      if (filtros.categoria === 'caja') return l.entidad === 'caja_turno' || l.accion.startsWith('caja_')
+      if (filtros.categoria === 'cuentas') return l.entidad === 'cuenta' || l.accion.startsWith('cuenta_')
+      if (filtros.categoria === 'pedidos') return ['pedido', 'pedido_item'].includes(l.entidad ?? '') || l.accion.startsWith('comanda_')
+      return ['restaurante', 'configuracion'].includes(l.entidad ?? '') || l.accion.startsWith('configuracion_')
+    }
+    const coincidencias = ds.auditLogs.filter((l) => {
+      if (l.restaurante_id !== admin.restaurante_id) return false
+      if (filtros.desde && l.created_at < filtros.desde) return false
+      if (filtros.hasta && l.created_at >= filtros.hasta) return false
+      if (!coincideCategoria(l)) return false
+      if (!termino) return true
+      return [l.actor_nombre, l.actor_rol, l.entidad, l.entidad_id, l.accion, l.descripcion, JSON.stringify(l.detalle ?? {})]
+        .some((x) => String(x ?? '').toLocaleLowerCase().includes(termino))
+    }).sort((a, b) => b.created_at.localeCompare(a.created_at))
+    return { data: { items: coincidencias.slice(filtros.offset, filtros.offset + filtros.limite), total: coincidencias.length }, error: null }
   },
   // ------------------------------------------------------ Soporte (mock)
   async getTickets() {
@@ -3048,7 +3157,7 @@ function crearApiDesde(
       created_at: new Date().toISOString(),
     })
     if (opciones?.credenciales && datos.admin.password) {
-      localCredenciales[email] = datos.admin.password
+      localCredenciales[email] = await hashCredencialLocal(datos.admin.password)
     }
     registrarAuditoria('restaurante_crear', {
       restauranteId: restaurante.id,
@@ -3487,13 +3596,14 @@ function crearApiDesde(
     }
     ds.usuarios.push(usuario)
     if (opciones?.credenciales && usuario.email) {
-      localCredenciales[usuario.email.trim().toLowerCase()] = PASSWORD_DE_PRUEBA
+      localCredenciales[usuario.email.trim().toLowerCase()] = await hashCredencialLocal(PASSWORD_DE_PRUEBA)
     }
     persiste()
     return { data: { id: usuario.id, nombre: usuario.nombre, email: usuario.email, activo: usuario.activo, rol: usuario.rol }, error: null }
   },
   async actualizarPersonal(rid, id, cambios) {
     await espera()
+    if ('activo' in cambios) return { data: null, error: 'Usa la confirmación segura para cambiar el acceso del personal.' }
     const u = ds.usuarios.find((x) => x.id === id && x.restaurante_id === rid && esRolPersonal(x.rol))
     if (!u) return { data: null, error: 'Personal no encontrado' }
     if (cambios.nombre !== undefined) u.nombre = cambios.nombre.trim()
@@ -3501,29 +3611,38 @@ function crearApiDesde(
       if (opciones?.credenciales && u.email) delete localCredenciales[u.email.trim().toLowerCase()]
       u.email = cambios.email?.trim() || null
       if (opciones?.credenciales && u.email) {
-        localCredenciales[u.email.trim().toLowerCase()] = PASSWORD_DE_PRUEBA
+        localCredenciales[u.email.trim().toLowerCase()] = await hashCredencialLocal(PASSWORD_DE_PRUEBA)
       }
     }
     if (cambios.rol !== undefined) u.rol = cambios.rol
-    if (cambios.activo !== undefined) u.activo = cambios.activo
     persiste()
     return { data: { id: u.id, nombre: u.nombre, email: u.email, activo: u.activo, rol: u.rol }, error: null }
   },
-  async eliminarPersonal(rid, id) {
+  async cambiarEstadoPersonal(usuarioId, activo, motivo = '') {
     await espera()
-    const idx = ds.usuarios.findIndex(
-      (x) => x.id === id && x.restaurante_id === rid && esRolPersonal(x.rol),
-    )
-    if (idx === -1) return { data: null, error: 'Personal no encontrado' }
-    if (opciones?.credenciales) {
-      const email = ds.usuarios[idx]?.email
-      if (email) delete localCredenciales[email.trim().toLowerCase()]
+    const actor = apiMode.operadorId ? ds.usuarios.find((u) => u.id === apiMode.operadorId) : null
+    if (!actor || actor.rol !== 'admin_restaurante' || actor.activo === false || !actor.restaurante_id) {
+      return { data: null, error: 'Solo un administrador activo puede gestionar su personal.' }
     }
-    ds.usuarios.splice(idx, 1)
+    const usuario = ds.usuarios.find((u) => u.id === usuarioId)
+    if (!usuario || usuario.restaurante_id !== actor.restaurante_id || !esRolPersonal(usuario.rol)) {
+      return { data: null, error: 'Ese usuario no pertenece a tu restaurante.' }
+    }
+    if (usuario.id === actor.id) return { data: null, error: 'No puedes desactivar tu propio acceso.' }
+    if ((usuario.activo !== false) === activo) return { data: null, error: 'El acceso ya tiene ese estado. Actualiza la lista.' }
+    const anterior = usuario.activo !== false
+    usuario.activo = activo
+    registrarAuditoria(activo ? 'usuario_reactivar' : 'usuario_desactivar', {
+      restauranteId: actor.restaurante_id,
+      entidad: 'usuario',
+      entidadId: usuario.id,
+      descripcion: `${activo ? 'Reactivó' : 'Desactivó'} el acceso de ${usuario.nombre}`,
+      detalle: { rol: usuario.rol, activo_anterior: anterior, activo_nuevo: activo, motivo: motivo.trim().slice(0, 240) || null },
+    })
     persiste()
-    return { data: null, error: null }
+    return { data: { id: usuario.id, nombre: usuario.nombre, email: usuario.email, activo: usuario.activo, rol: usuario.rol }, error: null }
   },
-  async resetPasswordPersonal(trabajadorId) {
+  async resetPasswordPersonal(trabajadorId, passwordTemporal) {
     await espera()
     // Espejo de la Edge Function `reset-password-personal`: las mismas reglas
     // y los mismos mensajes, para que un test no vea un texto en local y otro
@@ -3534,7 +3653,7 @@ function crearApiDesde(
     if (!operador || operador.rol !== 'admin_restaurante' || operador.activo === false) {
       return {
         data: null,
-        error: 'Solo un administrador de restaurante activo puede restablecer contraseñas.',
+        error: 'Solo un administrador activo puede restablecer contraseñas de su personal.',
       }
     }
     const rid = operador.restaurante_id
@@ -3554,11 +3673,14 @@ function crearApiDesde(
         error: 'No se puede restablecer la contraseña de otro administrador.',
       }
     }
+    if (trabajador.activo === false) return { data: null, error: 'Reactiva el acceso del trabajador antes de cambiar su contraseña.' }
+    if (passwordTemporal.length < 10 || passwordTemporal.length > 128 || !passwordTemporal.trim()) {
+      return { data: null, error: 'La clave temporal debe tener entre 10 y 128 caracteres.' }
+    }
 
-    const password = generarPasswordTemporal(12)
-    // La clave nueva es la que va a servir el trabajador para entrar.
+    // El modo de prueba persiste solo un verificador PBKDF2 con sal, nunca la clave en claro.
     if (opciones?.credenciales && trabajador.email) {
-      localCredenciales[trabajador.email.trim().toLowerCase()] = password
+      localCredenciales[trabajador.email.trim().toLowerCase()] = await hashCredencialLocal(passwordTemporal)
     }
     trabajador.debe_cambiar_password = true
     registrarAuditoria('usuario_password_reset', {
@@ -3569,7 +3691,7 @@ function crearApiDesde(
       detalle: { rol: trabajador.rol },
     })
     persiste()
-    return { data: { password_temporal: password }, error: null }
+    return { data: null, error: null }
   },
   async getTurnoAbierto(rid) {
     await espera()

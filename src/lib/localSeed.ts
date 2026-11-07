@@ -145,6 +145,30 @@ const credencialesSemilla: Record<string, string> = {
  */
 export const localCredenciales: Record<string, string> = { ...credencialesSemilla }
 
+const hex = (bytes: Uint8Array) => Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+const desdeHex = (valor: string) => Uint8Array.from(valor.match(/.{2}/g) ?? [], (byte) => Number.parseInt(byte, 16))
+
+/** Guarda contraseñas nuevas del backend local como PBKDF2 con sal. */
+export async function hashCredencialLocal(password: string): Promise<string> {
+  const sal = crypto.getRandomValues(new Uint8Array(16))
+  const rondas = 210_000
+  const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits'])
+  const derivada = new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: sal, iterations: rondas }, material, 256))
+  return `pbkdf2$${rondas}$${hex(sal)}$${hex(derivada)}`
+}
+
+/** Acepta hashes nuevos y claves de prueba heredadas del seed local. */
+export async function verificarCredencialLocal(password: string, guardada: string | undefined): Promise<boolean> {
+  if (!guardada) return false
+  const [algoritmo, rondasTexto, salTexto, hashTexto] = guardada.split('$')
+  if (algoritmo !== 'pbkdf2' || !rondasTexto || !salTexto || !hashTexto) return guardada === password
+  const rondas = Number(rondasTexto)
+  if (!Number.isInteger(rondas) || rondas < 100_000 || rondas > 1_000_000) return false
+  const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits'])
+  const derivada = new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: desdeHex(salTexto), iterations: rondas }, material, 256))
+  return hex(derivada) === hashTexto
+}
+
 // ------------------------------------------------------------ Dataset completo
 /** Forma exacta del dataset del backend local simulado. */
 export interface LocalSeedData {

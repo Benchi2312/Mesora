@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getApi } from '../../lib/api'
 import type { BoletaReimpresion } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import { fmtHora, fmtPEN } from '../../lib/format'
-import { METODOS_PAGO_LABEL } from '../../domain/cashier/pagos'
+import { METODOS_PAGO_LABEL, METODOS_PAGO_LISTA } from '../../domain/cashier/pagos'
 import { esPinValido, MOTIVOS_ANULACION_COBRO, errorAlAnularCobro } from '../../domain/security/autorizacion'
 import type { Cuenta } from '../../types/database'
 import { Spinner } from '../../components/LoadingScreen'
@@ -13,6 +13,15 @@ import { AvisoPin, CampoPin, usePinAutorizacion } from '../../components/pin'
 import { confirmarAnulacionCuenta } from '../../domain/security/confirmaciones'
 import { mensajeOperacion } from '../../domain/security/mensajeOperacion'
 import { Boleta } from '../mesero/CerrarCuenta'
+
+const hoyInput = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const aIsoLocal = (valor: string, dias = 0) => {
+  const [y, m, d] = valor.split('-').map(Number)
+  return new Date(y, m - 1, d + dias).toISOString()
+}
 
 /**
  * Boletas del día con la opción de anular un cobro.
@@ -35,6 +44,14 @@ export default function CobrosTab() {
   const [cuentas, setCuentas] = useState<Cuenta[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [busqueda, setBusqueda] = useState('')
+  const [busquedaAplicada, setBusquedaAplicada] = useState('')
+  const [estadoFiltro, setEstadoFiltro] = useState<'todas' | 'pagada' | 'anulada'>('todas')
+  const [metodoFiltro, setMetodoFiltro] = useState<'todos' | Cuenta['metodo_pago']>('todos')
+  const [desde, setDesde] = useState(hoyInput)
+  const [hasta, setHasta] = useState(hoyInput)
+  const [pagina, setPagina] = useState(0)
+  const [total, setTotal] = useState(0)
   const [anulando, setAnulando] = useState<Cuenta | null>(null)
   const [reimprimiendo, setReimprimiendo] = useState<Cuenta | null>(null)
   const [boleta, setBoleta] = useState<BoletaReimpresion | null>(null)
@@ -42,29 +59,57 @@ export default function CobrosTab() {
   const [errorReimpresion, setErrorReimpresion] = useState<string | null>(null)
   const [cargandoReimpresion, setCargandoReimpresion] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
+  const secuencia = useRef(0)
+  const limite = 25
+  const rango = useMemo(() => ({ desde: aIsoLocal(desde), hasta: aIsoLocal(hasta, 1) }), [desde, hasta])
+
+  useEffect(() => {
+    const timer = setTimeout(() => { setBusquedaAplicada(busqueda.trim()); setPagina(0) }, 250)
+    return () => clearTimeout(timer)
+  }, [busqueda])
 
   const cargar = useCallback(
     async (silencioso = false) => {
       if (!rid) return
       if (!silencioso) setCargando(true)
-      const { data, error: apiErr } = await getApi().getCuentasDelDia(rid)
+      if (!desde || !hasta || rango.desde >= rango.hasta) {
+        setError('La fecha final debe ser igual o posterior a la fecha inicial.')
+        setCargando(false)
+        return
+      }
+      const peticion = ++secuencia.current
+      const { data, error: apiErr } = await getApi().getCuentasFiltradas(rid, {
+        ...rango, estado: estadoFiltro, metodo: metodoFiltro, busqueda: busquedaAplicada,
+        offset: pagina * limite, limite,
+      })
+      if (peticion !== secuencia.current) return
       if (apiErr) setError(apiErr)
       else {
-        setCuentas(data ?? [])
+        setCuentas(data?.items ?? [])
+        setTotal(data?.total ?? 0)
         setError(null)
       }
       setCargando(false)
     },
-    [rid],
+    [rid, desde, hasta, rango, estadoFiltro, metodoFiltro, busquedaAplicada, pagina],
   )
 
   useEffect(() => {
     void cargar()
   }, [cargar])
 
-  const anuladas = cuentas.filter((c) => c.estado === 'anulada')
-  const vigentes = cuentas.filter((c) => c.estado === 'pagada')
   const esCajero = usuario?.rol === 'cajero'
+  const paginas = Math.max(1, Math.ceil(total / limite))
+
+  function limpiarFiltros() {
+    setBusqueda('')
+    setBusquedaAplicada('')
+    setEstadoFiltro('todas')
+    setMetodoFiltro('todos')
+    setDesde(hoyInput())
+    setHasta(hoyInput())
+    setPagina(0)
+  }
 
   async function confirmarReimpresion() {
     if (!rid || !reimprimiendo) return
@@ -104,20 +149,53 @@ export default function CobrosTab() {
         </div>
       )}
 
-      <div className="card p-5 sm:p-6">
-        <h2 className="titulo-seccion mb-4 text-xs font-semibold">Boletas de hoy</h2>
+      <div className="card space-y-4 p-4 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="titulo-seccion text-base">Cobros y boletas</h2>
+            <p className="mt-1 text-sm text-zinc-500">Busca por número, mesa, mesero o importe. Se muestran {total} resultados.</p>
+          </div>
+          {(busqueda || estadoFiltro !== 'todas' || metodoFiltro !== 'todos' || desde !== hoyInput() || hasta !== hoyInput()) && (
+            <button type="button" onClick={limpiarFiltros} className="btn btn-outline min-h-11 px-3">Limpiar filtros</button>
+          )}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <label className="text-sm text-zinc-400">Buscar boleta, mesa, mesero o importe
+            <input type="search" className="input mt-1 min-h-11 w-full" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Ej. B001-000124, Terraza o 45.50" />
+          </label>
+          <label className="text-sm text-zinc-400">Estado
+            <select className="input mt-1 min-h-11 w-full" value={estadoFiltro} onChange={(e) => { setEstadoFiltro(e.target.value as typeof estadoFiltro); setPagina(0) }}>
+              <option value="todas">Cobradas y anuladas</option><option value="pagada">Solo cobradas</option><option value="anulada">Solo anuladas</option>
+            </select>
+          </label>
+          <label className="text-sm text-zinc-400">Método de pago
+            <select className="input mt-1 min-h-11 w-full" value={metodoFiltro} onChange={(e) => { setMetodoFiltro(e.target.value as typeof metodoFiltro); setPagina(0) }}>
+              <option value="todos">Todos los métodos</option>
+              {METODOS_PAGO_LISTA.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+          </label>
+          <label className="text-sm text-zinc-400">Desde
+            <input type="date" className="input mt-1 min-h-11 w-full" value={desde} max={hasta || undefined} onChange={(e) => { setDesde(e.target.value); setPagina(0) }} />
+          </label>
+          <label className="text-sm text-zinc-400">Hasta
+            <input type="date" className="input mt-1 min-h-11 w-full" value={hasta} min={desde || undefined} onChange={(e) => { setHasta(e.target.value); setPagina(0) }} />
+          </label>
+        </div>
+
         {cargando ? (
           <div className="flex justify-center py-10">
             <Spinner />
           </div>
         ) : cuentas.length === 0 ? (
-          <EstadoVacio titulo="Todavía no se cobró nada hoy." className="py-8" />
+          <EstadoVacio titulo="No hay boletas para estos filtros." descripcion="Cambia las fechas o limpia los filtros para ver más resultados." className="py-8" />
         ) : (
           <div className="-mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0">
             <table className="w-full min-w-[36rem] text-sm">
               <thead>
                 <tr className="border-b border-surface-700 text-left text-xs uppercase tracking-widest text-zinc-500">
-                  <th scope="col" className="py-2 pr-3 font-semibold">Hora</th>
+                  <th scope="col" className="py-2 pr-3 font-semibold">Boleta / hora</th>
+                  <th scope="col" className="py-2 pr-3 font-semibold">Mesa y mesero</th>
                   <th scope="col" className="py-2 pr-3 font-semibold">Método</th>
                   <th scope="col" className="py-2 pr-3 text-right font-semibold">Total</th>
                   <th scope="col" className="py-2 pr-3 font-semibold">Estado</th>
@@ -127,9 +205,10 @@ export default function CobrosTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-700/60">
-                {[...vigentes, ...anuladas].map((c) => (
+                {cuentas.map((c) => (
                   <tr key={c.id} className={c.estado === 'anulada' ? 'opacity-60' : undefined}>
-                    <td className="py-2.5 pr-3 text-zinc-300">{c.pagado_at ? fmtHora(c.pagado_at) : '—'}</td>
+                    <td className="py-2.5 pr-3 text-zinc-300"><strong className="block text-zinc-100">{c.numero ?? `Cuenta ${c.id.slice(0, 8)}`}</strong>{c.pagado_at ? fmtHora(c.pagado_at) : '—'}</td>
+                    <td className="py-2.5 pr-3 text-zinc-300">{c.mesa_nombre_snapshot ?? '—'}<span className="block text-xs text-zinc-500">{c.mesero_nombre_snapshot ?? 'Mesero sin registro'}</span></td>
                     <td className="py-2.5 pr-3 text-zinc-400">
                       {METODOS_PAGO_LABEL[c.metodo_pago] ?? c.metodo_pago}
                       {c.propina ? <span className="text-xs text-zinc-500"> + {fmtPEN(c.propina)} propina</span> : null}
@@ -184,6 +263,15 @@ export default function CobrosTab() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {!cargando && total > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-surface-700 pt-3 text-sm text-zinc-400">
+            <span>{total} boletas · página {pagina + 1} de {paginas}</span>
+            <div className="flex gap-2">
+              <button type="button" className="btn btn-outline min-h-11 px-3" disabled={pagina === 0 || cargando} onClick={() => setPagina((p) => p - 1)}>Anterior</button>
+              <button type="button" className="btn btn-outline min-h-11 px-3" disabled={pagina + 1 >= paginas || cargando} onClick={() => setPagina((p) => p + 1)}>Siguiente</button>
+            </div>
           </div>
         )}
       </div>

@@ -24,6 +24,7 @@ const VIEWPORTS = [
   { w: 360, h: 640, nombre: '360x640' },
   { w: 390, h: 844, nombre: '390x844' },
   { w: 768, h: 1024, nombre: '768x1024' },
+  { w: 1024, h: 768, nombre: '1024x768' },
   { w: 1280, h: 800, nombre: '1280x800' },
 ]
 
@@ -41,7 +42,7 @@ const PANTALLAS = [
   {
     ruta: '/demo/admin',
     nombre: 'admin',
-    tabs: ['Dashboard', 'Ventas', 'Caja', 'Cobros', 'Mesas y zonas', 'Menú', 'Personal', 'Datos del local', 'Soporte'],
+    tabs: ['Dashboard', 'Ventas', 'Caja', 'Cobros', 'Mesas y zonas', 'Menú', 'Personal', 'Datos del local', 'Auditoría', 'Soporte'],
   },
   { ruta: '/demo/mesero', nombre: 'mesero' },
   { ruta: '/demo/cocina', nombre: 'cocina' },
@@ -315,7 +316,10 @@ async function correrGuiaMovil(browser, vp) {
               Math.min(a.right, b.right) - Math.max(a.left, b.left) > 3 &&
               Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 3
           })
-          .map((otro) => (otro.getAttribute('aria-label') || otro.innerText || '').trim().slice(0, 40))
+          .map((otro) => {
+            const b = otro.getBoundingClientRect()
+            return `${(otro.getAttribute('aria-label') || otro.innerText || '').trim().slice(0, 40)} [${Math.round(b.left)},${Math.round(b.top)}-${Math.round(b.right)},${Math.round(b.bottom)}]`
+          })
       })
       check(`guía minimizada móvil no tapa controles ${vista} ${vp.nombre}`, solapamientos.length === 0, solapamientos.join(' · '))
       await page.locator('[data-guia-minimizada]').click()

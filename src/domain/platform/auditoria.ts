@@ -11,6 +11,8 @@ export type AccionAuditoria =
   | 'administrador_crear'
   | 'usuario_cambiar_rol'
   | 'usuario_estado'
+  | 'usuario_desactivar'
+  | 'usuario_reactivar'
   | 'usuario_password_reset'
   | 'suscripcion_renovar'
   | 'suscripcion_cambiar_plan'
@@ -33,6 +35,8 @@ const ETIQUETAS: Record<AccionAuditoria, string> = {
   administrador_crear: 'Administrador creado',
   usuario_cambiar_rol: 'Rol cambiado',
   usuario_estado: 'Estado de usuario',
+  usuario_desactivar: 'Acceso de usuario desactivado',
+  usuario_reactivar: 'Acceso de usuario reactivado',
   usuario_password_reset: 'Contraseña restablecida',
   suscripcion_renovar: 'Suscripción renovada',
   suscripcion_cambiar_plan: 'Plan cambiado',
@@ -54,6 +58,8 @@ const CATEGORIAS: Record<AccionAuditoria, CategoriaAuditoria> = {
   administrador_crear: 'usuarios',
   usuario_cambiar_rol: 'usuarios',
   usuario_estado: 'usuarios',
+  usuario_desactivar: 'usuarios',
+  usuario_reactivar: 'usuarios',
   usuario_password_reset: 'usuarios',
   suscripcion_renovar: 'suscripciones',
   suscripcion_cambiar_plan: 'suscripciones',

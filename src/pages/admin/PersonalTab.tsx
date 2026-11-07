@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import { esModoLocal, getApi } from '../../lib/api'
-import type { DatosPersonal, RolPersonal } from '../../lib/api'
+import type { DatosPersonal } from '../../lib/api'
 import { PASSWORD_DE_PRUEBA } from '../../lib/localSeed'
 import { construirEmail, esUsuarioValido, separarEmail } from '../../domain/security/dominio'
 import { rolLabel } from '../../domain/security/roles'
+import { filtrarPersonal, type RolPersonal } from '../../domain/security/personal'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
-import { Campo, ConfirmDialog, IconoBasura, IconoInfo, IconoLapiz, IconoLlave, IconoMas, Modal, PieAcciones } from '../../components/ui'
+import { Campo, IconoInfo, IconoLapiz, IconoLlave, IconoMas, Modal, PieAcciones } from '../../components/ui'
 
 type ModalPersonal = {
   accion: 'crear' | 'editar'
@@ -17,12 +18,10 @@ type ModalPersonal = {
   password: string
   rol: RolPersonal
 } | null
-type Confirmar = { id: string; nombre: string } | null
-type PersonalCreado = { nombre: string; email: string | null; password: string | null; rol: RolPersonal } | null
+type Confirmar = { id: string; nombre: string; activoAnterior: boolean; activoNuevo: boolean } | null
+type PersonalCreado = { nombre: string; email: string | null; rol: RolPersonal } | null
 /** A quién se le va a restablecer la contraseña (misma forma que `Confirmar`). */
 type Resetear = { id: string; nombre: string } | null
-/** La contraseña temporal que se muestra UNA sola vez, al Admin que la pidió. */
-type PasswordTemporal = { nombre: string; password: string } | null
 
 const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -70,6 +69,9 @@ export default function PersonalTab() {
   >([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [busqueda, setBusqueda] = useState('')
+  const [filtroRol, setFiltroRol] = useState<'todos' | RolPersonal>('todos')
+  const [filtroEstado, setFiltroEstado] = useState<'todos' | 'activos' | 'inactivos'>('activos')
 
   const [modal, setModal] = useState<ModalPersonal>(null)
   const [modalError, setModalError] = useState<string | null>(null)
@@ -82,8 +84,10 @@ export default function PersonalTab() {
   const [resetear, setResetear] = useState<Resetear>(null)
   const [resetError, setResetError] = useState<string | null>(null)
   const [resetCargando, setResetCargando] = useState(false)
-  const [passwordTemporal, setPasswordTemporal] = useState<PasswordTemporal>(null)
-  const [copiado, setCopiado] = useState(false)
+  const [passwordTemporal, setPasswordTemporal] = useState('')
+  const [passwordConfirmacion, setPasswordConfirmacion] = useState('')
+  const [mensajePassword, setMensajePassword] = useState<string | null>(null)
+  const [motivoEstado, setMotivoEstado] = useState('')
 
   const [personalCreado, setPersonalCreado] = useState<PersonalCreado>(null)
 
@@ -101,7 +105,7 @@ export default function PersonalTab() {
           id: u.id,
           nombre: u.nombre,
           email: u.email ?? null,
-          activo: Boolean(u.activo),
+          activo: u.activo !== false,
           rol: u.rol === 'cocina' ? 'cocina' : u.rol === 'admin_restaurante' ? 'admin_restaurante' : u.rol === 'cajero' ? 'cajero' : 'mesero',
         })),
       )
@@ -113,6 +117,7 @@ export default function PersonalTab() {
 
   const adminsActivos = personal.filter((m) => m.rol === 'admin_restaurante' && m.activo).length
   const puedeCrearAdmin = adminsActivos < (limiteAdmins >= 0 ? limiteAdmins : 999)
+  const personalFiltrado = filtrarPersonal(personal, { busqueda, rol: filtroRol, estado: filtroEstado })
 
   useEffect(() => {
     if (!rid) {
@@ -178,7 +183,6 @@ export default function PersonalTab() {
         setPersonalCreado({
           nombre: res.data?.nombre ?? nombre,
           email: res.data?.email ?? null,
-          password: esModoLocal() ? PASSWORD_DE_PRUEBA : password,
           rol: modal.rol,
         })
       } else {
@@ -199,85 +203,73 @@ export default function PersonalTab() {
     }
   }
 
-  async function ejecutarEliminacion() {
+  async function ejecutarCambioEstado() {
     if (!rid || !confirmar) return
     if (confirmar.id === yoId) {
-      setConfirmError('No puedes eliminar tu propio acceso.')
+      setConfirmError('No puedes cambiar el estado de tu propio acceso.')
       return
     }
     setConfirmCargando(true)
     setConfirmError(null)
     try {
       const api = getApi()
-      const res = await api.eliminarPersonal(rid, confirmar.id)
+      const res = await api.cambiarEstadoPersonal(confirmar.id, confirmar.activoNuevo, motivoEstado)
       if (res.error) {
-        setConfirmError(res.error)
+        setConfirmError(res.error.includes('network') || res.error.includes('conexi')
+          ? 'No se pudo confirmar el cambio por un problema de conexión. Actualiza la lista antes de volver a intentarlo.'
+          : res.error)
         return
       }
       setConfirmar(null)
+      setMotivoEstado('')
       await cargar()
     } catch {
-      setConfirmError('No se pudo confirmar la baja. Actualiza el listado antes de volver a intentarlo.')
+      setConfirmError('No se pudo confirmar el cambio. Actualiza la lista antes de volver a intentarlo.')
       await cargar()
     } finally {
       setConfirmCargando(false)
     }
   }
 
-  /** Activa/desactiva el acceso sin entrar al modal de edición. */
+  /** Toda baja o reactivación necesita confirmar el alcance antes de cambiar Auth. */
   async function alternarActivo(m: { id: string; nombre: string; activo: boolean }) {
-    if (!rid) return
+    if (!rid || m.id === yoId) return
     setConfirmError(null)
-    try {
-      const res = await getApi().actualizarPersonal(rid, m.id, { activo: !m.activo })
-      if (res.error) {
-        setError(`${m.nombre}: ${res.error}`)
-        return
-      }
-      await cargar()
-    } catch {
-      setError(`${m.nombre}: no se pudo confirmar el cambio. Actualiza el listado.`)
-      await cargar()
-    }
+    setMotivoEstado('')
+    setConfirmar({ id: m.id, nombre: m.nombre, activoAnterior: m.activo, activoNuevo: !m.activo })
   }
 
   /**
-   * Restablece la contraseña de un trabajador. La clave nueva la genera el
-   * servidor y vuelve en la respuesta: es la única vez que se muestra.
+   * Establece una clave temporal elegida por el admin. Solo se ve en un input
+   * enmascarado, se limpia al enviar y se entrega al trabajador en persona.
    */
   async function ejecutarReset() {
     if (!resetear) return
+    if (passwordTemporal.length < 10 || passwordTemporal.length > 128 || !passwordTemporal.trim()) {
+      setResetError('La clave temporal debe tener entre 10 y 128 caracteres.')
+      return
+    }
+    if (passwordTemporal !== passwordConfirmacion) {
+      setResetError('Las claves no coinciden. Revísalas e inténtalo de nuevo.')
+      return
+    }
     setResetCargando(true)
     setResetError(null)
     try {
-      const res = await getApi().resetPasswordPersonal(resetear.id)
+      const res = await getApi().resetPasswordPersonal(resetear.id, passwordTemporal)
       if (res.error) {
         setResetError(res.error)
         return
       }
-      const password = res.data?.password_temporal
-      if (!password) {
-        setResetError('No se pudo obtener la contraseña nueva.')
-        return
-      }
       setResetear(null)
-      setCopiado(false)
-      setPasswordTemporal({ nombre: resetear.nombre, password })
+      setMensajePassword(`Se actualizó la clave de ${resetear.nombre}. Entrégale la clave temporal en persona; al ingresar tendrá que cambiarla.`)
+      await cargar()
     } catch {
-      setResetError('No se pudo confirmar el cambio. Inténtalo de nuevo para generar otra contraseña temporal.')
+      setResetError('No se pudo confirmar el cambio. Revisa la conexión antes de volver a intentarlo.')
     } finally {
       setResetCargando(false)
-    }
-  }
-
-  /** Copia la contraseña temporal al portapapeles. */
-  async function copiarPassword() {
-    if (!passwordTemporal) return
-    try {
-      await navigator.clipboard.writeText(passwordTemporal.password)
-      setCopiado(true)
-    } catch {
-      setCopiado(false)
+      setPasswordTemporal('')
+      setPasswordConfirmacion('')
     }
   }
 
@@ -292,6 +284,8 @@ export default function PersonalTab() {
           </span>
         </span>
       </div>
+
+      {mensajePassword && <div role="status" className="aviso mb-5 border-ok-500/40 bg-ok-500/10 text-ok-400">{mensajePassword}</div>}
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -319,9 +313,27 @@ export default function PersonalTab() {
           descripcion="Agrega meseros y cocina para que puedan tomar comandas, preparar pedidos y gestionar mesas."
         />
       ) : (
-        <ul className="card divide-y divide-zinc-800/70 p-0 sm:p-0">
-          {personal.map((m) => (
-            <li key={m.id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+        <>
+        <div className="card mb-4 grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+          <label className="text-sm text-zinc-400">Buscar por nombre, correo o rol
+            <input type="search" className="input mt-1 min-h-11 w-full" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Ej. María o cocina" />
+          </label>
+          <label className="text-sm text-zinc-400">Rol
+            <select className="input mt-1 min-h-11 w-full" value={filtroRol} onChange={(e) => setFiltroRol(e.target.value as typeof filtroRol)}>
+              <option value="todos">Todos los roles</option>
+              {OPCIONES_ROL.map((op) => <option key={op.rol} value={op.rol}>{rolLabel(op.rol)}</option>)}
+            </select>
+          </label>
+          <label className="text-sm text-zinc-400">Estado de acceso
+            <select className="input mt-1 min-h-11 w-full" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)}>
+              <option value="todos">Activos e inactivos</option><option value="activos">Solo activos</option><option value="inactivos">Solo inactivos</option>
+            </select>
+          </label>
+          {(busqueda || filtroRol !== 'todos' || filtroEstado !== 'activos') && <button type="button" className="btn btn-outline min-h-11 px-4 sm:col-span-2 xl:col-span-3 xl:justify-self-start" onClick={() => { setBusqueda(''); setFiltroRol('todos'); setFiltroEstado('activos') }}>Limpiar filtros</button>}
+        </div>
+        {personalFiltrado.length === 0 ? <EstadoVacio titulo="Ninguna persona coincide con estos filtros." descripcion="Cambia la búsqueda o limpia los filtros para volver a ver el personal." /> : <ul className="card divide-y divide-zinc-800/70 p-0 sm:p-0">
+          {personalFiltrado.map((m) => (
+            <li key={m.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-500/15 text-sm font-bold text-brand-400">
                   {m.nombre
@@ -336,7 +348,7 @@ export default function PersonalTab() {
                   <p className="truncate text-xs text-zinc-500">{m.email ?? 'Sin correo'}</p>
                 </div>
               </div>
-              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <div className="flex min-w-0 flex-wrap items-center justify-start gap-2 sm:justify-end">
                 <span
                   className={`chip ${
                     m.rol === 'cocina'
@@ -356,7 +368,7 @@ export default function PersonalTab() {
                   disabled={yoId === m.id}
                   aria-label={m.activo ? `Desactivar a ${m.nombre}` : `Reactivar a ${m.nombre}`}
                   title={yoId === m.id ? 'No puedes desactivar tu propio acceso' : undefined}
-                  className={`chip min-h-7 ${m.activo ? 'chip-ok' : 'chip-danger'} disabled:cursor-not-allowed disabled:opacity-60`}
+                  className={`chip min-h-9 touch-manipulation ${m.activo ? 'chip-ok' : 'chip-danger'} disabled:cursor-not-allowed disabled:opacity-60`}
                 >
                   {m.activo ? 'Activo' : 'Inactivo'}
                 </button>
@@ -387,6 +399,8 @@ export default function PersonalTab() {
                     title={`Restablecer contraseña de ${m.nombre}`}
                     onClick={() => {
                       setResetError(null)
+                      setPasswordTemporal('')
+                      setPasswordConfirmacion('')
                       setResetear({ id: m.id, nombre: m.nombre })
                     }}
                     className="btn btn-ghost h-11 w-11 p-0"
@@ -394,20 +408,11 @@ export default function PersonalTab() {
                     <IconoLlave />
                   </button>
                 )}
-                <button
-                  type="button"
-                  aria-label={`Eliminar ${m.nombre}`}
-                  disabled={yoId === m.id}
-                  title={yoId === m.id ? 'No puedes eliminar tu propio acceso' : undefined}
-                  onClick={() => setConfirmar({ id: m.id, nombre: m.nombre })}
-                  className="btn btn-ghost h-11 w-11 p-0 text-zinc-400 hover:text-danger-500 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <IconoBasura />
-                </button>
               </div>
             </li>
           ))}
-        </ul>
+        </ul>}
+        </>
       )}
 
       {/* Modal crear/editar personal */}
@@ -539,34 +544,23 @@ export default function PersonalTab() {
         <Modal titulo={`${rolLabel(personalCreado.rol)} creado`} onCerrar={() => setPersonalCreado(null)} ancho="max-w-md">
           <p className="mb-4 text-sm leading-relaxed text-zinc-300">
             <strong className="font-semibold text-zinc-100">{personalCreado.nombre}</strong>{' '}
-            {esModoLocal()
-              ? 'ya puede iniciar sesión en la app con las credenciales de abajo.'
-              : 'ya puede iniciar sesión en la app con las credenciales de abajo.'}
+            ya tiene una cuenta de acceso en Mesora.
           </p>
 
           <div className="mb-4 rounded-xl border border-surface-800 bg-surface-950/60 p-4">
-            <p className="text-xs uppercase tracking-widest text-zinc-500">Credenciales de acceso</p>
+            <p className="text-xs uppercase tracking-widest text-zinc-500">Usuario de acceso</p>
             <p className="mt-2 break-all font-mono text-sm text-zinc-100">{personalCreado.email ?? 'Sin correo'}</p>
-            {personalCreado.password && (
-              <>
-                <p className="mt-3 text-xs uppercase tracking-widest text-zinc-500">
-                  {esModoLocal() ? 'Contraseña de prueba' : 'Contraseña inicial'}
-                </p>
-                <p className="mt-2 break-all font-mono text-sm text-brand-400">{personalCreado.password}</p>
-              </>
-            )}
           </div>
 
           {esModoLocal() ? (
             <p className="mb-4 flex items-start gap-2 text-xs leading-relaxed text-zinc-500">
               <IconoInfo className="mt-0.5 h-4 w-4 shrink-0" />
-              En este entorno de pruebas no se envían correos. La persona usa estas credenciales
-              para entrar desde /login y verá solo {VISTA_POR_ROL[personalCreado.rol]}.
+              En este entorno de pruebas no se envían correos. La persona usará la clave definida en el formulario para entrar desde /login y verá solo {VISTA_POR_ROL[personalCreado.rol]}.
             </p>
           ) : (
             <p className="mb-4 flex items-start gap-2 text-xs leading-relaxed text-zinc-500">
               <IconoInfo className="mt-0.5 h-4 w-4 shrink-0" />
-              Ya puede iniciar sesión con las credenciales mostradas.
+              Comparte en persona la clave inicial que ingresaste. No se vuelve a mostrar ni se guarda en el historial.
             </p>
           )}
 
@@ -582,91 +576,55 @@ export default function PersonalTab() {
         </Modal>
       )}
 
-      {/* Confirmación de eliminación */}
+      {/* Confirmación de baja o reactivación reversible */}
       {confirmar && (
-        <ConfirmDialog
-          titulo="Eliminar personal"
-          mensaje={`¿Eliminar a «${confirmar.nombre}»? Perderá el acceso a la app. Esta acción no se puede deshacer.`}
-          error={confirmError}
-          onCancelar={() => {
-            setConfirmar(null)
-            setConfirmError(null)
-          }}
-          onConfirmar={() => void ejecutarEliminacion()}
-          cargando={confirmCargando}
-        />
+        <Modal
+          titulo={confirmar.activoNuevo ? 'Reactivar acceso' : 'Desactivar acceso'}
+          onCerrar={() => { if (!confirmCargando) { setConfirmar(null); setConfirmError(null); setMotivoEstado('') } }}
+          ancho="max-w-lg"
+        >
+          <div className="space-y-3 text-sm leading-relaxed text-zinc-300">
+            <p><strong className="text-zinc-100">Acción:</strong> {confirmar.activoNuevo ? 'permitir de nuevo el inicio de sesión' : 'bloquear el inicio de sesión y revocar las sesiones activas'} de <strong className="text-zinc-100">{confirmar.nombre}</strong>.</p>
+            <p><strong className="text-zinc-100">Datos afectados:</strong> solo cambiará el estado de acceso. Sus cuentas, pedidos y registros históricos se conservarán.</p>
+            <p><strong className="text-zinc-100">PIN del gerente:</strong> no requerido; se solicita una sesión activa de administrador.</p>
+            <p><strong className="text-zinc-100">Auditoría:</strong> se registrará actor, hora, estado anterior y nuevo, y motivo opcional.</p>
+          </div>
+          <label className="mt-4 block text-sm text-zinc-400">Motivo (opcional)
+            <input className="input mt-1 min-h-11 w-full" value={motivoEstado} maxLength={240} onChange={(e) => setMotivoEstado(e.target.value)} placeholder={confirmar.activoNuevo ? 'Ej. Regresó al equipo' : 'Ej. Fin de contrato'} />
+          </label>
+          {confirmError && <div role="alert" className="aviso mt-4 border-danger-500/40 bg-danger-500/10 text-danger-400">{confirmError}</div>}
+          {confirmCargando && <div role="status" className="mt-3 text-sm text-zinc-400">Actualizando acceso y cerrando sesiones…</div>}
+          <div className="mt-6 flex flex-wrap justify-end gap-2">
+            <button type="button" disabled={confirmCargando} className="btn btn-outline min-h-11 px-4" onClick={() => { setConfirmar(null); setConfirmError(null); setMotivoEstado('') }}>Cancelar</button>
+            <button type="button" disabled={confirmCargando} className={`btn min-h-11 px-4 ${confirmar.activoNuevo ? 'btn-primary' : 'btn-danger'}`} onClick={() => void ejecutarCambioEstado()}>{confirmCargando ? 'Guardando…' : confirmar.activoNuevo ? 'Confirmar reactivación' : 'Confirmar desactivación'}</button>
+          </div>
+        </Modal>
       )}
 
       {/* Confirmación del restablecimiento de contraseña */}
       {resetear && (
-        <ConfirmDialog
-          titulo="Restablecer contraseña"
-          mensaje={`¿Restablecer contraseña de ${resetear.nombre}? Se van a revocar sus sesiones activas en todos los dispositivos. La contraseña nueva se muestra una sola vez.`}
-          confirmLabel="Restablecer"
-          cargandoLabel="Restableciendo…"
-          error={resetError}
-          onCancelar={() => {
-            setResetear(null)
-            setResetError(null)
-          }}
-          onConfirmar={() => void ejecutarReset()}
-          cargando={resetCargando}
-        />
-      )}
-
-      {/* Contraseña temporal: se muestra una sola vez */}
-      {passwordTemporal && (
         <Modal
-          titulo={`Contraseña restablecida para ${passwordTemporal.nombre}`}
-          onCerrar={() => setPasswordTemporal(null)}
-          ancho="max-w-md"
+          titulo={`Restablecer clave · ${resetear.nombre}`}
+          onCerrar={() => { if (!resetCargando) { setResetear(null); setResetError(null); setPasswordTemporal(''); setPasswordConfirmacion('') } }}
+          ancho="max-w-lg"
         >
-          <p className="mb-4 text-sm leading-relaxed text-zinc-300">
-            Esta es la contraseña temporal de{' '}
-            <strong className="font-semibold text-zinc-100">{passwordTemporal.nombre}</strong>.
-            Entrégasela para que pueda entrar a la app.
-          </p>
-
-          <div className="mb-4 rounded-xl border border-surface-800 bg-surface-950/60 p-4">
-            <p className="text-xs uppercase tracking-widest text-zinc-500">
-              Contraseña temporal
-            </p>
-            <div className="mt-2 flex items-center gap-2">
-              <code className="min-w-0 flex-1 break-all font-mono text-sm text-brand-400">
-                {passwordTemporal.password}
-              </code>
-              <button
-                type="button"
-                onClick={() => void copiarPassword()}
-                className="btn btn-ghost shrink-0 px-3 text-xs"
-              >
-                {copiado ? 'Copiado' : 'Copiar'}
-              </button>
-            </div>
-          </div>
-
-          <p className="mb-4 flex items-start gap-2 text-xs leading-relaxed text-warn-500">
-            <IconoInfo className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>
-              No se vuelve a mostrar. Si la pierdes, hay que restablecerla otra vez.
-            </span>
-          </p>
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => {
-                setPasswordTemporal(null)
-                setCopiado(false)
-                void cargar()
-              }}
-              className="btn btn-primary min-h-11 px-5"
-            >
-              Entendido
-            </button>
+          <p className="mb-4 text-sm leading-relaxed text-zinc-300">La clave temporal se mantendrá enmascarada y no se guardará en Mesora. Entrégasela en persona; al iniciar sesión, la persona tendrá que cambiarla. Sus sesiones actuales se cerrarán.</p>
+          <label className="mb-4 block text-sm text-zinc-400">Nueva clave temporal
+            <input type="password" autoComplete="new-password" className="input mt-1 min-h-11 w-full" value={passwordTemporal} minLength={10} maxLength={128} onChange={(e) => setPasswordTemporal(e.target.value)} />
+          </label>
+          <label className="block text-sm text-zinc-400">Repite la clave temporal
+            <input type="password" autoComplete="new-password" className="input mt-1 min-h-11 w-full" value={passwordConfirmacion} minLength={10} maxLength={128} onChange={(e) => setPasswordConfirmacion(e.target.value)} />
+          </label>
+          <p className="mt-2 text-xs text-zinc-500">Usa al menos 10 caracteres. La clave no aparecerá en auditoría, mensajes ni historial.</p>
+          {resetError && <div role="alert" className="aviso mt-4 border-danger-500/40 bg-danger-500/10 text-danger-400">{resetError}</div>}
+          {resetCargando && <div role="status" className="mt-3 text-sm text-zinc-400">Actualizando Auth, cerrando sesiones y registrando auditoría…</div>}
+          <div className="mt-6 flex flex-wrap justify-end gap-2">
+            <button type="button" disabled={resetCargando} className="btn btn-outline min-h-11 px-4" onClick={() => { setResetear(null); setResetError(null); setPasswordTemporal(''); setPasswordConfirmacion('') }}>Cancelar</button>
+            <button type="button" disabled={resetCargando || passwordTemporal.length < 10 || passwordTemporal !== passwordConfirmacion} className="btn btn-primary min-h-11 px-4" onClick={() => void ejecutarReset()}>{resetCargando ? 'Restableciendo…' : 'Guardar clave temporal'}</button>
           </div>
         </Modal>
       )}
+
     </div>
   )
 }
