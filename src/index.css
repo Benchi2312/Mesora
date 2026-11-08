@@ -286,6 +286,63 @@ body {
   .comanda-print[data-paper-width='58'] { width: 58mm; }
   .comanda-panel > :not(.comanda-print) { display: none !important; }
 
+  /* Imprime solo el artículo de la comanda. Los contenedores React quedan
+     transparentes para el layout y sus hermanos salen del flujo; así la
+     página no hereda la altura del tablero ni repite el ticket en otra hoja.
+     El tamaño físico de papel lo elige Chrome/impresora; el atributo conserva
+     el ancho útil del rollo de 58 u 80 mm sin forzar un formato incompatible
+     cuando el usuario imprime en A4. */
+  body.imprimir-comanda {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+  }
+  body.imprimir-comanda > *:not(.comanda-portal-root) {
+    display: none !important;
+  }
+  body.imprimir-comanda > .comanda-portal-root {
+    display: contents !important;
+  }
+  body.imprimir-comanda .comanda-portal-root :has(.comanda-print) {
+    display: contents !important;
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+  body.imprimir-comanda .comanda-portal-root *:not(:has(.comanda-print)):not(.comanda-print):not(.comanda-print *) {
+    display: none !important;
+  }
+  body.imprimir-comanda .comanda-print,
+  body.imprimir-comanda .comanda-print * {
+    visibility: visible !important;
+    color: #111827 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    border-color: #52525b !important;
+  }
+  body.imprimir-comanda .comanda-print {
+    display: block !important;
+    position: static !important;
+    width: 80mm !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 3mm !important;
+    break-before: auto !important;
+    break-after: auto !important;
+    break-inside: avoid-page !important;
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+    page-break-inside: avoid !important;
+  }
+  body.imprimir-comanda .comanda-print[data-paper-width='58'] { width: 58mm !important; }
+
   /* Reporte del admin: `body.imprimir-reporte` lo pone DashboardTab antes de
      llamar a window.print(). Se usa visibility (y no display) para no romper
      los bloques flex/grid que dependen de sus hijos. */

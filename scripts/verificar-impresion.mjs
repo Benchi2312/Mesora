@@ -24,6 +24,10 @@ function check(nombre, condicion, detalle = '') {
   console.log(`  FALLA ${nombre}${detalle ? ` — ${detalle}` : ''}`)
 }
 
+function paginasPdf(pdf) {
+  return (Buffer.from(pdf).toString('latin1').match(/\/Type\s*\/Page\b/g) ?? []).length
+}
+
 function iniciarVite() {
   return spawn(process.execPath, [join(SCRIPTS, 'qa-vite.mjs'), RAIZ, ENV_DIR, String(PUERTO)], {
     cwd: RAIZ,
@@ -53,7 +57,10 @@ try {
   page.on('pageerror', (error) => erroresPagina.push(String(error)))
   await page.addInitScript(() => {
     window.__mesoraPrintCalls = 0
-    window.print = () => { window.__mesoraPrintCalls++ }
+    window.print = () => {
+      window.__mesoraPrintCalls++
+      window.dispatchEvent(new Event('afterprint'))
+    }
   })
 
   await page.goto(`${URL}/demo/cocina`, { waitUntil: 'networkidle', timeout: 45000 })
@@ -134,6 +141,33 @@ try {
   await dialog.waitFor()
   let ticket = dialog.locator('.comanda-print')
   const ticketCocina = await ticket.innerText()
+  async function comprobarSalidaA4(nombre, anchoEsperado) {
+    await page.emulateMedia({ media: 'print' })
+    await page.evaluate(() => document.body.classList.add('imprimir-comanda'))
+    async function crearPdf(opciones) {
+      await page.evaluate(() => document.body.classList.add('imprimir-comanda'))
+      const resultado = await page.pdf(opciones)
+      // Chromium también puede emitir `afterprint` al terminar Page.printToPDF.
+      // Restablecemos el contexto para comprobar cada tamaño de papel aislado.
+      await page.evaluate(() => document.body.classList.add('imprimir-comanda'))
+      return resultado
+    }
+    const copiasEnDom = await page.locator('.comanda-print').count()
+    const anchoReal = await ticket.evaluate((elemento) => Number.parseFloat(getComputedStyle(elemento).width) * 25.4 / 96)
+    const pdf = await crearPdf({ format: 'A4', printBackground: true, preferCSSPageSize: false })
+    const pdfConTamanoCSS = await crearPdf({ format: 'A4', printBackground: true, preferCSSPageSize: true })
+    const pdfRollo = await crearPdf({ width: `${anchoEsperado}mm`, height: '150mm', printBackground: true, preferCSSPageSize: false })
+    const paginas = paginasPdf(pdf)
+    const paginasConTamanoCSS = paginasPdf(pdfConTamanoCSS)
+    const paginasRollo = paginasPdf(pdfRollo)
+    await page.evaluate(() => document.body.classList.remove('imprimir-comanda'))
+    await page.emulateMedia({ media: 'screen' })
+    check(`${nombre}: existe una sola copia imprimible`, copiasEnDom === 1, `copias=${copiasEnDom}`)
+    check(`${nombre}: A4 genera una sola página`, paginas === 1, `páginas=${paginas}`)
+    check(`${nombre}: tamaño CSS genera una sola página`, paginasConTamanoCSS === 1, `páginas=${paginasConTamanoCSS}`)
+    check(`${nombre}: papel de rollo genera una sola página`, paginasRollo === 1, `páginas=${paginasRollo}`)
+    check(`${nombre}: conserva ancho térmico de ${anchoEsperado} mm`, Math.abs(anchoReal - anchoEsperado) < 0.5, `ancho=${anchoReal.toFixed(2)} mm`)
+  }
   check('la impresión de cocina incluye restaurante, mesa, mesero, fecha/hora y comanda',
     ticketCocina.includes('Restaurante Demo') && ticketCocina.includes(pedidoMixto.mesa) &&
     ticketCocina.includes(pedidoMixto.mesero) && ticketCocina.includes(`N.º ${pedidoMixto.id.slice(0, 8).toUpperCase()}`) &&
@@ -144,8 +178,10 @@ try {
     ticketCocina.includes('1 ×') && ticketCocina.includes('Sin sal'))
   await dialog.getByLabel('Ancho de papel térmico').selectOption('80')
   check('la vista de impresión admite papel de 80 mm', await ticket.getAttribute('data-paper-width') === '80')
+  await comprobarSalidaA4('Cocina con ancho 80 mm en impresora A4', 80)
   await dialog.getByLabel('Ancho de papel térmico').selectOption('58')
   check('la vista de impresión admite papel de 58 mm', await ticket.getAttribute('data-paper-width') === '58')
+  await comprobarSalidaA4('Cocina con ancho 58 mm en impresora A4', 58)
 
   // Simula una respuesta de red incierta antes de registrar en el backend. Dos
   // eventos síncronos deben producir una única llamada y ofrecer reintento.
@@ -184,6 +220,7 @@ try {
 
   await dialog.getByRole('button', { name: 'Abrir diálogo de impresión' }).click()
   check('la impresión usa window.print() como mecanismo del navegador', await page.evaluate(() => window.__mesoraPrintCalls === 1))
+  check('el estado de impresión temporal se limpia al cerrar el diálogo', await page.evaluate(() => !document.body.classList.contains('imprimir-comanda')))
   await dialog.getByRole('button', { name: 'Sí, salió' }).click()
   check('el usuario puede confirmar la salida del papel', await dialog.getByText('Impresión confirmada por el usuario.').count() === 1)
   await dialog.getByRole('button', { name: 'Cerrar' }).last().click()
@@ -198,6 +235,11 @@ try {
     pedidoMixto.bar.every((nombre) => ticketBar.includes(nombre)) &&
     pedidoMixto.cocina.every((nombre) => !ticketBar.includes(nombre)) &&
     ticketBar.includes('2 ×') && ticketBar.includes('Con hielo'))
+  await dialog.getByLabel('Ancho de papel térmico').selectOption('80')
+  await comprobarSalidaA4('Bar con ancho 80 mm en impresora A4', 80)
+  await dialog.getByLabel('Ancho de papel térmico').selectOption('58')
+  await comprobarSalidaA4('Bar con ancho 58 mm en impresora A4', 58)
+  await dialog.getByLabel('Ancho de papel térmico').selectOption('80')
   await dialog.getByRole('button', { name: 'Registrar impresión' }).click()
   await dialog.getByRole('button', { name: 'Abrir diálogo de impresión' }).waitFor()
   await dialog.getByRole('button', { name: 'Abrir diálogo de impresión' }).click()
@@ -214,6 +256,7 @@ try {
   await dialog.getByLabel('Motivo de reimpresión').fill('La copia de cocina no salió')
   await dialog.getByRole('button', { name: 'Registrar reimpresión' }).click()
   await dialog.getByRole('button', { name: 'Abrir diálogo de impresión' }).waitFor()
+  await comprobarSalidaA4('Reimpresión de Bar en A4', 80)
   const auditoriaReimpresion = await page.evaluate((pedidoId) => {
     const estado = JSON.parse(localStorage.getItem('mesora.demo.datos.v2') || '{}')
     return (estado.auditLogs || []).find((log) => log.entidad_id === pedidoId && log.accion === 'comanda_reimprimir')

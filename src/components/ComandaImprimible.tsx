@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Modal } from './ui'
 import { fmtFecha } from '../lib/format'
 import { esFalloDeRed, type PedidoConItems, type ResultadoRegistroImpresion } from '../lib/api'
@@ -41,6 +42,15 @@ export default function ComandaImprimible({
   const solicitudId = useRef(globalThis.crypto.randomUUID())
   const registrando = useRef(false)
   const abriendoImpresion = useRef(false)
+
+  useEffect(() => {
+    const limpiarModoImpresion = () => document.body.classList.remove('imprimir-comanda')
+    window.addEventListener('afterprint', limpiarModoImpresion)
+    return () => {
+      window.removeEventListener('afterprint', limpiarModoImpresion)
+      limpiarModoImpresion()
+    }
+  }, [])
 
   const items = itemsDeEstacion(pedido.items, estacion)
   const fecha = new Date(pedido.created_at)
@@ -98,10 +108,12 @@ export default function ComandaImprimible({
     setPrintListo(false)
     setEstado(accion === 'comanda_reimprimir' ? 'reimpresion' : 'enviado')
     setMensaje('Enviado al diálogo de impresión del navegador.')
+    document.body.classList.add('imprimir-comanda')
     try {
       window.print()
       setConfirmarSalida(true)
     } catch {
+      document.body.classList.remove('imprimir-comanda')
       abriendoImpresion.current = false
       solicitudId.current = globalThis.crypto.randomUUID()
       setMotivo('')
@@ -137,8 +149,9 @@ export default function ComandaImprimible({
         ? 'Impreso (confirmado por usuario)'
         : 'Reimpresión'
 
-  return (
-    <Modal titulo={`Comanda · ${NOMBRES_ESTACION_COMANDA[estacion]}`} onCerrar={onCerrar} ancho="max-w-md">
+  return createPortal(
+    <div className="comanda-portal-root">
+      <Modal titulo={`Comanda · ${NOMBRES_ESTACION_COMANDA[estacion]}`} onCerrar={onCerrar} ancho="max-w-md">
       <div className="comanda-panel">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
           <label className="flex items-center gap-2 text-sm text-zinc-300">
@@ -158,8 +171,7 @@ export default function ComandaImprimible({
           </span>
         </div>
 
-        <style>{`@page { size: ${ancho}mm auto; margin: 0; }`}</style>
-        <article className="comanda-print mx-auto" data-paper-width={ancho} aria-label="Vista imprimible de la comanda">
+        <article className="comanda-print mx-auto" data-paper-width={ancho} data-comanda-id={pedido.id} aria-label="Vista imprimible de la comanda">
           <header className="comanda-cabecera">
             <strong className="comanda-restaurante">{restauranteNombre || 'Restaurante'}</strong>
             <div className="comanda-estacion">COMANDA · {NOMBRES_ESTACION_COMANDA[estacion].toUpperCase()}</div>
@@ -231,6 +243,8 @@ export default function ComandaImprimible({
           </div>
         )}
       </div>
-    </Modal>
+      </Modal>
+    </div>,
+    document.body,
   )
 }
