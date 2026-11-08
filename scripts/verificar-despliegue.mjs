@@ -27,6 +27,28 @@ const describir = (url) => {
   return `${parsed.hostname}${parsed.pathname}`
 }
 
+// No permitir que la regla SPA responda index.html para un chunk ausente:
+// ese HTML no es JavaScript y causa un error de importación poco claro.
+const documento = await fetch(origen, { headers: { accept: 'text/html' } })
+assert(documento.ok, `El documento principal no respondió correctamente (${documento.status}).`)
+const cacheHtml = documento.headers.get('cache-control')?.toLowerCase() ?? ''
+assert(cacheHtml.includes('no-cache') || cacheHtml.includes('no-store'),
+  `index.html debe revalidarse en cada navegación; Cache-Control recibido: ${cacheHtml || '(vacío)'}.`)
+const html = await documento.text()
+const assetRaiz = html.match(/(?:src|href)="(\/assets\/[^" ]+\.(?:js|css))"/)?.[1]
+assert(assetRaiz, 'No se encontró un recurso versionado de Vite en index.html.')
+const respuestaAsset = await fetch(`${origen}${assetRaiz}`)
+assert(respuestaAsset.ok, `El asset actual devolvió ${respuestaAsset.status}: ${assetRaiz}`)
+assert(respuestaAsset.headers.get('cache-control')?.toLowerCase().includes('immutable'),
+  `Los assets con hash deben ser inmutables: ${respuestaAsset.headers.get('cache-control') || '(sin Cache-Control)'}.`)
+const respuestaChunkAusente = await fetch(`${origen}/assets/mesora-chunk-inexistente-qa.js`)
+assert.equal(respuestaChunkAusente.status, 404,
+  `Un chunk ausente debe dar 404 y nunca el fallback SPA (recibido ${respuestaChunkAusente.status}).`)
+const cuerpoChunkAusente = await respuestaChunkAusente.text()
+assert(!cuerpoChunkAusente.includes('<div id="app"></div>'),
+  'Vercel respondió el index.html de la aplicación a una solicitud de chunk JS inexistente.')
+console.log('OK caché HTML, caché de assets versionados y 404 real para chunk ausente')
+
 const casos = [
   { ruta: '/', tipo: 'landing' },
   { ruta: '/login', tipo: 'login' },

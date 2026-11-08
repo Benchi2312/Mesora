@@ -10,6 +10,8 @@ import Landing from './pages/landing/Landing'
 import NotFound from './pages/NotFound'
 import SuperAdminLayout from './pages/superadmin/SuperAdminLayout'
 import DemoMode from './demo/DemoMode'
+import RouteErrorPage from './components/RouteErrorPage'
+import { confirmarCargaDeChunk } from './lib/chunkRecovery'
 
 /**
  * Code-splitting por ruta: la landing y el login cargan al instante y el panel
@@ -19,10 +21,14 @@ import DemoMode from './demo/DemoMode'
  */
 const pagina =
   (cargar: () => Promise<{ default: ComponentType }>) =>
-  async (): Promise<{ Component: ComponentType }> => ({ Component: (await cargar()).default })
+  async (): Promise<{ Component: ComponentType }> => {
+    const modulo = await cargar()
+    confirmarCargaDeChunk()
+    return { Component: modulo.default }
+  }
 
 
-const router = createBrowserRouter([
+const rutas = [
   { path: '/login', element: <Login /> },
   { path: '/restablecer', element: <Restablecer /> },
   { path: '/verificar-correo-recuperacion', element: <VerificarCorreoRecuperacion /> },
@@ -127,6 +133,11 @@ const router = createBrowserRouter([
   },
   { path: '/', element: <Landing /> },
   { path: '*', element: <NotFound /> },
-])
+]
+
+const router = createBrowserRouter([{
+  errorElement: <RouteErrorPage />,
+  children: rutas,
+}])
 
 export default router

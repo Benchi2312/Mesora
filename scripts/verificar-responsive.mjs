@@ -587,6 +587,16 @@ async function correrSesionesLocales(browser, vp) {
         await page.getByRole('link', { name: seccion, exact: true }).first().click()
         await page.waitForTimeout(400)
         await medir(page, vp, `${vp.nombre}_superadmin_${seccion.toLowerCase()}`)
+        if (seccion === 'Configuración') {
+          await page.locator('#cfg-nombre').waitFor({ timeout: 10000 })
+          await page.reload({ waitUntil: 'networkidle' })
+          await page.locator('#cfg-nombre').waitFor({ timeout: 10000 })
+          check(
+            `superadmin ${vp.nombre} · Configuración abre y recarga directamente`,
+            new globalThis.URL(page.url()).pathname === '/super-admin/configuracion' &&
+              !(await page.getByText('Unexpected Application Error').count()),
+          )
+        }
       }
     } finally {
       await ctx.close()

@@ -4,6 +4,7 @@ import { useCurrentContext } from '../lib/useCurrentContext'
 import { crearPrecuenta, type Precuenta as DatosPrecuenta } from '../domain/cashier/precuenta'
 import { fmtFecha, fmtPEN } from '../lib/format'
 import { Spinner } from './LoadingScreen'
+import { confirmarCargaDeChunk } from '../lib/chunkRecovery'
 
 export default function Precuenta({ mesa, onVolver }: {
   mesa: { id: string; nombre: string }
@@ -54,6 +55,7 @@ export default function Precuenta({ mesa, onVolver }: {
     setDescargando(true)
     try {
       const { descargarPrecuentaPdf } = await import('../domain/cashier/precuentaPdf')
+      confirmarCargaDeChunk()
       descargarPrecuentaPdf(datos, restaurante)
     } catch {
       setError('No se pudo descargar el PDF. Inténtalo de nuevo o usa Imprimir precuenta.')

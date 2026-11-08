@@ -18,6 +18,7 @@
     "verificar:sql": "node scripts/verificar-sql.mjs",
     "verificar:responsive": "node scripts/verificar-responsive.mjs",
     "verificar:despliegue": "node scripts/verificar-despliegue.mjs",
+    "verificar:chunks": "node scripts/verificar-chunks.mjs",
     "verificar:acceso": "node scripts/verificar-acceso.mjs",
     "verificar:contacto": "node scripts/verificar-contacto.mjs",
     "capturas:demo": "node scripts/capturas-demo.mjs",
