@@ -3579,6 +3579,26 @@ const auditoriaReimpresionQa = localSeed.auditLogs.find((l) => l.accion === 'com
 check('30g · reimpresión pide motivo y audita usuario/fecha/mesa/motivo', motivoPendienteQa.data?.estado === 'requiere_motivo' && reimpresionQa.data?.accion === 'comanda_reimprimir' && auditoriaReimpresionQa?.actor_id === meseroMariaQa.id && auditoriaReimpresionQa.created_at && auditoriaReimpresionQa.detalle?.mesa_id === pedidoParaImprimir.mesa_id && auditoriaReimpresionQa.detalle?.motivo === 'Papel no salió')
 check('30h · la impresión no crea ni modifica pedidos', localSeed.pedidos.find((p) => p.id === pedidoParaImprimir.id)?.estado === 'pendiente' && localSeed.pedidos.filter((p) => p.id === pedidoParaImprimir.id).length === 1)
 
+titulo('31 · Tipos y defaults de Operación configurable')
+const operacionDomain = await servidor.ssrLoadModule('/src/domain/restaurant/operacion.ts')
+const defaultsOperacion = operacionDomain.crearConfiguracionOperativaPredeterminada(RID)
+check('31a · el default mantiene cobro por mesero y las estaciones actuales',
+  defaultsOperacion.configuracion.modalidad_cobro === 'cobro_por_mesero' &&
+  defaultsOperacion.estaciones.map((e) => e.codigo).join(',') === 'cocina,bar,otros')
+check('31b · cada estación mantiene KDS activo sin activar impresoras',
+  defaultsOperacion.estaciones.every((e) => e.activo && e.destinos.length === 1 && e.destinos[0].tipo === 'kds' && e.destinos[0].activo && e.destinos[0].grupo === 'principal'))
+check('31c · la resolución soporta KDS, impresora, ambos y ninguno',
+  operacionDomain.modoDestinoEstacion([{ tipo: 'kds', grupo: 'principal', activo: true }]) === 'kds' &&
+  operacionDomain.modoDestinoEstacion([{ tipo: 'impresora', grupo: 'principal', activo: true }]) === 'impresora' &&
+  operacionDomain.modoDestinoEstacion([
+    { tipo: 'kds', grupo: 'principal', activo: true },
+    { tipo: 'impresora', grupo: 'principal', activo: true },
+  ]) === 'ambos' &&
+  operacionDomain.modoDestinoEstacion([{ tipo: 'kds', grupo: 'respaldo', activo: true }]) === 'ninguno')
+check('31d · los destinos inactivos no participan del enrutamiento',
+  operacionDomain.modoDestinoEstacion([{ tipo: 'impresora', grupo: 'principal', activo: false }]) === 'ninguno' &&
+  operacionDomain.estadoDeDestino(false) === 'inactivo')
+
 await servidor.close()
 rmSync(ENV_DIR, { recursive: true, force: true })
 

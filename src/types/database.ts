@@ -131,11 +131,100 @@ export type CategoriaProducto = {
   id: string
   restaurante_id: string
   nombre: string
+  /** Estación heredada por los productos sin excepción propia. */
+  estacion_id?: string | null
   created_at: string
 }
 
 /** Estación de preparación; independiente de la clasificación de venta. */
 export type EstacionComanda = 'cocina' | 'bar' | 'otros'
+
+export type ModalidadCobro =
+  | 'solo_cajero'
+  | 'cobro_por_mesero'
+  | 'caja_central_meseros_autorizados'
+
+export type TipoDestinoEstacion = 'kds' | 'impresora'
+export type ModoDestinoEstacion = TipoDestinoEstacion | 'ambos' | 'ninguno'
+export type GrupoDestinoEstacion = 'principal' | 'respaldo'
+export type EstadoDestinoEstacion = 'activo' | 'inactivo'
+export type EstadoEntregaComanda = 'pendiente' | 'enviada' | 'confirmada' | 'fallida' | 'cancelada'
+export type EstadoComandaEstacion = EstadoPedido
+
+export type ConfiguracionOperativa = {
+  restaurante_id: string
+  modalidad_cobro: ModalidadCobro
+  version: number
+  actualizado_por: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type EstacionRestaurante = {
+  id: string
+  restaurante_id: string
+  codigo: EstacionComanda
+  nombre: string
+  activo: boolean
+  orden: number
+  created_at: string
+  updated_at: string
+}
+
+export type DestinoEstacion = {
+  id: string
+  restaurante_id: string
+  estacion_id: string
+  tipo: TipoDestinoEstacion
+  grupo: GrupoDestinoEstacion
+  nombre: string
+  papel_mm: 58 | 80 | null
+  configuracion: Record<string, unknown>
+  activo: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type EntregaComanda = {
+  id: string
+  restaurante_id: string
+  pedido_id: string
+  estacion_id: string
+  destino_estacion_id: string
+  grupo: GrupoDestinoEstacion
+  tipo_destino: TipoDestinoEstacion
+  configuracion_version: number
+  clave_idempotencia: string
+  numero_entrega: number
+  estado: EstadoEntregaComanda
+  error_publico: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type EstadoComandaPorEstacion = {
+  id: string
+  restaurante_id: string
+  pedido_id: string
+  estacion_id: string
+  estado: EstadoComandaEstacion
+  iniciado_at: string | null
+  listo_at: string | null
+  entregado_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type AutorizacionCobro = {
+  id: string
+  restaurante_id: string
+  usuario_id: string
+  activo: boolean
+  creado_por: string | null
+  actualizado_por: string | null
+  created_at: string
+  updated_at: string
+}
 
 export type Producto = {
   id: string
@@ -386,6 +475,12 @@ export interface Database {
       productos: Tbl<Producto, Partial<Producto>, Partial<Producto>>
       pedidos: Tbl<Pedido, Partial<Pedido>, Partial<Pedido>>
       pedido_items: Tbl<PedidoItem, Partial<PedidoItem>, Partial<PedidoItem>>
+      configuracion_operativa: Tbl<ConfiguracionOperativa, Partial<ConfiguracionOperativa>, Partial<ConfiguracionOperativa>>
+      estaciones_restaurante: Tbl<EstacionRestaurante, Partial<EstacionRestaurante>, Partial<EstacionRestaurante>>
+      destinos_estacion: Tbl<DestinoEstacion, Partial<DestinoEstacion>, Partial<DestinoEstacion>>
+      entregas_comanda: Tbl<EntregaComanda, Partial<EntregaComanda>, Partial<EntregaComanda>>
+      estado_comanda_estacion: Tbl<EstadoComandaPorEstacion, Partial<EstadoComandaPorEstacion>, Partial<EstadoComandaPorEstacion>>
+      autorizaciones_cobro: Tbl<AutorizacionCobro, Partial<AutorizacionCobro>, Partial<AutorizacionCobro>>
       cuentas: Tbl<Cuenta, Partial<Cuenta>, Partial<Cuenta>>
       cuenta_pedidos: Tbl<CuentaPedido, Partial<CuentaPedido>, Partial<CuentaPedido>>
       cuenta_pagos: Tbl<Pago, Partial<Pago>, Partial<Pago>>

@@ -28,7 +28,7 @@ try {
     console.error('Error de instalación:', e.message, e.detail ?? '', pos ? instalador.slice(Math.max(0, pos - 110), pos + 160) : '')
     throw new Error('Falló el instalador SQL')
   }
-  assert.equal((await pg.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 21)
+  assert.equal((await pg.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 27)
   console.log('SQL QA: tablas, RPC, RLS y pgcrypto instalados')
   await pg.exec(`
     begin;
@@ -102,6 +102,14 @@ try {
   await pg.exec(readFileSync(new URL('../supabase/qa/bloque2_roles_filtros_rollback.sql', import.meta.url), 'utf8'))
   console.log('SQL QA: filtros de Cobros/Auditoría, aislamiento tenant y estado lógico aprobados')
   await pg.exec(readFileSync(new URL('../supabase/qa/impresion_comandas_rollback.sql', import.meta.url), 'utf8'))
+  const qaOperacion = readFileSync(new URL('../supabase/qa/operacion_configurable_rollback.sql', import.meta.url), 'utf8')
+  const migracionOperacion = readFileSync(new URL('../supabase/migrations/20261108120000_sistema_operativo_configurable.sql', import.meta.url), 'utf8')
+  assert.ok(qaOperacion.includes('/* APLICAR_MIGRACION_OPERACION */'), 'Falta el punto de inyección de Operación configurable')
+  const [qaAntesMigracion, qaDespuesMigracion] = qaOperacion.split('/* APLICAR_MIGRACION_OPERACION */')
+  await pg.exec(qaAntesMigracion)
+  await pg.exec(migracionOperacion)
+  await pg.exec(migracionOperacion)
+  await pg.exec(qaDespuesMigracion)
   console.log('SQL QA: estaciones históricas, auditoría idempotente y motivo de reimpresión aprobados')
   await pg.exec(`
     begin;
@@ -170,10 +178,74 @@ try {
   const copia = await pg.dumpDataDir('gzip')
   const restaurada = new PGlite({ extensions: { pgcrypto }, loadDataDir: copia })
   try {
-    assert.equal((await restaurada.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 21)
+    assert.equal((await restaurada.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 27)
     assert.equal((await restaurada.query('select count(*)::int as n from public.restaurantes')).rows[0].n, 0)
     console.log('SQL QA: respaldo/restauración de la base aislada y rollback correctos')
   } finally { await restaurada.close() }
+  // Actualiza una base que todavía no tiene la nueva migración. Primero se
+  // comprueba el rollback de la prueba; luego se aplica sobre datos existentes.
+  const pgUpgrade = new PGlite({ extensions: { pgcrypto } })
+  try {
+    await pgUpgrade.exec(`
+      create role anon nologin;
+      create role authenticated nologin;
+      create role service_role nologin bypassrls;
+      create schema auth;
+      grant usage on schema public, auth to anon, authenticated, service_role;
+      create table auth.users (id uuid primary key, email text, encrypted_password text, last_sign_in_at timestamptz, created_at timestamptz default now());
+      create function auth.uid() returns uuid stable language sql as $$
+        select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
+      $$;
+      create function auth.jwt() returns jsonb stable language sql as $$
+        select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}');
+      $$;
+      create function auth.role() returns text stable language sql as $$ select auth.jwt()->>'role' $$;
+    `)
+
+    const filasInstaller = instalador.split('\n')
+    const lineaMigracion = filasInstaller.findIndex((linea) => linea.includes('· ../migrations/20261108120000_sistema_operativo_configurable.sql'))
+    assert.ok(lineaMigracion > 0, 'No se encontró la sección de Operación configurable en TODO_EN_UNO.sql')
+    const instaladorExistente = filasInstaller.slice(0, lineaMigracion - 1).join('\n')
+    assert.ok(instaladorExistente.includes('add column if not exists estacion text'), 'La base previa no incluye Bloque 3')
+    await pgUpgrade.exec(instaladorExistente)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 21)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='productos' and column_name='estacion'")).rows[0].n, 1)
+
+    await pgUpgrade.exec(qaAntesMigracion)
+    await pgUpgrade.exec(migracionOperacion)
+    await pgUpgrade.exec(migracionOperacion)
+    await pgUpgrade.exec(qaDespuesMigracion)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 21)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='categorias_productos' and column_name='estacion_id'")).rows[0].n, 0)
+
+    await pgUpgrade.exec(`
+      insert into auth.users(id,email) values ('00000000-0000-4000-8000-000000000001','upgrade@mesora.example');
+      insert into public.restaurantes(id,nombre,suscripcion_activa)
+        values ('00000000-0000-4000-8000-000000000002','QA actualización',true);
+      insert into public.usuarios(id,restaurante_id,rol,nombre)
+        values ('00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000002','admin_restaurante','Admin upgrade');
+      insert into public.categorias_productos(id,restaurante_id,nombre)
+        values ('00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000002','Categoría existente');
+      insert into public.productos(id,restaurante_id,categoria_id,nombre,precio,es_bebida,estacion)
+        values ('00000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000003','Bebida existente',8,true,'bar');
+    `)
+    await pgUpgrade.exec(migracionOperacion)
+    await pgUpgrade.exec(migracionOperacion)
+    const configuracionUpgrade = await pgUpgrade.query(`
+      select c.modalidad_cobro, count(distinct e.id)::int as estaciones,
+             count(distinct d.id)::int as destinos,
+             (select estacion from public.productos where id='00000000-0000-4000-8000-000000000004') as estacion_producto
+        from public.configuracion_operativa c
+        join public.estaciones_restaurante e on e.restaurante_id=c.restaurante_id
+        join public.destinos_estacion d on d.estacion_id=e.id
+       where c.restaurante_id='00000000-0000-4000-8000-000000000002'
+       group by c.modalidad_cobro
+    `)
+    assert.deepEqual(configuracionUpgrade.rows[0], {
+      modalidad_cobro: 'cobro_por_mesero', estaciones: 3, destinos: 3, estacion_producto: 'bar',
+    })
+    console.log('SQL QA: migración instalada en base existente, dos veces; datos y estación explícita conservados')
+  } finally { await pgUpgrade.close() }
 } catch (e) {
   console.error(e.message)
   process.exitCode = 1
