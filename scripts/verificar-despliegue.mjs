@@ -54,7 +54,7 @@ const casos = [
   { ruta: '/login', tipo: 'login' },
   { ruta: '/demo/admin', tipo: 'demo', titulo: 'Panel de administración' },
   { ruta: '/demo/mesero', tipo: 'demo', texto: 'Toma de pedidos y cierre de cuentas' },
-  { ruta: '/demo/cocina', tipo: 'demo', titulo: 'Cocina y barra' },
+  { ruta: '/demo/cocina', tipo: 'demo', titulo: 'Estaciones de preparación' },
   { ruta: '/demo/cajero', tipo: 'demo', titulo: 'Caja' },
   { ruta: '/restablecer', tipo: 'restablecer' },
   { ruta: '/verificar-correo-recuperacion', tipo: 'verificar' },
