@@ -22,6 +22,8 @@ import type {
   ConfiguracionGlobal,
   Cuenta,
   CuentaPedido,
+  EntregaComanda,
+  EstadoComandaPorEstacion,
   Mesa,
   Pago,
   Pedido,
@@ -180,6 +182,8 @@ export interface LocalSeedData {
   usuarios: Usuario[]
   pedidos: Pedido[]
   items: PedidoItem[]
+  entregasComanda: EntregaComanda[]
+  estadosComandaEstacion: EstadoComandaPorEstacion[]
   cuentas: Cuenta[]
   cuentaPedidos: CuentaPedido[]
   /** Detalle de pago por cuenta (pago dividido). Siempre ≥ 1 fila por cuenta. */
@@ -236,6 +240,8 @@ export function crearLocalSeed(): LocalSeedData {
     usuarios: clonar(localUsuarios),
     pedidos: clonar(mockPedidos),
     items: clonar(mockPedidoItems),
+    entregasComanda: [],
+    estadosComandaEstacion: [],
     cuentas: clonar(mockCuentas),
     cuentaPedidos: clonar(mockCuentaPedidos),
     // Las cuentas semilla solo tienen un método, así que su detalle es una fila

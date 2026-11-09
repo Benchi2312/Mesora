@@ -15,6 +15,7 @@
     "verificar:precuenta": "node scripts/verificar-precuenta.mjs",
     "verificar:impresion": "node scripts/verificar-impresion.mjs",
     "verificar:configuracion": "node scripts/verificar-configuracion.mjs",
+    "verificar:enrutamiento": "node scripts/verificar-enrutamiento.mjs",
     "verificar:sql": "node scripts/verificar-sql.mjs",
     "verificar:responsive": "node scripts/verificar-responsive.mjs",
     "verificar:despliegue": "node scripts/verificar-despliegue.mjs",

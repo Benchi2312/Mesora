@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PageHeader from '../../components/PageHeader'
-import { getApi, type ItemResumen, type MeseroResumen, type PedidoConItems } from '../../lib/api'
+import { getApi, type EstacionEnrutamiento, type ItemResumen, type MeseroResumen, type PedidoConItems } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import { fmtPEN } from '../../lib/format'
 import { useElapsed } from '../../lib/useElapsed'
@@ -78,9 +78,49 @@ const COLUMNAS: { estado: EstadoPedido; titulo: string; boton: string; color: st
   },
 ]
 
+function etiquetaEstacion(nombre: string, codigo: EstacionComanda): string {
+  if (codigo === 'bar' && nombre === 'Bar') return 'Barra'
+  return nombre
+}
+
+function estacionesParaMostrar(
+  configuradas: readonly EstacionEnrutamiento[],
+  pedidos: readonly PedidoConItems[],
+): EstacionEnrutamiento[] {
+  const porCodigo = new Map<EstacionComanda, EstacionEnrutamiento>()
+  for (const estacion of configuradas) {
+    const destinos = estacion.destinos.filter((destino) => destino.activo && destino.grupo === 'principal')
+    if (estacion.activo && destinos.length > 0) porCodigo.set(estacion.codigo, estacion)
+  }
+  for (const pedido of pedidos) {
+    for (const codigo of ESTACIONES_COMANDA) {
+      const ruta = pedido.rutasPorEstacion?.[codigo]
+      if (!ruta || ruta.estado === 'entregado' || ruta.estado === 'anulado') continue
+      if (!porCodigo.has(codigo)) {
+        porCodigo.set(codigo, {
+          id: null,
+          codigo,
+          nombre: ruta.nombre ?? NOMBRES_ESTACION_COMANDA[codigo],
+          activo: true,
+          orden: (ESTACIONES_COMANDA.indexOf(codigo) + 1) * 10,
+          destinos: ruta.destinos.map((tipo) => ({
+            id: null,
+            tipo,
+            grupo: 'principal',
+            nombre: `${tipo === 'kds' ? 'KDS' : 'Impresora'} ${ruta.nombre ?? NOMBRES_ESTACION_COMANDA[codigo]}`,
+            activo: true,
+          })),
+        })
+      }
+    }
+  }
+  return [...porCodigo.values()].sort((a, b) => a.orden - b.orden || a.codigo.localeCompare(b.codigo))
+}
+
 export default function Cocina() {
   const { restaurante } = useCurrentContext()
   const [pedidos, setPedidos] = useState<PedidoConItems[]>([])
+  const [estacionesOperativas, setEstacionesOperativas] = useState<EstacionEnrutamiento[]>([])
   const [mesas, setMesas] = useState<Mesa[]>([])
   const [meseros, setMeseros] = useState<MeseroResumen[]>([])
   const [estacion, setEstacion] = useState<EstacionComanda>('cocina')
@@ -93,13 +133,18 @@ export default function Cocina() {
   /** Ids de comandas cuyo avance está en vuelo (evita el doble toque). */
   const [avanzando, setAvanzando] = useState<ReadonlySet<string>>(() => new Set())
   /** Comanda que se está previsualizando para imprimir en la impresora de la estación. */
-  const [ticket, setTicket] = useState<{ p: PedidoConItems; mesaNombre: string; meseroNombre: string; estacion: EstacionComanda } | null>(null)
+  const [ticket, setTicket] = useState<{ p: PedidoConItems; mesaNombre: string; meseroNombre: string; estacion: EstacionComanda; impresoras: { nombre: string; papel_mm: 58 | 80 | null; copias: number }[] } | null>(null)
 
   const cargar = useCallback(async () => {
     const rid = restaurante?.id
     if (!rid) return
     try {
       const api = getApi()
+      const rutasRes = await api.getEstacionesEnrutamiento(rid)
+      if (rutasRes.error) {
+        setError(rutasRes.error)
+        return
+      }
       const [pRes, mRes, uRes] = await Promise.all([
         api.getPedidosActivos(rid),
         api.getMesas(rid),
@@ -110,7 +155,10 @@ export default function Cocina() {
         return
       }
       const pedidosNuevos = pRes.data ?? []
-      const idsDeEstacion = new Set(pedidosNuevos.filter((p) => p.estado === 'pendiente' && p.items.some((it) => estacionDeProducto(it) === estacion)).map((p) => p.id))
+      const idsDeEstacion = new Set(pedidosNuevos.filter((p) =>
+        p.rutasPorEstacion?.[estacion]?.estado === 'pendiente' &&
+        p.items.some((it) => estacionDeProducto(it) === estacion),
+      ).map((p) => p.id))
       if (pedidosConocidos.current === null) pedidosConocidos.current = idsDeEstacion
       else {
         const nuevos = [...idsDeEstacion].filter((id) => !pedidosConocidos.current?.has(id))
@@ -122,6 +170,11 @@ export default function Cocina() {
         pedidosConocidos.current = idsDeEstacion
       }
       setPedidos(pedidosNuevos)
+      setEstacionesOperativas(rutasRes.data ?? [])
+      const estacionesConRuta = estacionesParaMostrar(rutasRes.data ?? [], pedidosNuevos)
+      if (estacionesConRuta.length && !estacionesConRuta.some((fila) => fila.codigo === estacion)) {
+        setEstacion(estacionesConRuta[0].codigo)
+      }
       setMesas(mRes.data ?? [])
       setMeseros(uRes.data ?? [])
       setError(null)
@@ -157,7 +210,7 @@ export default function Cocina() {
     if (avanzando.has(p.id)) return
     setAvanzando((prev) => new Set(prev).add(p.id))
     try {
-      const { error: apiErr } = await getApi().avanzarPedido(rid, p.id)
+      const { error: apiErr } = await getApi().avanzarPedido(rid, p.id, estacion)
       if (apiErr) {
         setError(apiErr)
         await cargar()
@@ -240,14 +293,20 @@ export default function Cocina() {
     const resultado: Record<EstacionComanda, PedidoConItems[]> = { cocina: [], bar: [], otros: [] }
     for (const p of pedidos) {
       for (const destino of ESTACIONES_COMANDA) {
+        const ruta = p.rutasPorEstacion?.[destino]
+        if (!ruta || ruta.estado === 'entregado' || ruta.estado === 'anulado') continue
         const items = p.items.filter((it) => estacionDeProducto(it) === destino)
         const anulados = p.anulados.filter((it) => estacionDeProducto(it) === destino)
-        if (items.length > 0 || anulados.length > 0) resultado[destino].push({ ...p, items, anulados })
+        if (items.length > 0 || anulados.length > 0) resultado[destino].push({ ...p, estado: ruta.estado, items, anulados })
       }
     }
     return resultado
   }, [pedidos])
 
+  const estacionesVisibles = useMemo(
+    () => estacionesParaMostrar(estacionesOperativas, pedidos),
+    [estacionesOperativas, pedidos],
+  )
   const activos = pedidosPorEstacion[estacion]
   const porEstado = (estado: EstadoPedido) => activos.filter((p) => p.estado === estado)
 
@@ -262,7 +321,7 @@ export default function Cocina() {
     <div>
       <PageHeader
         titulo="Estaciones de preparación"
-        descripcion="Comandas en vivo separadas por cocina, bar y otros destinos."
+        descripcion="Cada estación recibe las comandas según la configuración operativa del restaurante."
       />
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-surface-700 bg-surface-900 px-4 py-3">
@@ -280,8 +339,12 @@ export default function Cocina() {
       )}
 
       {/* Selector táctil de estación */}
-      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {ESTACIONES_COMANDA.map((destino) => (
+      {estacionesVisibles.length > 0 ? <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {estacionesVisibles.map((estacionOperativa) => {
+          const destino = estacionOperativa.codigo
+          const destinosPrincipales = estacionOperativa.destinos.filter((d) => d.activo && d.grupo === 'principal')
+          const soloImpresora = destinosPrincipales.length > 0 && destinosPrincipales.every((d) => d.tipo === 'impresora')
+          return (
           <button
             key={destino}
             type="button"
@@ -290,11 +353,13 @@ export default function Cocina() {
             className={`flex min-h-14 touch-manipulation items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-base font-semibold transition active:scale-[0.98] ${estacion === destino ? 'border-brand-500 bg-brand-500/15 text-brand-400 shadow-sm shadow-brand-500/10' : 'border-surface-700 bg-surface-800 text-zinc-300 hover:border-surface-500'}`}
           >
             {destino === 'cocina' ? <IconoOlla /> : destino === 'bar' ? <IconoVaso /> : <IconoNota />}
-            {NOMBRES_ESTACION_COMANDA[destino]}
+            {etiquetaEstacion(estacionOperativa.nombre, destino)}
             <span className="rounded-full border border-surface-600 px-2.5 py-0.5 text-sm tabular-nums">{pedidosPorEstacion[destino].length}</span>
+            {soloImpresora && <span className="rounded-full border border-warn-500/40 px-2 py-0.5 text-xs text-warn-400">Impresión manual</span>}
           </button>
-        ))}
-      </div>
+          )
+        })}
+      </div> : <EstadoVacio icono={<IconoNota />} titulo="No hay estaciones con destino principal" descripcion="Pide al administrador que active un destino para que las nuevas comandas puedan llegar a preparación." />}
 
       {activos.length === 0 && (
         <EstadoVacio
@@ -335,7 +400,8 @@ export default function Cocina() {
                      boton={col.boton}
                      onAvanzar={() => void avanzar(p)}
                      avanzando={avanzando.has(p.id)}
-                     onImprimir={() => setTicket({ p, mesaNombre: nombreMesa.get(p.mesa_id) ?? '—', meseroNombre: nombreMesero.get(p.mesero_id) ?? 'No asignado', estacion })}
+                     onImprimir={() => setTicket({ p, mesaNombre: nombreMesa.get(p.mesa_id) ?? '—', meseroNombre: nombreMesero.get(p.mesero_id) ?? 'No asignado', estacion, impresoras: p.rutasPorEstacion?.[estacion]?.impresoras ?? [] })}
+                     soloImpresora={Boolean(p.rutasPorEstacion?.[estacion]?.destinos.includes('impresora') && !p.rutasPorEstacion?.[estacion]?.destinos.includes('kds'))}
                    />
                  ))}
                </div>
@@ -350,6 +416,7 @@ export default function Cocina() {
            mesaNombre={ticket.mesaNombre}
            meseroNombre={ticket.meseroNombre}
            estacion={ticket.estacion}
+           impresorasConfiguradas={ticket.impresoras}
            onCerrar={() => setTicket(null)}
            registrarImpresion={(solicitudId, motivo) => getApi().registrarImpresionComanda(restaurante.id, ticket.p.id, ticket.estacion, solicitudId, motivo)}
          />
@@ -366,6 +433,7 @@ function TarjetaComanda({
   onAvanzar,
   avanzando,
   onImprimir,
+  soloImpresora,
 }: {
   p: PedidoConItems
   mesaNombre: string
@@ -374,6 +442,7 @@ function TarjetaComanda({
   onAvanzar: () => void
   avanzando: boolean
   onImprimir: () => void
+  soloImpresora: boolean
 }) {
   const tiempo = useElapsed(p.created_at)
   const total = p.items.reduce((a, it) => a + it.cantidad * it.precio_unitario, 0)
@@ -441,7 +510,7 @@ function TarjetaComanda({
         >
           <span className="inline-flex items-center justify-center gap-2">
             <IconoImpresora />
-            Imprimir comanda
+            {soloImpresora ? 'Abrir impresión manual' : 'Imprimir comanda'}
           </span>
         </button>
       </div>

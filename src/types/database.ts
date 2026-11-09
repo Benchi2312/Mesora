@@ -190,7 +190,12 @@ export type EntregaComanda = {
   restaurante_id: string
   pedido_id: string
   estacion_id: string
+  /** Snapshot de la ruta al crear la comanda; cambios futuros no la reubican. */
+  estacion_codigo?: EstacionComanda | null
+  estacion_nombre?: string | null
   destino_estacion_id: string
+  destino_nombre?: string | null
+  configuracion_destino?: Record<string, unknown> | null
   grupo: GrupoDestinoEstacion
   tipo_destino: TipoDestinoEstacion
   configuracion_version: number
@@ -241,7 +246,7 @@ export type Producto = {
   precio_promocion?: number | null
   /** El producto se prepara en la barra, no en la cocina. Lo define el admin. */
   es_bebida?: boolean | null
-  /** Destino operativo de impresión; se copia al ítem al crear la comanda. */
+  /** Estación operativa explícita; null hereda de la categoría al crear la comanda. */
   estacion?: EstacionComanda | null
   created_at: string
 }
@@ -503,6 +508,10 @@ export interface Database {
       admin_guardar_configuracion_operativa: {
         Args: { p_restaurante_id: string; p_configuracion: Json }
         Returns: Json
+      }
+      avanzar_comanda_estacion: {
+        Args: { p_restaurante_id: string; p_pedido_id: string; p_estacion_codigo: EstacionComanda }
+        Returns: undefined
       }
       registrar_error_cliente: {
         Args: { p_tipo: string; p_ruta: string; p_contexto: string }

@@ -11,6 +11,7 @@ type Props = {
   mesaNombre: string
   meseroNombre: string
   estacion: EstacionComanda
+  impresorasConfiguradas?: { nombre: string; papel_mm: 58 | 80 | null; copias: number }[]
   onCerrar: () => void
   registrarImpresion: (solicitudId: string, motivo: string | null) => Promise<{
     data: ResultadoRegistroImpresion | null
@@ -25,10 +26,12 @@ export default function ComandaImprimible({
   mesaNombre,
   meseroNombre,
   estacion,
+  impresorasConfiguradas = [],
   onCerrar,
   registrarImpresion,
 }: Props) {
-  const [ancho, setAncho] = useState<AnchoPapelComanda>(80)
+  const [ancho, setAncho] = useState<AnchoPapelComanda>(impresorasConfiguradas[0]?.papel_mm ?? 80)
+  const [impresoraSeleccionada, setImpresoraSeleccionada] = useState(impresorasConfiguradas[0]?.nombre ?? '')
   const [estado, setEstado] = useState<'preparando' | 'enviado' | 'impreso' | 'reimpresion'>('preparando')
   const [accion, setAccion] = useState<'comanda_imprimir' | 'comanda_reimprimir' | null>(null)
   const [motivo, setMotivo] = useState('')
@@ -53,6 +56,7 @@ export default function ComandaImprimible({
   }, [])
 
   const items = itemsDeEstacion(pedido.items, estacion)
+  const impresoraActiva = impresorasConfiguradas.find((impresora) => impresora.nombre === impresoraSeleccionada) ?? impresorasConfiguradas[0]
   const fecha = new Date(pedido.created_at)
   const fechaLegible = Number.isNaN(fecha.getTime()) ? fmtFecha(pedido.created_at) : fecha.toLocaleDateString('es-PE')
   const horaLegible = Number.isNaN(fecha.getTime()) ? '' : fecha.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
@@ -166,10 +170,30 @@ export default function ComandaImprimible({
               <option value={80}>80 mm</option>
             </select>
           </label>
+          {impresorasConfiguradas.length > 1 ? (
+            <label className="flex items-center gap-2 text-sm text-zinc-300">
+              Impresora configurada
+              <select
+                aria-label="Impresora configurada"
+                className="input h-11 min-w-36"
+                value={impresoraActiva?.nombre ?? ''}
+                onChange={(e) => {
+                  const elegida = impresorasConfiguradas.find((impresora) => impresora.nombre === e.target.value)
+                  setImpresoraSeleccionada(e.target.value)
+                  if (elegida?.papel_mm) setAncho(elegida.papel_mm)
+                }}
+              >
+                {impresorasConfiguradas.map((impresora) => <option key={impresora.nombre} value={impresora.nombre}>{impresora.nombre}</option>)}
+              </select>
+            </label>
+          ) : impresoraActiva ? (
+            <span className="text-xs text-zinc-400">Impresora configurada: {impresoraActiva.nombre}</span>
+          ) : null}
           <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${estado === 'impreso' || estado === 'reimpresion' ? 'border-ok-500/40 bg-ok-500/10 text-ok-400' : 'border-brand-500/40 bg-brand-500/10 text-brand-400'}`} role="status" aria-live="polite">
             {estadoTexto}
           </span>
         </div>
+        {impresoraActiva && <p className="mb-3 text-xs text-zinc-500 print:hidden">Papel sugerido: {impresoraActiva.papel_mm ?? ancho} mm · {impresoraActiva.copias} {impresoraActiva.copias === 1 ? 'copia configurada' : 'copias configuradas'}. Confirma impresora y cantidad en el diálogo del navegador.</p>}
 
         <article className="comanda-print mx-auto" data-paper-width={ancho} data-comanda-id={pedido.id} aria-label="Vista imprimible de la comanda">
           <header className="comanda-cabecera">
