@@ -4,11 +4,12 @@ import { useCurrentContext } from '../../lib/useCurrentContext'
 import { arqueoTurno, errorAlAbrirTurno, errorAlCerrarTurno, parseMonto } from '../../domain/cashier/caja'
 import { fmtFecha, fmtPEN } from '../../lib/format'
 import type { MesaPorCobrar } from '../../lib/api'
-import type { Cuenta, Pago, TurnoCaja } from '../../types/database'
+import type { Cuenta, Mesa, Pago, TurnoCaja } from '../../types/database'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 import { IconoInfo, Modal, ResumenConfirmacionAccion } from '../../components/ui'
 import Precuenta from '../../components/Precuenta'
+import CerrarCuenta from '../mesero/CerrarCuenta'
 import { confirmarCierreCaja } from '../../domain/security/confirmaciones'
 
 /**
@@ -26,6 +27,9 @@ export default function CajaTab() {
   const [cuentas, setCuentas] = useState<Cuenta[]>([])
   const [pagos, setPagos] = useState<Pick<Pago, 'cuenta_id' | 'metodo_pago' | 'monto'>[]>([])
   const [porCobrar, setPorCobrar] = useState<MesaPorCobrar[]>([])
+  const [mesas, setMesas] = useState<Mesa[]>([])
+  const [puedeCobrar, setPuedeCobrar] = useState(false)
+  const [errorPermisoCobro, setErrorPermisoCobro] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -34,6 +38,7 @@ export default function CajaTab() {
   const [observaciones, setObservaciones] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [mesaPrecuenta, setMesaPrecuenta] = useState<MesaPorCobrar | null>(null)
+  const [mesaCobro, setMesaCobro] = useState<Mesa | null>(null)
   const [confirmarCierre, setConfirmarCierre] = useState(false)
 
   const cargar = useCallback(async () => {
@@ -43,12 +48,14 @@ export default function CajaTab() {
     }
     try {
       const api = getApi()
-      const [t, hist, c, pg, porCobrarRes] = await Promise.all([
+      const [t, hist, c, pg, porCobrarRes, mesasRes, permisoRes] = await Promise.all([
         api.getTurnoAbierto(rid),
         api.getTurnos(rid),
         api.getCuentasPagadas(rid),
         api.getPagosDeCuentas(rid),
         api.getMesasPorCobrar(rid),
+        api.getMesas(rid),
+        api.puedeCobrar(rid),
       ])
       const errorCarga = t.error ?? hist.error ?? c.error ?? pg.error ?? porCobrarRes.error
       if (errorCarga) {
@@ -62,6 +69,9 @@ export default function CajaTab() {
       setCuentas((c.data ?? []) as Cuenta[])
       setPagos(pg.data ?? [])
       setPorCobrar(porCobrarRes.data ?? [])
+      setMesas(mesasRes.data ?? [])
+      setPuedeCobrar(permisoRes.data === true)
+      setErrorPermisoCobro(permisoRes.error ?? mesasRes.error)
       setError(null)
     } catch {
       setError('No se pudo cargar la información de caja. Revisa tu conexión e inténtalo de nuevo.')
@@ -150,6 +160,9 @@ export default function CajaTab() {
   if (mesaPrecuenta) {
     return <Precuenta mesa={{ id: mesaPrecuenta.mesa_id, nombre: mesaPrecuenta.mesa_nombre }} onVolver={() => { setMesaPrecuenta(null); void cargar() }} />
   }
+  if (mesaCobro) {
+    return <CerrarCuenta mesa={mesaCobro} onVolver={() => { setMesaCobro(null); void cargar() }} onCuentaCerrada={() => { setMesaCobro(null); void cargar() }} />
+  }
 
   return (
     <div className="space-y-6">
@@ -173,6 +186,22 @@ export default function CajaTab() {
           </div>
         </section>
       )}
+
+      <section aria-label="Cobrar mesas" className="card p-4">
+        <h2 className="font-semibold text-zinc-100">Cobrar una mesa</h2>
+        <p className="mt-1 text-sm text-zinc-400">Cierra la cuenta y entrega el recibo interno de Mesora. La facturación electrónica se realiza en el sistema del restaurante.</p>
+        {errorPermisoCobro && <p className="mt-2 text-sm text-amber-300" role="alert">No se pudieron confirmar tus permisos de cobro. Actualiza esta página antes de cobrar.</p>}
+        {!errorPermisoCobro && !puedeCobrar && <p className="mt-2 text-sm text-amber-300">Tu cuenta no está autorizada para cobrar. Pide al administrador que revise Configuración operativa.</p>}
+        {puedeCobrar && <div className="mt-3 flex flex-wrap gap-2">
+          {porCobrar.map((pendiente) => {
+            const mesa = mesas.find((fila) => fila.id === pendiente.mesa_id)
+            return <button key={pendiente.mesa_id} type="button" disabled={!mesa || guardando} onClick={() => { if (mesa) setMesaCobro(mesa) }} className="btn btn-outline min-h-12 px-4">
+              Cobrar {pendiente.mesa_nombre} · {fmtPEN(pendiente.total)}
+            </button>
+          })}
+          {porCobrar.length === 0 && <p className="text-sm text-zinc-400">No hay mesas pendientes de cobro.</p>}
+        </div>}
+      </section>
 
       {turno && porCobrar.length > 0 && (
         <div

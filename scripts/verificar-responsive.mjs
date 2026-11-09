@@ -125,7 +125,15 @@ async function medir(page, vp, etiqueta) {
         })
       }
     }
+    // Con un diálogo abierto, los controles del fondo quedan cubiertos por el
+    // modal. Solo sus botones son interactivos; medir cruces entre botones del
+    // fondo y la cabecera fija produce falsos positivos después del scroll.
+    const dialogo = [...document.querySelectorAll('[role="dialog"]')].find((el) => {
+      const estilo = getComputedStyle(el)
+      return estilo.display !== 'none' && estilo.visibility !== 'hidden' && el.getBoundingClientRect().width > 0
+    })
     const botones = [...document.querySelectorAll('button')].filter((el) => {
+      if (dialogo && !dialogo.contains(el)) return false
       const estilo = getComputedStyle(el)
       const r = el.getBoundingClientRect()
       return estilo.display !== 'none' && estilo.visibility !== 'hidden' && Number(estilo.opacity) !== 0 && r.width > 1 && r.height > 1

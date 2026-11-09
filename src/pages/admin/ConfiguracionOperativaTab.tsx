@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import PageHeader from '../../components/PageHeader'
 import { Modal } from '../../components/ui'
+import PoliticaCobro from './PoliticaCobro'
 import { getApi } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import {
   GRUPOS_DESTINO_ESTACION,
-  MODALIDADES_COBRO,
   categoriaEsMixta,
   productosConEstacionExplicita,
   type CambiosConfiguracionOperativa,
@@ -13,30 +13,12 @@ import {
   type DestinoOperativoEditor,
   type EstacionOperativaEditor,
 } from '../../domain/restaurant/operacion'
-import type { EstacionComanda, GrupoDestinoEstacion, ModalidadCobro, TipoDestinoEstacion } from '../../types/database'
+import type { EstacionComanda, GrupoDestinoEstacion, TipoDestinoEstacion } from '../../types/database'
 
 const ETIQUETA_ESTACION: Record<EstacionComanda, string> = {
   cocina: 'Cocina',
   bar: 'Barra',
   otros: 'Otros',
-}
-
-const MODALIDAD: Record<ModalidadCobro, { titulo: string; descripcion: string; actual: boolean }> = {
-  cobro_por_mesero: {
-    titulo: 'Cobro por mesero',
-    descripcion: 'El flujo actual permite al mesero cobrar desde su cuenta.',
-    actual: true,
-  },
-  solo_cajero: {
-    titulo: 'Solo cajero',
-    descripcion: 'El cajero centralizará los cobros cuando se habilite esa regla.',
-    actual: false,
-  },
-  caja_central_meseros_autorizados: {
-    titulo: 'Caja central con meseros autorizados',
-    descripcion: 'El cajero y los meseros que autorices podrán cobrar desde la caja central.',
-    actual: false,
-  },
 }
 
 function copiaConfig(config: ConfiguracionOperativaEditor): CambiosConfiguracionOperativa {
@@ -155,7 +137,7 @@ export default function ConfiguracionOperativaTab() {
       return
     }
     setConfig(resultado.data)
-    setAviso('Configuración operativa guardada. Las operaciones actuales de cobro no han cambiado.')
+    setAviso('Estaciones y categorías guardadas. Los permisos de cobro se aplican en su propia sección.')
   }
 
   if (!esAdminRestaurante) {
@@ -171,7 +153,7 @@ export default function ConfiguracionOperativaTab() {
   if (!config) {
     return (
       <section className="card p-5 sm:p-7">
-        <PageHeader titulo="Configuración operativa" descripcion="Define cómo trabaja tu restaurante. Puedes cambiarlo más adelante; los cambios aplican a comandas nuevas." />
+        <PageHeader titulo="Configuración operativa" descripcion="Define cómo trabaja tu restaurante. Las estaciones aplican a comandas nuevas; los permisos de cobro, a cobros futuros." />
         <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300" role="alert">{error}</p>
         <button type="button" onClick={() => void cargar()} className="btn-secondary mt-4 min-h-11">Reintentar carga</button>
       </section>
@@ -184,9 +166,8 @@ export default function ConfiguracionOperativaTab() {
   const resumen = (
     <div className="grid gap-4 sm:grid-cols-2">
       <div>
-        <h4 className="font-bold text-zinc-100">Modalidad de cobro</h4>
-        <p className="mt-1 text-sm text-zinc-300">{MODALIDAD[config.modalidad_cobro].titulo}</p>
-        <p className="mt-1 text-xs leading-relaxed text-amber-300">Preferencia guardada para preparación. La autorización efectiva de cobros todavía no cambia.</p>
+        <h4 className="font-bold text-zinc-100">Permisos de cobro</h4>
+        <p className="mt-1 text-sm text-zinc-300">Se configuran y confirman por separado arriba.</p>
       </div>
       <div>
         <h4 className="font-bold text-zinc-100">Estaciones activas</h4>
@@ -215,7 +196,7 @@ export default function ConfiguracionOperativaTab() {
 
   return (
     <section className="space-y-6" aria-label="Configuración operativa">
-      <PageHeader titulo="Configuración operativa" descripcion="Define cómo trabaja tu restaurante. Puedes cambiarlo más adelante; los cambios aplican a comandas nuevas." />
+      <PageHeader titulo="Configuración operativa" descripcion="Define cómo trabaja tu restaurante. Las estaciones aplican a comandas nuevas; los permisos de cobro, a cobros futuros." />
       {config.solo_lectura && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm leading-relaxed text-amber-200" role="status">
           {config.limitacion ?? 'La configuración se muestra como vista previa.'} El guardado estará disponible cuando se instale la migración de esta fase.
@@ -224,34 +205,12 @@ export default function ConfiguracionOperativaTab() {
       {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300" role="alert">{error}</div>}
       {aviso && <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-300" role="status">{aviso}</div>}
 
-      <section className="card p-4 sm:p-6" aria-labelledby="modalidad-cobro-titulo">
-        <div className="mb-4">
-          <h2 id="modalidad-cobro-titulo" className="text-lg font-extrabold text-zinc-100">Modalidad de cobro</h2>
-          <p className="mt-1 text-sm text-zinc-400">Esta selección se guarda como preferencia; todavía no cambia quién puede cerrar una cuenta.</p>
-        </div>
-        <div className="grid gap-3 lg:grid-cols-3">
-          {MODALIDADES_COBRO.map((modalidad) => {
-            const detalle = MODALIDAD[modalidad]
-            return (
-              <label key={modalidad} className={`flex min-h-36 cursor-pointer flex-col rounded-xl border p-4 transition ${config.modalidad_cobro === modalidad ? 'border-brand-500 bg-brand-500/10' : 'border-surface-700 bg-surface-900/60'} ${!editando ? 'cursor-not-allowed opacity-70' : ''}`}>
-                <span className="flex items-start gap-3">
-                  <input type="radio" name="modalidad-cobro" value={modalidad} checked={config.modalidad_cobro === modalidad} disabled={!editando || guardando} onChange={() => { setConfig((actual) => actual ? { ...actual, modalidad_cobro: modalidad } : actual); setAviso(null) }} className="mt-1 h-7 w-7 shrink-0 accent-amber-500" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-bold text-zinc-100">{detalle.titulo}</span>
-                    {!detalle.actual && <span className="mt-2 inline-flex rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-200">Preparación para próxima fase</span>}
-                    <span className="mt-2 block text-sm leading-relaxed text-zinc-400">{detalle.descripcion}</span>
-                  </span>
-                </span>
-              </label>
-            )
-          })}
-        </div>
-      </section>
+      {restauranteId && <PoliticaCobro restauranteId={restauranteId} onAplicada={(modalidad) => setConfig((actual) => actual ? { ...actual, modalidad_cobro: modalidad } : actual)} />}
 
       <section className="space-y-4" aria-labelledby="estaciones-titulo">
         <div>
           <h2 id="estaciones-titulo" className="text-lg font-extrabold text-zinc-100">Estaciones y destinos</h2>
-          <p className="mt-1 text-sm text-zinc-400">Organiza las comandas por Cocina, Barra y Otros. La selección todavía no altera el enrutamiento actual.</p>
+          <p className="mt-1 text-sm text-zinc-400">Organiza las comandas por Cocina, Barra y Otros. Los cambios aplican a comandas nuevas.</p>
         </div>
         {estacionesOrdenadas.map((estacion, indice) => (
           <article key={estacion.codigo} className="card min-w-0 p-4 sm:p-6" aria-label={`Estación ${estacion.nombre}`}>

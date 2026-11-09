@@ -33,6 +33,7 @@ export default function CerrarCuenta({ mesa, onVolver, onCuentaCerrada }: Cerrar
   const [pedidos, setPedidos] = useState<PedidoResumen[]>([])
   const [items, setItems] = useState<ItemResumen[]>([])
   const [cargando, setCargando] = useState(true)
+  const [autorizado, setAutorizado] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [intentoCarga, setIntentoCarga] = useState(0)
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
@@ -55,9 +56,16 @@ export default function CerrarCuenta({ mesa, onVolver, onCuentaCerrada }: Cerrar
     ;(async () => {
       try {
         const api = getApi()
-        const pedRes = await api.getPedidosDeMesa(rid, mesa.id)
+        const [pedRes, permisoRes] = await Promise.all([
+          api.getPedidosDeMesa(rid, mesa.id), api.puedeCobrar(rid),
+        ])
 
         if (!activo) return
+        setAutorizado(permisoRes.data === true)
+        if (permisoRes.error || permisoRes.data !== true) {
+          setError(permisoRes.error ?? 'Tu cuenta no está autorizada para cobrar. Pide al administrador que revise Configuración operativa.')
+          return
+        }
         if (pedRes.error) {
           setError(pedRes.error)
           return
@@ -292,7 +300,7 @@ export default function CerrarCuenta({ mesa, onVolver, onCuentaCerrada }: Cerrar
         ruc={restaurante?.ruc}
         telefono={restaurante?.telefono}
         mesaNombre={mesa.nombre}
-        meseroNombre={usuario?.nombre}
+        meseroNombre={cuenta.mesero_nombre_snapshot ?? (usuario?.rol === 'mesero' ? usuario.nombre : undefined)}
         items={itemsVigentes(items)}
         onListo={onCuentaCerrada}
       />
@@ -305,6 +313,13 @@ export default function CerrarCuenta({ mesa, onVolver, onCuentaCerrada }: Cerrar
         <Spinner />
       </div>
     )
+
+  if (autorizado === false) return (
+    <div className="card p-5 text-sm text-amber-200" role="alert">
+      <p>{error ?? 'Tu cuenta no está autorizada para cobrar esta mesa.'}</p>
+      <button type="button" className="btn-secondary mt-4 min-h-11" onClick={onVolver}>Volver a la mesa</button>
+    </div>
+  )
 
   return (
     <div>

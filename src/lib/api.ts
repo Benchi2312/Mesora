@@ -14,6 +14,7 @@ import { modoLocalHabilitado, supabase, supabaseConfigurado } from './supabase'
 import { computeMetricas, type MetricasAdmin } from '../domain/reporting/metricas'
 import { arqueoTurno, errorAlAbrirTurno, errorAlCerrarTurno, redondear } from '../domain/cashier/caja'
 import { completarPartes, resumirPago, type PagoParte } from '../domain/cashier/pagos'
+import { normalizarPoliticaCobro, puedeCobrarConPolitica, validarPoliticaCobro, type PoliticaCobro } from '../domain/cashier/permisosCobro'
 import { MENSAJE_PIN_INCORRECTO, errorAlAnularCobro } from '../domain/security/autorizacion'
 import { mensajeOperacion } from '../domain/security/mensajeOperacion'
 import { normalizarContenidoUtf8 } from '../domain/platform/normalizarUtf8'
@@ -36,6 +37,7 @@ import type {
   EstadoEntregaComanda,
   EstadoPedido,
   Json,
+  ModalidadCobro,
   Mesa,
   MetodoPago,
   Pago,
@@ -444,6 +446,9 @@ export interface DataApi {
   getConfiguracionOperativa(rid: string): Promise<Res<ConfiguracionOperativaEditor>>
   /** Guarda todo el formulario en una transacción; el servidor aplica RLS y rol. */
   guardarConfiguracionOperativa(rid: string, cambios: CambiosConfiguracionOperativa): Promise<Res<ConfiguracionOperativaEditor>>
+  getPoliticaCobro(rid: string): Promise<Res<PoliticaCobro>>
+  guardarPoliticaCobro(rid: string, modalidad: ModalidadCobro, usuarios: string[]): Promise<Res<PoliticaCobro>>
+  puedeCobrar(rid: string): Promise<Res<boolean>>
   getMeseros(rid: string): Promise<Res<MeseroResumen[]>>
   /** Reasigna una mesa ocupada con autorización PIN (si está configurado) y motivo auditable. */
   asignarMesaMesero(rid: string, mesaId: string, meseroId: string, pin: string | null, motivo: string): Promise<Res<null>>
@@ -912,6 +917,26 @@ const realApi: DataApi = {
     return configuracion
       ? { data: configuracion, error: null }
       : { data: null, error: 'El servidor guardó el cambio, pero no pudo confirmar la configuración. Actualiza antes de volver a intentarlo.' }
+  },
+  async getPoliticaCobro(rid) {
+    const { data, error } = await supabase.rpc('admin_obtener_politica_cobro', { p_restaurante_id: rid })
+    if (error) return { data: null, error: mensajeOperacion(error.message, 'No se pudieron cargar los permisos de cobro. Actualiza la página.') }
+    const politica = normalizarPoliticaCobro(rid, data)
+    return politica ? { data: politica, error: null } : { data: null, error: 'No se pudo confirmar la modalidad de cobro. Actualiza la página.' }
+  },
+  async guardarPoliticaCobro(rid, modalidad, usuarios) {
+    const { data, error } = await supabase.rpc('admin_guardar_politica_cobro', {
+      p_restaurante_id: rid,
+      p_modalidad: modalidad,
+      p_usuarios: usuarios,
+    })
+    if (error) return { data: null, error: mensajeOperacion(error.message, 'No se pudo guardar la autorización de cobro. Revisa el personal seleccionado.') }
+    const politica = normalizarPoliticaCobro(rid, data)
+    return politica ? { data: politica, error: null } : { data: null, error: 'El cambio pudo guardarse, pero no se pudo confirmar. Actualiza antes de volver a intentarlo.' }
+  },
+  async puedeCobrar(rid) {
+    const { data, error } = await supabase.rpc('puede_cobrar_restaurante', { p_restaurante_id: rid })
+    return { data: data === true, error: error ? mensajeOperacion(error.message, 'No se pudo confirmar tu permiso de cobro. Actualiza la página.') : null }
   },
   async getMeseros(rid) {
     const { data, error } = await supabase.rpc('listar_meseros_activos_restaurante', {
@@ -1943,6 +1968,15 @@ const realApi: DataApi = {
 /** Dataset en memoria que alimenta a un api simulado (mismo shape de localSeed). */
 type Dataset = LocalSeedData
 
+function politicaCobroLocal(ds: Dataset, rid: string): PoliticaCobro {
+  return ds.politicasCobro.find((p) => p.restaurante_id === rid) ?? {
+    restaurante_id: rid,
+    modalidad_cobro: ds.configuracionesOperativas.find((c) => c.restaurante_id === rid)?.modalidad_cobro ?? 'cobro_por_mesero',
+    modalidad_aplicada: null,
+    usuarios_autorizados: [],
+  }
+}
+
 function configuracionOperativaLocal(ds: Dataset, rid: string, materializar = false): ConfiguracionOperativaEditor {
   const existente = ds.configuracionesOperativas.find((config) => config.restaurante_id === rid)
   if (existente) {
@@ -2014,6 +2048,7 @@ const db: Dataset = {
   auditLogs: [],
   tickets: [],
   configuracionesOperativas: [],
+  politicasCobro: [],
   configuracion: {
     ...CONFIGURACION_POR_DEFECTO,
     updated_at: new Date().toISOString(),
@@ -2046,6 +2081,7 @@ const localDb: Dataset = {
   auditLogs: localSeed.auditLogs,
   tickets: localSeed.tickets,
   configuracionesOperativas: localSeed.configuracionesOperativas,
+  politicasCobro: localSeed.politicasCobro,
   configuracion: localSeed.configuracion,
 }
 
@@ -2306,8 +2342,8 @@ async function cerrarCuentaDivididaConLock(
     return { data: null, error: 'La mesa no pertenece al restaurante' }
   }
   const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
-  if (!actor || !['mesero', 'admin_restaurante'].includes(actor.rol)) {
-    return { data: null, error: 'Sin permiso para cerrar cuentas en este restaurante' }
+  if (!puedeCobrarConPolitica(actor, rid, politicaCobroLocal(ds, rid))) {
+    return { data: null, error: 'No estás autorizado para cobrar en este restaurante.' }
   }
   const mesaActual = ds.mesas.find((m) => m.id === mesaId && m.restaurante_id === rid)
   if (actor.rol === 'mesero' && mesaActual?.mesero_responsable_id && mesaActual.mesero_responsable_id !== actor.id) {
@@ -2344,6 +2380,10 @@ async function cerrarCuentaDivididaConLock(
   const resumen = resumirPago(total, partes, propina)
   if (!resumen.valido) return { data: null, error: resumen.error }
 
+  const meseroIdSnapshot = actor.rol === 'mesero' ? actor.id :
+    ds.mesas.find((m) => m.id === mesaId && m.restaurante_id === rid)?.mesero_responsable_id ??
+    [...ds.pedidos].reverse().find((p) => p.mesa_id === mesaId && p.restaurante_id === rid && p.estado !== 'anulado')?.mesero_id ?? null
+
   const cuenta: Cuenta = {
     id,
     restaurante_id: rid,
@@ -2356,8 +2396,8 @@ async function cerrarCuentaDivididaConLock(
     numero: siguienteNumeroBoleta(ds, rid),
     propina: redondear(propina),
     vuelto: resumen.vuelto,
-    mesero_id_snapshot: apiMode.operadorId ?? null,
-    mesero_nombre_snapshot: ds.usuarios.find((u) => u.id === apiMode.operadorId)?.nombre ?? null,
+    mesero_id_snapshot: meseroIdSnapshot,
+    mesero_nombre_snapshot: ds.usuarios.find((u) => u.id === meseroIdSnapshot && u.restaurante_id === rid)?.nombre ?? null,
     mesa_nombre_snapshot: ds.mesas.find((m) => m.id === mesaId)?.nombre ?? null,
     restaurante_nombre_snapshot: ds.restaurantes.find((r) => r.id === rid)?.nombre ?? null,
     restaurante_direccion_snapshot: ds.restaurantes.find((r) => r.id === rid)?.direccion ?? null,
@@ -2365,6 +2405,15 @@ async function cerrarCuentaDivididaConLock(
     restaurante_telefono_snapshot: ds.restaurantes.find((r) => r.id === rid)?.telefono ?? null,
   }
   ds.cuentas.push(cuenta)
+  if (actor.rol === 'admin_restaurante') {
+    ds.auditLogs.unshift({
+      id: crypto.randomUUID(), actor_id: actor.id, actor_rol: actor.rol, actor_nombre: actor.nombre,
+      restaurante_id: rid, restaurante_nombre: ds.restaurantes.find((r) => r.id === rid)?.nombre ?? null,
+      entidad: 'cuenta', entidad_id: id, accion: 'cobro_contingencia_admin',
+      descripcion: 'El administrador cobró una cuenta por contingencia',
+      detalle: { cuenta_id: id, mesa_id: mesaId, total, numero: cuenta.numero }, created_at: ahora,
+    })
+  }
   // El detalle del pago dividido se guarda parte por parte: el arqueo de caja
   // necesita saber cuánta plata fue en efectivo, no solo "cuál fue el primer
   // método".
@@ -2597,6 +2646,45 @@ function crearApiDesde(
     })
     persiste()
     return { data: configuracion, error: null }
+  },
+  async getPoliticaCobro(rid) {
+    await espera()
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+    if (!actor || actor.rol !== 'admin_restaurante') return { data: null, error: 'Solo el administrador activo puede consultar estos permisos.' }
+    return { data: { ...politicaCobroLocal(ds, rid), usuarios_autorizados: [...politicaCobroLocal(ds, rid).usuarios_autorizados] }, error: null }
+  },
+  async guardarPoliticaCobro(rid, modalidad, usuarios) {
+    await espera()
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+    if (!actor || actor.rol !== 'admin_restaurante') return { data: null, error: 'Solo el administrador activo puede cambiar quién cobra.' }
+    const acceso = errorDeAcceso(ds, rid, actor.id)
+    if (acceso) return { data: null, error: acceso }
+    const error = validarPoliticaCobro(rid, modalidad, usuarios, ds.usuarios)
+    if (error) return { data: null, error }
+    const anterior = politicaCobroLocal(ds, rid)
+    const politica: PoliticaCobro = {
+      restaurante_id: rid, modalidad_cobro: modalidad, modalidad_aplicada: modalidad,
+      usuarios_autorizados: [...usuarios],
+    }
+    const indice = ds.politicasCobro.findIndex((p) => p.restaurante_id === rid)
+    if (indice < 0) ds.politicasCobro.push(politica)
+    else ds.politicasCobro[indice] = politica
+    configuracionOperativaLocal(ds, rid, true).modalidad_cobro = modalidad
+    ds.auditLogs.unshift({
+      id: crypto.randomUUID(), actor_id: actor.id, actor_rol: actor.rol, actor_nombre: actor.nombre,
+      restaurante_id: rid, restaurante_nombre: ds.restaurantes.find((r) => r.id === rid)?.nombre ?? null,
+      entidad: 'configuracion', entidad_id: rid, accion: 'modalidad_cobro_aplicar',
+      descripcion: 'Actualizó la modalidad y las autorizaciones de cobro',
+      detalle: { anterior: anterior.modalidad_aplicada, nueva: modalidad, usuarios_autorizados: [...usuarios] },
+      created_at: new Date().toISOString(),
+    })
+    persiste()
+    return { data: politica, error: null }
+  },
+  async puedeCobrar(rid) {
+    await espera()
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid)
+    return { data: puedeCobrarConPolitica(actor, rid, politicaCobroLocal(ds, rid)), error: null }
   },
   async getMeseros(rid) {
     await espera()
@@ -4568,6 +4656,7 @@ export function reiniciarDemoDatos(): void {
   db.auditLogs = []
   db.tickets = []
   db.configuracionesOperativas = []
+  db.politicasCobro = []
   db.configuracion = {
     ...CONFIGURACION_POR_DEFECTO,
     updated_at: new Date().toISOString(),

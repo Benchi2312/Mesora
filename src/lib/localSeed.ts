@@ -38,6 +38,7 @@ import type {
   Zona,
 } from '../types/database'
 import type { ConfiguracionOperativaEditor } from '../domain/restaurant/operacion'
+import type { PoliticaCobro } from '../domain/cashier/permisosCobro'
 import { CONFIGURACION_POR_DEFECTO } from '../domain/restaurant/configuracion'
 import {
   mockCategorias,
@@ -202,6 +203,7 @@ export interface LocalSeedData {
   configuracion: ConfiguracionGlobal
   /** Configuración operativa del demo/local, por restaurante. */
   configuracionesOperativas: ConfiguracionOperativaEditor[]
+  politicasCobro: PoliticaCobro[]
 }
 
 /**
@@ -268,6 +270,7 @@ export function crearLocalSeed(): LocalSeedData {
       updated_by: null,
     },
     configuracionesOperativas: [],
+    politicasCobro: [],
   }
   normalizarProductosBebida(ds)
   return ds

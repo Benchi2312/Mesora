@@ -523,6 +523,9 @@ export interface Database {
         Args: { p_restaurante_id: string; p_configuracion: Json }
         Returns: Json
       }
+      admin_obtener_politica_cobro: { Args: { p_restaurante_id: string }; Returns: Json }
+      admin_guardar_politica_cobro: { Args: { p_restaurante_id: string; p_modalidad: ModalidadCobro; p_usuarios: string[] }; Returns: Json }
+      puede_cobrar_restaurante: { Args: { p_restaurante_id: string }; Returns: boolean }
       avanzar_comanda_estacion: {
         Args: { p_restaurante_id: string; p_pedido_id: string; p_estacion_codigo: EstacionComanda }
         Returns: undefined

@@ -3806,10 +3806,107 @@ check('33h · enrutar comandas no crea ni modifica cuentas o pagos',
 check('33i · la ruta se valida antes de mutar el dataset local',
   localSeed.pedidos.length === cantidadPedidosAntesEnrutamiento + 2 &&
   localSeed.items.length >= cantidadItemsAntesEnrutamiento + 4 && pedidoEnrutadoLocal?.estado === 'en_preparacion')
+
+titulo('34 · Política efectiva de cobro por restaurante')
+const CAJERO_COBRO_A = 'qa-cobro-cajero-a'
+const MESERO_COBRO_2 = 'qa-cobro-mesero-2'
+const COCINA_COBRO_A = 'qa-cobro-cocina-a'
+const INACTIVO_COBRO_A = 'qa-cobro-inactivo-a'
+const CAJERO_COBRO_B = 'qa-cobro-cajero-b'
+localSeed.usuarios.push(
+  { id: CAJERO_COBRO_A, restaurante_id: RID_OP_ADMIN_A, rol: 'cajero', nombre: 'Cajero QA', activo: true, created_at: ahoraOperacionAdmin },
+  { id: MESERO_COBRO_2, restaurante_id: RID_OP_ADMIN_A, rol: 'mesero', nombre: 'Mesero QA 2', activo: true, created_at: ahoraOperacionAdmin },
+  { id: COCINA_COBRO_A, restaurante_id: RID_OP_ADMIN_A, rol: 'cocina', nombre: 'Cocina QA', activo: true, created_at: ahoraOperacionAdmin },
+  { id: INACTIVO_COBRO_A, restaurante_id: RID_OP_ADMIN_A, rol: 'mesero', nombre: 'Inactivo QA', activo: false, created_at: ahoraOperacionAdmin },
+  { id: CAJERO_COBRO_B, restaurante_id: RID_OP_ADMIN_B, rol: 'cajero', nombre: 'Cajero ajeno QA', activo: true, created_at: ahoraOperacionAdmin },
+)
+function mesaDeCobroQA(numero) {
+  const mesaId = `qa-cobro-mesa-${numero}`
+  const pedidoId = `qa-cobro-pedido-${numero}`
+  localSeed.mesas.push({ id: mesaId, restaurante_id: RID_OP_ADMIN_A, zona_id: ZONA_OP_A,
+    nombre: `Mesa cobro ${numero}`, estado: 'ocupada', mesero_responsable_id: MESERO_OP_A, created_at: ahoraOperacionAdmin })
+  localSeed.pedidos.push({ id: pedidoId, restaurante_id: RID_OP_ADMIN_A, mesa_id: mesaId,
+    mesero_id: MESERO_OP_A, estado: 'pendiente', created_at: ahoraOperacionAdmin, updated_at: ahoraOperacionAdmin })
+  localSeed.items.push({ id: `qa-cobro-item-${numero}`, pedido_id: pedidoId, producto_id: null,
+    nombre_producto: 'Producto QA', cantidad: 1, precio_unitario: 10, anulado: false, created_at: ahoraOperacionAdmin })
+  return { mesaId, pedidoId }
+}
+apiMode.operadorId = ADMIN_OP_A
+const politicaHeredada = await api.getPoliticaCobro(RID_OP_ADMIN_A)
+apiMode.operadorId = MESERO_OP_A
+const permisoMeseroHeredado = await api.puedeCobrar(RID_OP_ADMIN_A)
+apiMode.operadorId = CAJERO_COBRO_A
+const permisoCajeroHeredado = await api.puedeCobrar(RID_OP_ADMIN_A)
+check('34a · la preferencia previa no activa la política ni bloquea al mesero',
+  !politicaHeredada.error && politicaHeredada.data?.modalidad_aplicada === null &&
+  permisoMeseroHeredado.data === true && permisoCajeroHeredado.data === false)
+apiMode.operadorId = ADMIN_OP_A
+const permisoAjeno = await api.guardarPoliticaCobro(RID_OP_ADMIN_B, 'solo_cajero', [CAJERO_COBRO_B])
+const permisoCocina = await api.guardarPoliticaCobro(RID_OP_ADMIN_A, 'solo_cajero', [COCINA_COBRO_A])
+const permisoInactivo = await api.guardarPoliticaCobro(RID_OP_ADMIN_A, 'cobro_por_mesero', [INACTIVO_COBRO_A])
+const permisoUsuarioAjeno = await api.guardarPoliticaCobro(RID_OP_ADMIN_A, 'solo_cajero', [CAJERO_COBRO_B])
+check('34b · solo Admin del tenant y personal activo del rol correcto pueden configurar',
+  !!permisoAjeno.error && !!permisoCocina.error && !!permisoInactivo.error && !!permisoUsuarioAjeno.error)
+const soloCajaQA = await api.guardarPoliticaCobro(RID_OP_ADMIN_A, 'solo_cajero', [CAJERO_COBRO_A])
+const mesaSoloCaja = mesaDeCobroQA(1)
+apiMode.operadorId = MESERO_OP_A
+const rechazoMeseroSoloCaja = await api.cerrarCuenta(RID_OP_ADMIN_A, mesaSoloCaja.mesaId, [mesaSoloCaja.pedidoId], 'efectivo')
+apiMode.operadorId = CAJERO_COBRO_A
+const cobroCajeroSoloCaja = await api.cerrarCuenta(RID_OP_ADMIN_A, mesaSoloCaja.mesaId, [mesaSoloCaja.pedidoId], 'efectivo')
+check('34c · solo caja rechaza mesero y acepta cajero sin confundirlo con el mesero del recibo',
+  !soloCajaQA.error && !!rechazoMeseroSoloCaja.error && !cobroCajeroSoloCaja.error &&
+  cobroCajeroSoloCaja.data?.mesero_id_snapshot === MESERO_OP_A)
+const cuentaHistoricaCobroQA = { ...cobroCajeroSoloCaja.data }
+apiMode.operadorId = COCINA_COBRO_A
+const rechazoCocinaCobro = await api.cerrarCuenta(RID_OP_ADMIN_A, mesaDeCobroQA(2).mesaId, ['qa-cobro-pedido-2'], 'efectivo')
+apiMode.operadorId = INACTIVO_COBRO_A
+const rechazoInactivoCobro = await api.cerrarCuenta(RID_OP_ADMIN_A, 'qa-cobro-mesa-2', ['qa-cobro-pedido-2'], 'efectivo')
+apiMode.operadorId = CAJERO_COBRO_B
+const rechazoCajeroAjeno = await api.cerrarCuenta(RID_OP_ADMIN_A, 'qa-cobro-mesa-2', ['qa-cobro-pedido-2'], 'efectivo')
+check('34d · cocina, usuario inactivo y cajero de otro restaurante no pueden cobrar por API directa',
+  !!rechazoCocinaCobro.error && !!rechazoInactivoCobro.error && !!rechazoCajeroAjeno.error)
+apiMode.operadorId = ADMIN_OP_A
+const soloMeserosQA = await api.guardarPoliticaCobro(RID_OP_ADMIN_A, 'cobro_por_mesero', [MESERO_OP_A])
+apiMode.operadorId = CAJERO_COBRO_A
+const rechazoCajeroMeseros = await api.cerrarCuenta(RID_OP_ADMIN_A, 'qa-cobro-mesa-2', ['qa-cobro-pedido-2'], 'efectivo')
+apiMode.operadorId = MESERO_OP_A
+const cobroMeseroQA = await api.cerrarCuenta(RID_OP_ADMIN_A, 'qa-cobro-mesa-2', ['qa-cobro-pedido-2'], 'efectivo')
+check('34e · modo meseros acepta al autorizado y rechaza al cajero',
+  !soloMeserosQA.error && !!rechazoCajeroMeseros.error && !cobroMeseroQA.error)
+apiMode.operadorId = ADMIN_OP_A
+const mixtoQA = await api.guardarPoliticaCobro(RID_OP_ADMIN_A, 'caja_central_meseros_autorizados', [CAJERO_COBRO_A, MESERO_COBRO_2])
+const mesaMixtaCajero = mesaDeCobroQA(3)
+const mesaMixtaMesero = mesaDeCobroQA(4)
+localSeed.mesas.find((m) => m.id === mesaMixtaMesero.mesaId).mesero_responsable_id = MESERO_COBRO_2
+apiMode.operadorId = CAJERO_COBRO_A
+const cobroMixtoCajero = await api.cerrarCuenta(RID_OP_ADMIN_A, mesaMixtaCajero.mesaId, [mesaMixtaCajero.pedidoId], 'efectivo')
+apiMode.operadorId = MESERO_COBRO_2
+const cobroMixtoMesero = await api.cerrarCuenta(RID_OP_ADMIN_A, mesaMixtaMesero.mesaId, [mesaMixtaMesero.pedidoId], 'efectivo')
+apiMode.operadorId = MESERO_OP_A
+const permisoMeseroRevocado = await api.puedeCobrar(RID_OP_ADMIN_A)
+check('34f · mixto acepta cajero y mesero autorizado; revoca al mesero no seleccionado',
+  !mixtoQA.error && !cobroMixtoCajero.error && !cobroMixtoMesero.error && permisoMeseroRevocado.data === false)
+apiMode.operadorId = ADMIN_OP_A
+const mesaContingencia = mesaDeCobroQA(5)
+const cobroContingencia = await api.cerrarCuenta(RID_OP_ADMIN_A, mesaContingencia.mesaId, [mesaContingencia.pedidoId], 'efectivo')
+check('34g · el cobro administrativo de contingencia crea una auditoría por cuenta',
+  !cobroContingencia.error && localSeed.auditLogs.filter((l) => l.accion === 'cobro_contingencia_admin' &&
+    l.entidad_id === cobroContingencia.data?.id && l.actor_id === ADMIN_OP_A).length === 1)
+check('34h · cambiar modalidad no altera cuenta ni recibo históricos',
+  localSeed.cuentas.find((c) => c.id === cuentaHistoricaCobroQA.id)?.numero === cuentaHistoricaCobroQA.numero &&
+  localSeed.cuentas.find((c) => c.id === cuentaHistoricaCobroQA.id)?.mesero_id_snapshot === cuentaHistoricaCobroQA.mesero_id_snapshot &&
+  localSeed.auditLogs.filter((l) => l.accion === 'modalidad_cobro_aplicar' && l.restaurante_id === RID_OP_ADMIN_A).length === 3)
+apiMode.operadorId = MESERO_OP_A
+const politicaComoMeseroQA = await api.getPoliticaCobro(RID_OP_ADMIN_A)
+apiMode.operadorId = ''
+const politicaComoAnonQA = await api.getPoliticaCobro(RID_OP_ADMIN_A)
+check('34i · mesero y anónimo no consultan autorizaciones individuales', !!politicaComoMeseroQA.error && !!politicaComoAnonQA.error)
 apiMode.operadorId = operadorPrevioOperacionAdmin
 for (const rid of [RID_OP_ADMIN_A, RID_OP_ADMIN_B]) {
   localSeed.configuracionesOperativas.splice(0, localSeed.configuracionesOperativas.length,
     ...localSeed.configuracionesOperativas.filter((c) => c.restaurante_id !== rid))
+  localSeed.politicasCobro.splice(0, localSeed.politicasCobro.length,
+    ...localSeed.politicasCobro.filter((p) => p.restaurante_id !== rid))
   localSeed.restaurantes.splice(0, localSeed.restaurantes.length,
     ...localSeed.restaurantes.filter((r) => r.id !== rid))
   localSeed.usuarios.splice(0, localSeed.usuarios.length,

@@ -129,6 +129,8 @@ try {
   await pg.exec(readFileSync(new URL('../supabase/qa/enrutamiento_comandas_rollback.sql', import.meta.url), 'utf8'))
   await pg.exec(readFileSync(new URL('../supabase/qa/fase5_kds_salida_manual_rollback.sql', import.meta.url), 'utf8'))
   await pg.exec(readFileSync(new URL('../supabase/qa/fase6_agente_impresion_rollback.sql', import.meta.url), 'utf8'))
+  await pg.exec(readFileSync(new URL('../supabase/qa/modalidad_cobro_rollback.sql', import.meta.url), 'utf8'))
+  console.log('SQL QA: modalidades de cobro, bypass RPC, roles, histórico y auditoría aprobados')
   console.log('SQL QA: Fase 6 vinculación, RLS, cola, idempotencia, lease, reintentos y revocación aprobados')
   console.log('SQL QA: matriz Fase 5, solicitudes manuales, snapshots, reimpresión, idempotencia y RLS aprobados')
   console.log('SQL QA: enrutamiento por estación, snapshots, avance independiente, RLS y aislamiento tenant aprobados')
@@ -276,6 +278,10 @@ try {
     await pgUpgrade.exec(fase5Upgrade)
     await pgUpgrade.exec(fase6Upgrade)
     await pgUpgrade.exec(fase6Upgrade)
+    const cobroUpgrade = readFileSync(new URL('../supabase/migrations/20261109075129_validar_modalidad_cobro_restaurante.sql', import.meta.url), 'utf8')
+    await pgUpgrade.exec(cobroUpgrade)
+    await pgUpgrade.exec(cobroUpgrade)
+    assert.equal((await pgUpgrade.query("select modalidad_cobro_aplicada from public.configuracion_operativa where restaurante_id='00000000-0000-4000-8000-000000000002'")).rows[0].modalidad_cobro_aplicada, null)
     await pgUpgrade.exec(readFileSync(new URL('../supabase/qa/fase5_kds_salida_manual_rollback.sql', import.meta.url), 'utf8'))
     await pgUpgrade.exec(readFileSync(new URL('../supabase/qa/fase6_agente_impresion_rollback.sql', import.meta.url), 'utf8'))
     const columnasFase4 = await pgUpgrade.query(`
@@ -291,7 +297,7 @@ try {
     assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='avanzar_comanda_estacion'")).rows[0].n, 1)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='pedidos' and column_name='ruteo_configurado'")).rows[0].n, 1)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('registrar_impresion_salida_comanda','actualizar_estado_salida_comanda')")).rows[0].n, 2)
-    console.log('SQL QA: migraciones Fase 2/3/4/5/6 instaladas en esquema existente; Fases 5 y 6 idempotentes')
+    console.log('SQL QA: migraciones Fase 2/3/4/5/6 y modalidad de cobro instaladas en esquema existente; últimas migraciones idempotentes')
   } finally { await pgUpgrade.close() }
 } catch (e) {
   console.error(e.message, e.position ? `SQL position ${e.position}` : '', e.detail ?? '', e.hint ?? '', e.where ?? '')
