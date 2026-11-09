@@ -41,6 +41,12 @@ const FUENTES_VERSIONADAS = {
   'operaciones_auditoria.sql': '../migrations/20261106075551_auditar_operaciones_caja_mesa.sql',
   'auditoria_item_descripcion_utf8.sql': '../migrations/20261107063406_auditoria_item_descripcion_utf8.sql',
   'impresion_comandas.sql': '../migrations/20261107201714_bloque3_impresion_comandas.sql',
+  'sistema_operativo_configurable.sql': '../migrations/20261108120000_sistema_operativo_configurable.sql',
+  'fase3_configuracion_operativa_admin.sql': '../migrations/20261109012624_fase3_configuracion_operativa_admin.sql',
+  'fase4_enrutamiento_comandas.sql': '../migrations/20261109024411_fase4_enrutamiento_comandas.sql',
+  'fase5_kds_salida_manual_comandas.sql': '../migrations/20261109045958_fase5_kds_salida_manual_comandas.sql',
+  'fase6_agente_impresion_automatica.sql': '../migrations/20261109061058_fase6_agente_impresion_automatica.sql',
+  'modalidad_cobro_restaurante.sql': '../migrations/20261109075129_validar_modalidad_cobro_restaurante.sql',
 }
 
 // -----------------------------------------------------------------------------
@@ -108,6 +114,12 @@ const ORDEN = [
   '../migrations/20261107043104_bloque2_seguridad_personal_auditoria.sql',
   '../migrations/20261107063406_auditoria_item_descripcion_utf8.sql',
   '../migrations/20261107201714_bloque3_impresion_comandas.sql',
+  '../migrations/20261108120000_sistema_operativo_configurable.sql',
+  '../migrations/20261109012624_fase3_configuracion_operativa_admin.sql',
+  '../migrations/20261109024411_fase4_enrutamiento_comandas.sql',
+  '../migrations/20261109045958_fase5_kds_salida_manual_comandas.sql',
+  '../migrations/20261109061058_fase6_agente_impresion_automatica.sql',
+  '../migrations/20261109075129_validar_modalidad_cobro_restaurante.sql',
 ]
 
 const fallos = []

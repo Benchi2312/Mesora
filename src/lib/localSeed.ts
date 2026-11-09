@@ -22,6 +22,8 @@ import type {
   ConfiguracionGlobal,
   Cuenta,
   CuentaPedido,
+  EntregaComanda,
+  EstadoComandaPorEstacion,
   Mesa,
   Pago,
   Pedido,
@@ -35,6 +37,8 @@ import type {
   Usuario,
   Zona,
 } from '../types/database'
+import type { ConfiguracionOperativaEditor } from '../domain/restaurant/operacion'
+import type { PoliticaCobro } from '../domain/cashier/permisosCobro'
 import { CONFIGURACION_POR_DEFECTO } from '../domain/restaurant/configuracion'
 import {
   mockCategorias,
@@ -179,6 +183,8 @@ export interface LocalSeedData {
   usuarios: Usuario[]
   pedidos: Pedido[]
   items: PedidoItem[]
+  entregasComanda: EntregaComanda[]
+  estadosComandaEstacion: EstadoComandaPorEstacion[]
   cuentas: Cuenta[]
   cuentaPedidos: CuentaPedido[]
   /** Detalle de pago por cuenta (pago dividido). Siempre ≥ 1 fila por cuenta. */
@@ -195,6 +201,9 @@ export interface LocalSeedData {
   tickets: SoporteTicket[]
   /** Configuración general de la plataforma (fila única). */
   configuracion: ConfiguracionGlobal
+  /** Configuración operativa del demo/local, por restaurante. */
+  configuracionesOperativas: ConfiguracionOperativaEditor[]
+  politicasCobro: PoliticaCobro[]
 }
 
 /**
@@ -233,6 +242,8 @@ export function crearLocalSeed(): LocalSeedData {
     usuarios: clonar(localUsuarios),
     pedidos: clonar(mockPedidos),
     items: clonar(mockPedidoItems),
+    entregasComanda: [],
+    estadosComandaEstacion: [],
     cuentas: clonar(mockCuentas),
     cuentaPedidos: clonar(mockCuentaPedidos),
     // Las cuentas semilla solo tienen un método, así que su detalle es una fila
@@ -258,6 +269,8 @@ export function crearLocalSeed(): LocalSeedData {
       updated_at: new Date().toISOString(),
       updated_by: null,
     },
+    configuracionesOperativas: [],
+    politicasCobro: [],
   }
   normalizarProductosBebida(ds)
   return ds

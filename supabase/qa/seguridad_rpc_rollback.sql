@@ -6,7 +6,15 @@ begin
     select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
     where n.nspname='public' and p.prokind='f'
       and not exists (select 1 from pg_depend d where d.classid='pg_proc'::regclass and d.objid=p.oid and d.deptype='e')
-      and (has_function_privilege('anon',p.oid,'execute') or p.proconfig is null)
+      and (p.proconfig is null or (has_function_privilege('anon',p.oid,'execute')
+        and not exists (select 1 from (values
+          ('public.agente_impresion_vincular(text,text,text)'),
+          ('public.agente_impresion_heartbeat(text,jsonb)'),
+          ('public.agente_impresion_reclamar(text)'),
+          ('public.agente_impresion_iniciar_envio(text,uuid,uuid)'),
+          ('public.agente_impresion_confirmar(text,uuid,uuid)'),
+          ('public.agente_impresion_fallar(text,uuid,uuid,text,boolean)')
+        ) permitida(firma) where p.oid=to_regprocedure(permitida.firma))))
   ) then raise exception 'Queda una función pública expuesta o sin search_path'; end if;
   if not has_function_privilege('authenticated','public.crear_pedido(uuid,uuid,jsonb)','execute')
      or not has_function_privilege('authenticated','public.cerrar_cuenta(uuid,uuid,uuid[],jsonb,numeric)','execute')

@@ -131,11 +131,109 @@ export type CategoriaProducto = {
   id: string
   restaurante_id: string
   nombre: string
+  /** Estación heredada por los productos sin excepción propia. */
+  estacion_id?: string | null
   created_at: string
 }
 
 /** Estación de preparación; independiente de la clasificación de venta. */
 export type EstacionComanda = 'cocina' | 'bar' | 'otros'
+
+export type ModalidadCobro =
+  | 'solo_cajero'
+  | 'cobro_por_mesero'
+  | 'caja_central_meseros_autorizados'
+
+export type TipoDestinoEstacion = 'kds' | 'impresora'
+export type ModoDestinoEstacion = TipoDestinoEstacion | 'ambos' | 'ninguno'
+export type GrupoDestinoEstacion = 'principal' | 'respaldo'
+export type EstadoDestinoEstacion = 'activo' | 'inactivo'
+export type EstadoEntregaComanda = 'pendiente' | 'enviada' | 'confirmada' | 'fallida' | 'cancelada'
+export type EstadoComandaEstacion = EstadoPedido
+
+export type ConfiguracionOperativa = {
+  restaurante_id: string
+  modalidad_cobro: ModalidadCobro
+  version: number
+  actualizado_por: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type EstacionRestaurante = {
+  id: string
+  restaurante_id: string
+  codigo: EstacionComanda
+  nombre: string
+  activo: boolean
+  orden: number
+  created_at: string
+  updated_at: string
+}
+
+export type DestinoEstacion = {
+  id: string
+  restaurante_id: string
+  estacion_id: string
+  tipo: TipoDestinoEstacion
+  grupo: GrupoDestinoEstacion
+  nombre: string
+  papel_mm: 58 | 80 | null
+  configuracion: Record<string, unknown>
+  activo: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type EntregaComanda = {
+  id: string
+  restaurante_id: string
+  pedido_id: string
+  estacion_id: string
+  /** Snapshot de la ruta al crear la comanda; cambios futuros no la reubican. */
+  estacion_codigo?: EstacionComanda | null
+  estacion_nombre?: string | null
+  destino_estacion_id: string
+  destino_nombre?: string | null
+  configuracion_destino?: Record<string, unknown> | null
+  grupo: GrupoDestinoEstacion
+  tipo_destino: TipoDestinoEstacion
+  configuracion_version: number
+  /** Solicitud manual vigente, usada para confirmar sin aceptar respuestas obsoletas. */
+  solicitud_impresion_id?: string | null
+  clave_idempotencia: string
+  numero_entrega: number
+  estado: EstadoEntregaComanda
+  error_publico: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type EstadoComandaPorEstacion = {
+  id: string
+  restaurante_id: string
+  pedido_id: string
+  estacion_id: string
+  estado: EstadoComandaEstacion
+  iniciado_at: string | null
+  listo_at: string | null
+  entregado_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type AutorizacionCobro = {
+  id: string
+  restaurante_id: string
+  usuario_id: string
+  activo: boolean
+  creado_por: string | null
+  actualizado_por: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Producto = {
   id: string
@@ -150,7 +248,7 @@ export type Producto = {
   precio_promocion?: number | null
   /** El producto se prepara en la barra, no en la cocina. Lo define el admin. */
   es_bebida?: boolean | null
-  /** Destino operativo de impresión; se copia al ítem al crear la comanda. */
+  /** Estación operativa explícita; null hereda de la categoría al crear la comanda. */
   estacion?: EstacionComanda | null
   created_at: string
 }
@@ -161,6 +259,8 @@ export type Pedido = {
   mesa_id: string
   mesero_id: string
   estado: EstadoPedido
+  /** true en comandas nuevas posteriores a Fase 5, incluso si se configuraron sin salidas. */
+  ruteo_configurado?: boolean
   observacion?: string | null
   created_at: string
   updated_at: string
@@ -386,6 +486,12 @@ export interface Database {
       productos: Tbl<Producto, Partial<Producto>, Partial<Producto>>
       pedidos: Tbl<Pedido, Partial<Pedido>, Partial<Pedido>>
       pedido_items: Tbl<PedidoItem, Partial<PedidoItem>, Partial<PedidoItem>>
+      configuracion_operativa: Tbl<ConfiguracionOperativa, Partial<ConfiguracionOperativa>, Partial<ConfiguracionOperativa>>
+      estaciones_restaurante: Tbl<EstacionRestaurante, Partial<EstacionRestaurante>, Partial<EstacionRestaurante>>
+      destinos_estacion: Tbl<DestinoEstacion, Partial<DestinoEstacion>, Partial<DestinoEstacion>>
+      entregas_comanda: Tbl<EntregaComanda, Partial<EntregaComanda>, Partial<EntregaComanda>>
+      estado_comanda_estacion: Tbl<EstadoComandaPorEstacion, Partial<EstadoComandaPorEstacion>, Partial<EstadoComandaPorEstacion>>
+      autorizaciones_cobro: Tbl<AutorizacionCobro, Partial<AutorizacionCobro>, Partial<AutorizacionCobro>>
       cuentas: Tbl<Cuenta, Partial<Cuenta>, Partial<Cuenta>>
       cuenta_pedidos: Tbl<CuentaPedido, Partial<CuentaPedido>, Partial<CuentaPedido>>
       cuenta_pagos: Tbl<Pago, Partial<Pago>, Partial<Pago>>
@@ -399,6 +505,31 @@ export interface Database {
     }
     Views: Record<string, never>
     Functions: {
+      admin_impresion_crear_codigo: { Args: { p_restaurante_id: string }; Returns: { codigo: string; expira_at: string } }
+      admin_impresion_panel: { Args: { p_restaurante_id: string }; Returns: {
+        agentes: { id: string; nombre: string; estado: 'activo' | 'revocado'; ultimo_heartbeat_at: string | null; impresoras_detectadas: string[]; conectado: boolean }[]
+        asignaciones: { destino_id: string; agente_id: string; cola_windows: string; activa: boolean; max_intentos: number; reintento_base_seg: number }[]
+        trabajos: { id: string; tipo: string; estacion: string; estado: string; cola_windows: string; intentos: number; max_intentos: number; creado_at: string; enviado_at: string | null; error_final: string | null }[]
+        respaldo_automatico_disponible: boolean
+      } }
+      admin_impresion_revocar: { Args: { p_restaurante_id: string; p_agente_id: string }; Returns: undefined }
+      admin_impresion_asignar: { Args: { p_restaurante_id: string; p_destino_id: string; p_agente_id: string; p_cola_windows: string; p_activa: boolean; p_max_intentos: number; p_reintento_base_seg: number }; Returns: undefined }
+      admin_impresion_prueba: { Args: { p_restaurante_id: string; p_destino_id: string }; Returns: string }
+      admin_obtener_configuracion_operativa: {
+        Args: { p_restaurante_id: string }
+        Returns: Json
+      }
+      admin_guardar_configuracion_operativa: {
+        Args: { p_restaurante_id: string; p_configuracion: Json }
+        Returns: Json
+      }
+      admin_obtener_politica_cobro: { Args: { p_restaurante_id: string }; Returns: Json }
+      admin_guardar_politica_cobro: { Args: { p_restaurante_id: string; p_modalidad: ModalidadCobro; p_usuarios: string[] }; Returns: Json }
+      puede_cobrar_restaurante: { Args: { p_restaurante_id: string }; Returns: boolean }
+      avanzar_comanda_estacion: {
+        Args: { p_restaurante_id: string; p_pedido_id: string; p_estacion_codigo: EstacionComanda }
+        Returns: undefined
+      }
       registrar_error_cliente: {
         Args: { p_tipo: string; p_ruta: string; p_contexto: string }
         Returns: undefined
@@ -596,6 +727,26 @@ export interface Database {
           p_motivo?: string | null
         }
         Returns: { estado: 'requiere_motivo' } | { estado: 'registrada'; accion: 'comanda_imprimir' | 'comanda_reimprimir' }
+      }
+      registrar_impresion_salida_comanda: {
+        Args: {
+          p_restaurante_id: string
+          p_pedido_id: string
+          p_estacion: EstacionComanda
+          p_entrega_id: string
+          p_solicitud_id: string
+          p_motivo?: string | null
+        }
+        Returns: { estado: 'requiere_motivo' } | { estado: 'registrada'; accion: 'comanda_imprimir' | 'comanda_reimprimir' }
+      }
+      actualizar_estado_salida_comanda: {
+        Args: {
+          p_restaurante_id: string
+          p_entrega_id: string
+          p_solicitud_id: string
+          p_estado: 'confirmada' | 'fallida'
+        }
+        Returns: undefined
       }
       /** ¿El restaurante tiene PIN de autorización? Lo usa la UI para pedirlo. */
       tiene_pin_autorizacion: { Args: { p_restaurante_id: string }; Returns: boolean }

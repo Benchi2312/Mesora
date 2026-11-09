@@ -20,6 +20,10 @@ jobs:
       - run: git diff --exit-code -- supabase/TODO_EN_UNO.sql
       - run: npm run verificar:sql
       - run: npm run verificar
+      - run: npm run verificar:enrutamiento
+      # En Linux verifica el adaptador simulado; DPAPI, cola Windows y papel
+      # requieren la prueba operativa posterior en una computadora del local.
+      - run: npm run verificar:agente
       - run: npm run typecheck
       - run: npx playwright install --with-deps chromium
       - run: npm run verificar:impresion

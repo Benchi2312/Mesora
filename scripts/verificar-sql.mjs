@@ -28,7 +28,7 @@ try {
     console.error('Error de instalación:', e.message, e.detail ?? '', pos ? instalador.slice(Math.max(0, pos - 110), pos + 160) : '')
     throw new Error('Falló el instalador SQL')
   }
-  assert.equal((await pg.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 21)
+  assert.equal((await pg.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 27)
   console.log('SQL QA: tablas, RPC, RLS y pgcrypto instalados')
   await pg.exec(`
     begin;
@@ -102,7 +102,38 @@ try {
   await pg.exec(readFileSync(new URL('../supabase/qa/bloque2_roles_filtros_rollback.sql', import.meta.url), 'utf8'))
   console.log('SQL QA: filtros de Cobros/Auditoría, aislamiento tenant y estado lógico aprobados')
   await pg.exec(readFileSync(new URL('../supabase/qa/impresion_comandas_rollback.sql', import.meta.url), 'utf8'))
+  const qaOperacion = readFileSync(new URL('../supabase/qa/operacion_configurable_rollback.sql', import.meta.url), 'utf8')
+  const migracionOperacion = readFileSync(new URL('../supabase/migrations/20261108120000_sistema_operativo_configurable.sql', import.meta.url), 'utf8')
+  assert.ok(qaOperacion.includes('/* APLICAR_MIGRACION_OPERACION */'), 'Falta el punto de inyección de Operación configurable')
+  const [qaAntesMigracion, qaDespuesMigracion] = qaOperacion.split('/* APLICAR_MIGRACION_OPERACION */')
+  await pg.exec(qaAntesMigracion)
+  await pg.exec(migracionOperacion)
+  await pg.exec(migracionOperacion)
+  await pg.exec(qaDespuesMigracion)
   console.log('SQL QA: estaciones históricas, auditoría idempotente y motivo de reimpresión aprobados')
+  const qaConfiguracionOperativaAdmin = readFileSync(new URL('../supabase/qa/configuracion_operativa_admin_rollback.sql', import.meta.url), 'utf8')
+  const migracionConfiguracionOperativaAdmin = readFileSync(new URL('../supabase/migrations/20261109012624_fase3_configuracion_operativa_admin.sql', import.meta.url), 'utf8')
+  assert.ok(qaConfiguracionOperativaAdmin.includes('/* APLICAR_MIGRACION_CONFIG_OPERATIVA_ADMIN */'), 'Falta el punto de inyección de Fase 3 Operativa Admin')
+  const sqlConfiguracionOperativaAdmin = qaConfiguracionOperativaAdmin.replace(
+    '/* APLICAR_MIGRACION_CONFIG_OPERATIVA_ADMIN */',
+    () => migracionConfiguracionOperativaAdmin,
+  )
+  try {
+    await pg.exec(sqlConfiguracionOperativaAdmin)
+  } catch (error) {
+    const posicion = Number(error.position ?? 0)
+    if (posicion) console.error('SQL QA configurador cerca de:', sqlConfiguracionOperativaAdmin.slice(Math.max(0, posicion - 120), posicion + 160))
+    throw error
+  }
+  console.log('SQL QA: configurador de Admin, modalidad, estaciones, destinos, categorías, auditoría y RLS aprobados')
+  await pg.exec(readFileSync(new URL('../supabase/qa/enrutamiento_comandas_rollback.sql', import.meta.url), 'utf8'))
+  await pg.exec(readFileSync(new URL('../supabase/qa/fase5_kds_salida_manual_rollback.sql', import.meta.url), 'utf8'))
+  await pg.exec(readFileSync(new URL('../supabase/qa/fase6_agente_impresion_rollback.sql', import.meta.url), 'utf8'))
+  await pg.exec(readFileSync(new URL('../supabase/qa/modalidad_cobro_rollback.sql', import.meta.url), 'utf8'))
+  console.log('SQL QA: modalidades de cobro, bypass RPC, roles, histórico y auditoría aprobados')
+  console.log('SQL QA: Fase 6 vinculación, RLS, cola, idempotencia, lease, reintentos y revocación aprobados')
+  console.log('SQL QA: matriz Fase 5, solicitudes manuales, snapshots, reimpresión, idempotencia y RLS aprobados')
+  console.log('SQL QA: enrutamiento por estación, snapshots, avance independiente, RLS y aislamiento tenant aprobados')
   await pg.exec(`
     begin;
     do $$
@@ -170,12 +201,107 @@ try {
   const copia = await pg.dumpDataDir('gzip')
   const restaurada = new PGlite({ extensions: { pgcrypto }, loadDataDir: copia })
   try {
-    assert.equal((await restaurada.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 21)
+    assert.equal((await restaurada.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 27)
     assert.equal((await restaurada.query('select count(*)::int as n from public.restaurantes')).rows[0].n, 0)
     console.log('SQL QA: respaldo/restauración de la base aislada y rollback correctos')
   } finally { await restaurada.close() }
+  // Actualiza una base que todavía no tiene la nueva migración. Primero se
+  // comprueba el rollback de la prueba; luego se aplica sobre datos existentes.
+  const pgUpgrade = new PGlite({ extensions: { pgcrypto } })
+  try {
+    await pgUpgrade.exec(`
+      create role anon nologin;
+      create role authenticated nologin;
+      create role service_role nologin bypassrls;
+      create schema auth;
+      grant usage on schema public, auth to anon, authenticated, service_role;
+      create table auth.users (id uuid primary key, email text, encrypted_password text, last_sign_in_at timestamptz, created_at timestamptz default now());
+      create function auth.uid() returns uuid stable language sql as $$
+        select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
+      $$;
+      create function auth.jwt() returns jsonb stable language sql as $$
+        select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}');
+      $$;
+      create function auth.role() returns text stable language sql as $$ select auth.jwt()->>'role' $$;
+    `)
+
+    const filasInstaller = instalador.split('\n')
+    const lineaMigracion = filasInstaller.findIndex((linea) => linea.includes('· ../migrations/20261108120000_sistema_operativo_configurable.sql'))
+    assert.ok(lineaMigracion > 0, 'No se encontró la sección de Operación configurable en TODO_EN_UNO.sql')
+    const instaladorExistente = filasInstaller.slice(0, lineaMigracion - 1).join('\n')
+    assert.ok(instaladorExistente.includes('add column if not exists estacion text'), 'La base previa no incluye Bloque 3')
+    await pgUpgrade.exec(instaladorExistente)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 21)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='productos' and column_name='estacion'")).rows[0].n, 1)
+
+    await pgUpgrade.exec(qaAntesMigracion)
+    await pgUpgrade.exec(migracionOperacion)
+    await pgUpgrade.exec(migracionOperacion)
+    await pgUpgrade.exec(qaDespuesMigracion)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 21)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='categorias_productos' and column_name='estacion_id'")).rows[0].n, 0)
+
+    await pgUpgrade.exec(`
+      insert into auth.users(id,email) values ('00000000-0000-4000-8000-000000000001','upgrade@mesora.example');
+      insert into public.restaurantes(id,nombre,suscripcion_activa)
+        values ('00000000-0000-4000-8000-000000000002','QA actualización',true);
+      insert into public.usuarios(id,restaurante_id,rol,nombre)
+        values ('00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000002','admin_restaurante','Admin upgrade');
+      insert into public.categorias_productos(id,restaurante_id,nombre)
+        values ('00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000002','Categoría existente');
+      insert into public.productos(id,restaurante_id,categoria_id,nombre,precio,es_bebida,estacion)
+        values ('00000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000003','Bebida existente',8,true,'bar');
+    `)
+    await pgUpgrade.exec(migracionOperacion)
+    await pgUpgrade.exec(migracionOperacion)
+    const configuracionUpgrade = await pgUpgrade.query(`
+      select c.modalidad_cobro, count(distinct e.id)::int as estaciones,
+             count(distinct d.id)::int as destinos,
+             (select estacion from public.productos where id='00000000-0000-4000-8000-000000000004') as estacion_producto
+        from public.configuracion_operativa c
+        join public.estaciones_restaurante e on e.restaurante_id=c.restaurante_id
+        join public.destinos_estacion d on d.estacion_id=e.id
+       where c.restaurante_id='00000000-0000-4000-8000-000000000002'
+       group by c.modalidad_cobro
+    `)
+    assert.deepEqual(configuracionUpgrade.rows[0], {
+      modalidad_cobro: 'cobro_por_mesero', estaciones: 3, destinos: 3, estacion_producto: 'bar',
+    })
+    const fase3Upgrade = readFileSync(new URL('../supabase/migrations/20261109012624_fase3_configuracion_operativa_admin.sql', import.meta.url), 'utf8')
+    const fase4Upgrade = readFileSync(new URL('../supabase/migrations/20261109024411_fase4_enrutamiento_comandas.sql', import.meta.url), 'utf8')
+    const fase5Upgrade = readFileSync(new URL('../supabase/migrations/20261109045958_fase5_kds_salida_manual_comandas.sql', import.meta.url), 'utf8')
+    const fase6Upgrade = readFileSync(new URL('../supabase/migrations/20261109061058_fase6_agente_impresion_automatica.sql', import.meta.url), 'utf8')
+    await pgUpgrade.exec(fase3Upgrade)
+    await pgUpgrade.exec(fase4Upgrade)
+    await pgUpgrade.exec(fase4Upgrade)
+    await pgUpgrade.exec(fase5Upgrade)
+    await pgUpgrade.exec(fase5Upgrade)
+    await pgUpgrade.exec(fase6Upgrade)
+    await pgUpgrade.exec(fase6Upgrade)
+    const cobroUpgrade = readFileSync(new URL('../supabase/migrations/20261109075129_validar_modalidad_cobro_restaurante.sql', import.meta.url), 'utf8')
+    await pgUpgrade.exec(cobroUpgrade)
+    await pgUpgrade.exec(cobroUpgrade)
+    assert.equal((await pgUpgrade.query("select modalidad_cobro_aplicada from public.configuracion_operativa where restaurante_id='00000000-0000-4000-8000-000000000002'")).rows[0].modalidad_cobro_aplicada, null)
+    await pgUpgrade.exec(readFileSync(new URL('../supabase/qa/fase5_kds_salida_manual_rollback.sql', import.meta.url), 'utf8'))
+    await pgUpgrade.exec(readFileSync(new URL('../supabase/qa/fase6_agente_impresion_rollback.sql', import.meta.url), 'utf8'))
+    const columnasFase4 = await pgUpgrade.query(`
+      select table_name, column_name, is_nullable from information_schema.columns
+       where table_schema = 'public' and (
+         (table_name = 'productos' and column_name = 'estacion') or
+         (table_name = 'entregas_comanda' and column_name in ('estacion_codigo', 'configuracion_destino'))
+       )
+    `)
+    assert.equal(columnasFase4.rows.find((c) => c.table_name === 'productos' && c.column_name === 'estacion')?.is_nullable, 'YES')
+    assert.equal(columnasFase4.rows.find((c) => c.table_name === 'entregas_comanda' && c.column_name === 'estacion_codigo')?.is_nullable, 'YES')
+    assert.equal(columnasFase4.rows.find((c) => c.table_name === 'entregas_comanda' && c.column_name === 'configuracion_destino')?.is_nullable, 'NO')
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='avanzar_comanda_estacion'")).rows[0].n, 1)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='pedidos' and column_name='ruteo_configurado'")).rows[0].n, 1)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('registrar_impresion_salida_comanda','actualizar_estado_salida_comanda')")).rows[0].n, 2)
+    console.log('SQL QA: migraciones Fase 2/3/4/5/6 y modalidad de cobro instaladas en esquema existente; últimas migraciones idempotentes')
+  } finally { await pgUpgrade.close() }
 } catch (e) {
-  console.error(e.message)
+  console.error(e.message, e.position ? `SQL position ${e.position}` : '', e.detail ?? '', e.hint ?? '', e.where ?? '')
+  if (e.internalQuery) console.error('Internal query:', e.internalQuery)
   process.exitCode = 1
 } finally {
   await pg.close()

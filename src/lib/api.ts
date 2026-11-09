@@ -14,6 +14,7 @@ import { modoLocalHabilitado, supabase, supabaseConfigurado } from './supabase'
 import { computeMetricas, type MetricasAdmin } from '../domain/reporting/metricas'
 import { arqueoTurno, errorAlAbrirTurno, errorAlCerrarTurno, redondear } from '../domain/cashier/caja'
 import { completarPartes, resumirPago, type PagoParte } from '../domain/cashier/pagos'
+import { normalizarPoliticaCobro, puedeCobrarConPolitica, validarPoliticaCobro, type PoliticaCobro } from '../domain/cashier/permisosCobro'
 import { MENSAJE_PIN_INCORRECTO, errorAlAnularCobro } from '../domain/security/autorizacion'
 import { mensajeOperacion } from '../domain/security/mensajeOperacion'
 import { normalizarContenidoUtf8 } from '../domain/platform/normalizarUtf8'
@@ -28,7 +29,15 @@ import type {
   BandejaComercial,
   ConsultaComercial,
   Cuenta,
+  DestinoEstacion,
+  EntregaComanda,
   EstacionComanda,
+  EstacionRestaurante,
+  EstadoComandaPorEstacion,
+  EstadoEntregaComanda,
+  EstadoPedido,
+  Json,
+  ModalidadCobro,
   Mesa,
   MetodoPago,
   Pago,
@@ -44,11 +53,20 @@ import type {
   TicketEstado,
   TicketPrioridad,
   TicketTipo,
+  TipoDestinoEstacion,
   TurnoCaja,
   Usuario,
   Zona,
 } from '../types/database'
 import { estacionDeProducto } from '../domain/restaurant/impresionComandas'
+import {
+  crearEditorOperativoPredeterminado,
+  estacionEfectivaProducto,
+  normalizarEditorOperativo,
+  validarCambiosConfiguracionOperativa,
+  type CambiosConfiguracionOperativa,
+  type ConfiguracionOperativaEditor,
+} from '../domain/restaurant/operacion'
 import {
   calcularAlertas,
   type AlertaAdministrativa,
@@ -218,6 +236,30 @@ export type UsuarioResumen = Pick<Usuario, 'id' | 'nombre' | 'email' | 'activo' 
 /** Datos mínimos de compañeros que se muestran en cocina y en el traspaso de mesa. */
 export type MeseroResumen = Pick<Usuario, 'id' | 'nombre' | 'activo' | 'rol'>
 
+export type EstacionEnrutamiento = Pick<EstacionRestaurante, 'codigo' | 'nombre' | 'activo' | 'orden'> & {
+  id: string | null
+  destinos: (Pick<DestinoEstacion, 'tipo' | 'grupo' | 'nombre' | 'activo'> & { id: string | null })[]
+}
+
+export type RutaComandaEstacion = {
+  destinos: TipoDestinoEstacion[]
+  impresoras: {
+    entrega_id: string
+    nombre: string
+    papel_mm: 58 | 80 | null
+    copias: number
+    configuracion_version: number
+    estado: EstadoEntregaComanda
+  }[]
+  estado: EstadoPedido
+  /** Comandas creadas antes de la fase de enrutamiento conservan el tablero anterior. */
+  legado?: boolean
+  /** Nombre guardado al crear la ruta; editar configuración no renombra la comanda histórica. */
+  nombre?: string
+}
+
+export type RutasComanda = Partial<Record<EstacionComanda, RutaComandaEstacion>>
+
 function traducirErrorMesa(error: { code?: string; message: string }, nombre: string): string {
   if (error.code === '23505' && error.message.includes('mesas_un_nombre_por_restaurante')) {
     return mensajeNombreMesaDuplicado(nombre)
@@ -246,7 +288,8 @@ export type DatosProducto = {
   disponible: boolean
   /** El producto se prepara en la barra, no en la cocina (gaseosas, jugos, cafés…). */
   es_bebida?: boolean | null
-  estacion?: EstacionComanda
+  /** Null hereda la estación de la categoría y luego usa la clasificación de bebida como fallback. */
+  estacion?: EstacionComanda | null
   imagen_url?: string | null
 }
 
@@ -367,7 +410,11 @@ export type PedidoConItems = Pedido & {
   items: ItemResumen[]
   /** Ítems anulados por el mesero: cocina debe enterarse, no verlos desaparecer. */
   anulados: ItemResumen[]
+  /** Ruta y estado de trabajo independientes para cada estación de esta comanda. */
+  rutasPorEstacion?: RutasComanda
 }
+
+export type EstadoSalidaImpresion = Extract<EstadoEntregaComanda, 'confirmada' | 'fallida'>
 
 const SIGUIENTE_ESTADO: Record<Pedido['estado'], Pedido['estado']> = {
   pendiente: 'en_preparacion',
@@ -395,6 +442,13 @@ export interface DataApi {
   getCategorias(rid: string): Promise<Res<CategoriaProducto[]>>
   /** Solo productos disponibles. */
   getProductos(rid: string, opciones?: { incluirAgotados?: boolean }): Promise<Res<Producto[]>>
+  /** Configuración operativa: las estaciones enrutan comandas nuevas; el cobro aún conserva su flujo actual. */
+  getConfiguracionOperativa(rid: string): Promise<Res<ConfiguracionOperativaEditor>>
+  /** Guarda todo el formulario en una transacción; el servidor aplica RLS y rol. */
+  guardarConfiguracionOperativa(rid: string, cambios: CambiosConfiguracionOperativa): Promise<Res<ConfiguracionOperativaEditor>>
+  getPoliticaCobro(rid: string): Promise<Res<PoliticaCobro>>
+  guardarPoliticaCobro(rid: string, modalidad: ModalidadCobro, usuarios: string[]): Promise<Res<PoliticaCobro>>
+  puedeCobrar(rid: string): Promise<Res<boolean>>
   getMeseros(rid: string): Promise<Res<MeseroResumen[]>>
   /** Reasigna una mesa ocupada con autorización PIN (si está configurado) y motivo auditable. */
   asignarMesaMesero(rid: string, mesaId: string, meseroId: string, pin: string | null, motivo: string): Promise<Res<null>>
@@ -411,6 +465,7 @@ export interface DataApi {
    */
   getPedidoItems(ids: string[]): Promise<Res<ItemResumen[]>>
   /** Pedidos activos (no 'entregado') para la pantalla de cocina. */
+  getEstacionesEnrutamiento(rid: string): Promise<Res<EstacionEnrutamiento[]>>
   getPedidosActivos(rid: string): Promise<Res<PedidoConItems[]>>
   /** Registra impresión/reimpresión de una estación; la solicitud es idempotente. */
   registrarImpresionComanda(
@@ -420,6 +475,22 @@ export interface DataApi {
     solicitudId: string,
     motivo?: string | null,
   ): Promise<Res<ResultadoRegistroImpresion>>
+  /** Registra una salida manual específica, usando la ruta histórica de la comanda. */
+  registrarImpresionSalidaComanda(
+    rid: string,
+    pedidoId: string,
+    estacion: EstacionComanda,
+    entregaId: string,
+    solicitudId: string,
+    motivo?: string | null,
+  ): Promise<Res<ResultadoRegistroImpresion>>
+  /** Guarda la confirmación manual posterior al diálogo de impresión del navegador. */
+  actualizarEstadoSalidaComanda(
+    rid: string,
+    entregaId: string,
+    solicitudId: string,
+    estado: EstadoSalidaImpresion,
+  ): Promise<Res<null>>
   crearPedido(rid: string, mesaId: string, items: ItemComanda[]): Promise<Res<string>>
   /**
    * Corrige cantidad y nota de un ítem de una comanda ABIERTA (no cobrada).
@@ -455,7 +526,7 @@ export interface DataApi {
   configurarPinAutorizacion(rid: string, pin: string): Promise<Res<null>>
   /** Solo admin: deja el restaurante sin PIN. */
   quitarPinAutorizacion(rid: string): Promise<Res<null>>
-  avanzarPedido(rid: string, pedidoId: string): Promise<Res<null>>
+  avanzarPedido(rid: string, pedidoId: string, estacion?: EstacionComanda): Promise<Res<null>>
   /**
    * Cierra la cuenta de los pedidos indicados: inserta la cuenta pagada, guarda
    * el subtotal de cada pedido, marca esos pedidos como `entregado` y libera la
@@ -678,6 +749,84 @@ async function mapaEsBebida(
   return (productoId: string | null) => (productoId ? esBebidaDe.get(productoId) === true : false)
 }
 
+function faltaRpcConfiguracionOperativa(error: { code?: string; message?: string }): boolean {
+  const mensaje = (error.message ?? '').toLowerCase()
+  return error.code === 'PGRST202' || error.code === '42883' ||
+    mensaje.includes('could not find the function') ||
+    mensaje.includes('not found in the schema cache') ||
+    mensaje.includes('function public.admin_obtener_configuracion_operativa')
+}
+
+function faltaEsquemaEnrutamiento(error: { code?: string; message?: string }): boolean {
+  const mensaje = (error.message ?? '').toLowerCase()
+  return error.code === '42P01' || error.code === '42703' || error.code === 'PGRST200' || error.code === 'PGRST204' || error.code === 'PGRST205' ||
+    mensaje.includes('could not find the table') || mensaje.includes('does not exist') || mensaje.includes('schema cache')
+}
+
+function estacionesEnrutamientoPredeterminadas(rid: string): EstacionEnrutamiento[] {
+  return crearEditorOperativoPredeterminado(rid).estaciones.map((estacion) => ({
+    id: null,
+    codigo: estacion.codigo,
+    nombre: estacion.nombre,
+    activo: true,
+    orden: estacion.orden,
+    destinos: estacion.destinos.map((destino) => ({
+      id: null,
+      tipo: destino.tipo,
+      grupo: destino.grupo,
+      nombre: destino.nombre,
+      activo: destino.activo,
+    })),
+  }))
+}
+
+function rutasLegadasPedido(pedido: Pedido, items: readonly PedidoItem[]): RutasComanda {
+  const rutas: RutasComanda = {}
+  for (const item of items) {
+    const estacion = item.estacion ?? estacionDeProducto({ estacion: item.estacion, es_bebida: item.es_bebida })
+    rutas[estacion] ??= { destinos: ['kds'], impresoras: [], estado: pedido.estado, legado: true }
+  }
+  return rutas
+}
+
+function resolverRutasPedido(
+  pedido: Pedido,
+  rutas: readonly EstacionEnrutamiento[],
+  entregas: readonly Pick<EntregaComanda, 'id' | 'pedido_id' | 'estacion_id' | 'estacion_codigo' | 'estacion_nombre' | 'destino_nombre' | 'configuracion_destino' | 'configuracion_version' | 'grupo' | 'tipo_destino' | 'estado'>[],
+  estados: readonly Pick<EstadoComandaPorEstacion, 'pedido_id' | 'estacion_id' | 'estado'>[],
+  items: readonly PedidoItem[],
+): RutasComanda {
+  const delPedido = entregas.filter((entrega) => entrega.pedido_id === pedido.id && entrega.grupo === 'principal')
+  if (delPedido.length === 0) return pedido.ruteo_configurado ? {} : rutasLegadasPedido(pedido, items)
+  const porId = new Map(rutas.filter((r) => r.id).map((r) => [r.id!, r.codigo]))
+  const resultado: RutasComanda = {}
+  for (const entrega of delPedido) {
+    const codigo = entrega.estacion_codigo ?? porId.get(entrega.estacion_id)
+    if (!codigo) continue
+    const estado = estados.find((fila) => fila.pedido_id === pedido.id && fila.estacion_id === entrega.estacion_id)?.estado ?? pedido.estado
+    const nombre = entrega.estacion_nombre ?? rutas.find((r) => r.codigo === codigo)?.nombre
+    const ruta = resultado[codigo] ?? { destinos: [], impresoras: [], estado, nombre }
+    if (!ruta.destinos.includes(entrega.tipo_destino)) ruta.destinos.push(entrega.tipo_destino)
+    if (entrega.tipo_destino === 'impresora') {
+      const config = entrega.configuracion_destino ?? {}
+      const ancho = config.papel_mm === 58 || config.papel_mm === 80 ? config.papel_mm : null
+      const copiasConfiguradas = Number(config.copias ?? 1)
+      const copias = Number.isInteger(copiasConfiguradas) && copiasConfiguradas >= 1 && copiasConfiguradas <= 5 ? copiasConfiguradas : 1
+      const nombreImpresora = entrega.destino_nombre ?? `Impresora ${nombre ?? codigo}`
+      if (!ruta.impresoras.some((impresora) => impresora.entrega_id === entrega.id)) ruta.impresoras.push({
+        entrega_id: entrega.id,
+        nombre: nombreImpresora,
+        papel_mm: ancho,
+        copias,
+        configuracion_version: entrega.configuracion_version,
+        estado: entrega.estado,
+      })
+    }
+    resultado[codigo] = ruta
+  }
+  return resultado
+}
+
 const realApi: DataApi = {
   async getZonas(rid) {
     const { data, error } = await supabase.from('zonas').select('*').eq('restaurante_id', rid).order('nombre')
@@ -706,6 +855,88 @@ const realApi: DataApi = {
     if (!opciones?.incluirAgotados) consulta = consulta.eq('disponible', true)
     const { data, error } = await consulta.order('nombre')
     return { data, error: error?.message ?? null }
+  },
+  async getEstacionesEnrutamiento(rid) {
+    const { data: estaciones, error: eErr } = await supabase
+      .from('estaciones_restaurante')
+      .select('id, codigo, nombre, activo, orden')
+      .eq('restaurante_id', rid)
+      .order('orden')
+    if (eErr) {
+      if (faltaEsquemaEnrutamiento(eErr)) return { data: estacionesEnrutamientoPredeterminadas(rid), error: null }
+      return { data: null, error: eErr.message }
+    }
+    const { data: destinos, error: dErr } = await supabase
+      .from('destinos_estacion')
+      .select('id, estacion_id, tipo, grupo, nombre, activo')
+      .eq('restaurante_id', rid)
+    if (dErr) {
+      if (faltaEsquemaEnrutamiento(dErr)) return { data: estacionesEnrutamientoPredeterminadas(rid), error: null }
+      return { data: null, error: dErr.message }
+    }
+    return {
+      data: (estaciones ?? []).map((estacion) => ({
+        ...estacion,
+        destinos: (destinos ?? []).filter((destino) => destino.estacion_id === estacion.id),
+      })) as EstacionEnrutamiento[],
+      error: null,
+    }
+  },
+  async getConfiguracionOperativa(rid) {
+    const { data, error } = await supabase.rpc('admin_obtener_configuracion_operativa', {
+      p_restaurante_id: rid,
+    })
+    if (error && faltaRpcConfiguracionOperativa(error)) {
+      // Previsualización segura mientras el SQL de fase 3 aún no está instalado.
+      // No se ocultan errores de sesión, RLS o pertenencia al restaurante.
+      const [categorias, productos] = await Promise.all([
+        this.getCategorias(rid),
+        this.getProductos(rid, { incluirAgotados: true }),
+      ])
+      if (categorias.error || productos.error) {
+        return { data: null, error: categorias.error ?? productos.error }
+      }
+      const predeterminada = crearEditorOperativoPredeterminado(rid, categorias.data ?? [], productos.data ?? [])
+      predeterminada.solo_lectura = true
+      predeterminada.limitacion = 'El esquema para guardar esta configuración aún no está instalado. Los valores mostrados son una vista previa.'
+      return { data: predeterminada, error: null }
+    }
+    if (error) return { data: null, error: error.message }
+    const configuracion = normalizarEditorOperativo(rid, data)
+    return configuracion
+      ? { data: configuracion, error: null }
+      : { data: null, error: 'La configuración recibida no tiene un formato válido. Actualiza la página e inténtalo de nuevo.' }
+  },
+  async guardarConfiguracionOperativa(rid, cambios) {
+    const { data, error } = await supabase.rpc('admin_guardar_configuracion_operativa', {
+      p_restaurante_id: rid,
+      p_configuracion: cambios as unknown as Json,
+    })
+    if (error) return { data: null, error: error.message }
+    const configuracion = normalizarEditorOperativo(rid, data)
+    return configuracion
+      ? { data: configuracion, error: null }
+      : { data: null, error: 'El servidor guardó el cambio, pero no pudo confirmar la configuración. Actualiza antes de volver a intentarlo.' }
+  },
+  async getPoliticaCobro(rid) {
+    const { data, error } = await supabase.rpc('admin_obtener_politica_cobro', { p_restaurante_id: rid })
+    if (error) return { data: null, error: mensajeOperacion(error.message, 'No se pudieron cargar los permisos de cobro. Actualiza la página.') }
+    const politica = normalizarPoliticaCobro(rid, data)
+    return politica ? { data: politica, error: null } : { data: null, error: 'No se pudo confirmar la modalidad de cobro. Actualiza la página.' }
+  },
+  async guardarPoliticaCobro(rid, modalidad, usuarios) {
+    const { data, error } = await supabase.rpc('admin_guardar_politica_cobro', {
+      p_restaurante_id: rid,
+      p_modalidad: modalidad,
+      p_usuarios: usuarios,
+    })
+    if (error) return { data: null, error: mensajeOperacion(error.message, 'No se pudo guardar la autorización de cobro. Revisa el personal seleccionado.') }
+    const politica = normalizarPoliticaCobro(rid, data)
+    return politica ? { data: politica, error: null } : { data: null, error: 'El cambio pudo guardarse, pero no se pudo confirmar. Actualiza antes de volver a intentarlo.' }
+  },
+  async puedeCobrar(rid) {
+    const { data, error } = await supabase.rpc('puede_cobrar_restaurante', { p_restaurante_id: rid })
+    return { data: data === true, error: error ? mensajeOperacion(error.message, 'No se pudo confirmar tu permiso de cobro. Actualiza la página.') : null }
   },
   async getMeseros(rid) {
     const { data, error } = await supabase.rpc('listar_meseros_activos_restaurante', {
@@ -760,20 +991,79 @@ const realApi: DataApi = {
     return { data, error: error?.message ?? null }
   },
   async getPedidosActivos(rid) {
-    const { data: pedidosRaw, error: pedErr } = await supabase
+    const fechaSalidasRecientes = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const [pedidosActivosRes, salidasPendientesRes, salidasConfirmadasRes] = await Promise.all([
+      supabase
       .from('pedidos')
       .select('*')
       .eq('restaurante_id', rid)
       .in('estado', ['pendiente', 'en_preparacion', 'listo'])
-      .order('created_at')
-    if (pedErr) return { data: null, error: pedErr.message }
-    const pList = (pedidosRaw ?? []) as Pedido[]
+      .order('created_at'),
+      supabase.from('entregas_comanda')
+        .select('pedido_id')
+        .eq('restaurante_id', rid)
+        .eq('grupo', 'principal')
+        .eq('tipo_destino', 'impresora')
+        .in('estado', ['pendiente', 'enviada', 'fallida']),
+      supabase.from('entregas_comanda')
+        .select('pedido_id')
+        .eq('restaurante_id', rid)
+        .eq('grupo', 'principal')
+        .eq('tipo_destino', 'impresora')
+        .eq('estado', 'confirmada')
+        .gte('updated_at', fechaSalidasRecientes)
+        .order('updated_at', { ascending: false })
+        .limit(100),
+    ])
+    if (pedidosActivosRes.error) return { data: null, error: pedidosActivosRes.error.message }
+    const erroresSalidas = [salidasPendientesRes.error, salidasConfirmadasRes.error].filter(Boolean)
+    const errorSalidas = erroresSalidas.find((error) => !faltaEsquemaEnrutamiento(error))
+    if (errorSalidas) return { data: null, error: errorSalidas.message }
+    const activos = (pedidosActivosRes.data ?? []) as Pedido[]
+    const idsActivos = new Set(activos.map((p) => p.id))
+    const idsConSalida = [...new Set([
+      ...(salidasPendientesRes.data ?? []).map((fila) => fila.pedido_id),
+      ...(salidasConfirmadasRes.data ?? []).map((fila) => fila.pedido_id),
+    ])]
+      .filter((id) => !idsActivos.has(id))
+    let pList = activos
+    if (idsConSalida.length > 0) {
+      const { data: pedidosImpresion, error: errorPedidosImpresion } = await supabase
+        .from('pedidos')
+        .select('*')
+        .eq('restaurante_id', rid)
+        .neq('estado', 'anulado')
+        .in('id', idsConSalida)
+        .order('created_at')
+      if (errorPedidosImpresion) return { data: null, error: errorPedidosImpresion.message }
+      pList = [...activos, ...((pedidosImpresion ?? []) as Pedido[])]
+        .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    }
     if (pList.length === 0) return { data: [], error: null }
     const { data: items, error: itErr } = await supabase
       .from('pedido_items')
       .select('id, pedido_id, producto_id, nombre_producto, cantidad, precio_unitario, nota, anulado, es_bebida, estacion')
       .in('pedido_id', pList.map((p) => p.id))
     if (itErr) return { data: null, error: itErr.message }
+
+    const rutasRes = await this.getEstacionesEnrutamiento(rid)
+    if (rutasRes.error) return { data: null, error: rutasRes.error }
+    const [entregasRes, estadosRes] = await Promise.all([
+      supabase.from('entregas_comanda')
+        .select('id, pedido_id, estacion_id, estacion_codigo, estacion_nombre, destino_nombre, configuracion_destino, configuracion_version, grupo, tipo_destino, estado')
+        .eq('restaurante_id', rid)
+        .in('pedido_id', pList.map((p) => p.id)),
+      supabase.from('estado_comanda_estacion')
+        .select('pedido_id, estacion_id, estado')
+        .eq('restaurante_id', rid)
+        .in('pedido_id', pList.map((p) => p.id)),
+    ])
+    const faltaTablaEntrega = entregasRes.error && faltaEsquemaEnrutamiento(entregasRes.error)
+    const faltaTablaEstado = estadosRes.error && faltaEsquemaEnrutamiento(estadosRes.error)
+    if (entregasRes.error && !faltaTablaEntrega) return { data: null, error: entregasRes.error.message }
+    if (estadosRes.error && !faltaTablaEstado) return { data: null, error: estadosRes.error.message }
+    const entregas = faltaTablaEntrega ? [] : (entregasRes.data ?? []) as Pick<EntregaComanda, 'id' | 'pedido_id' | 'estacion_id' | 'estacion_codigo' | 'estacion_nombre' | 'destino_nombre' | 'configuracion_destino' | 'configuracion_version' | 'grupo' | 'tipo_destino' | 'estado'>[]
+    const estados = faltaTablaEstado ? [] : (estadosRes.data ?? []) as Pick<EstadoComandaPorEstacion, 'pedido_id' | 'estacion_id' | 'estado'>[]
 
     // Cocina solo ve lo que hay que preparar: los ítems anulados desaparecen.
     const marcaBebida = await mapaEsBebida(rid, (items ?? []) as PedidoItem[])
@@ -789,6 +1079,7 @@ const realApi: DataApi = {
           ...p,
           items: suyos.filter((it) => it.anulado !== true),
           anulados: suyos.filter((it) => it.anulado === true),
+          rutasPorEstacion: resolverRutasPedido(p, rutasRes.data ?? [], entregas, estados, suyos),
         }
       })
       .filter((p) => p.items.length > 0)
@@ -803,6 +1094,26 @@ const realApi: DataApi = {
       p_motivo: motivo ?? null,
     })
     return { data: data as ResultadoRegistroImpresion | null, error: error?.message ?? null }
+  },
+  async registrarImpresionSalidaComanda(rid, pedidoId, estacion, entregaId, solicitudId, motivo) {
+    const { data, error } = await supabase.rpc('registrar_impresion_salida_comanda', {
+      p_restaurante_id: rid,
+      p_pedido_id: pedidoId,
+      p_estacion: estacion,
+      p_entrega_id: entregaId,
+      p_solicitud_id: solicitudId,
+      p_motivo: motivo ?? null,
+    })
+    return { data: data as ResultadoRegistroImpresion | null, error: error?.message ?? null }
+  },
+  async actualizarEstadoSalidaComanda(rid, entregaId, solicitudId, estado) {
+    const { error } = await supabase.rpc('actualizar_estado_salida_comanda', {
+      p_restaurante_id: rid,
+      p_entrega_id: entregaId,
+      p_solicitud_id: solicitudId,
+      p_estado: estado,
+    })
+    return { data: null, error: error?.message ?? null }
   },
   async crearPedido(rid, mesaId, items) {
     const { data, error } = await supabase.rpc('crear_pedido', {
@@ -909,29 +1220,13 @@ const realApi: DataApi = {
     const { error } = await supabase.rpc('quitar_pin_autorizacion', { p_restaurante_id: rid })
     return { data: null, error: error?.message ?? null }
   },
-  async avanzarPedido(rid, pedidoId) {
-    const { data: ped } = await supabase
-      .from('pedidos')
-      .select('estado')
-      .eq('id', pedidoId)
-      .eq('restaurante_id', rid)
-      .maybeSingle()
-    if (!ped) return { data: null, error: 'Pedido no encontrado' }
-    // Compare-and-set: si otra pantalla (o otro device) ya avanzó el estado,
-    // el UPDATE no matchea y avisamos en vez de saltarnos un estado.
-    const siguiente = siguienteEstado(ped.estado)
-    if (siguiente === ped.estado) return { data: null, error: 'La comanda ya no tiene estados pendientes' }
-    const { data: actualizado, error } = await supabase
-      .from('pedidos')
-      .update({ estado: siguiente, updated_at: new Date().toISOString() })
-      .eq('id', pedidoId)
-      .eq('restaurante_id', rid)
-      .eq('estado', ped.estado)
-      .select('id')
-      .maybeSingle()
-    if (error) return { data: null, error: error.message }
-    if (!actualizado) return { data: null, error: 'La comanda cambió de estado en otro momento. Actualiza la pantalla.' }
-    return { data: null, error: null }
+  async avanzarPedido(rid, pedidoId, estacion = 'cocina') {
+    const { error } = await supabase.rpc('avanzar_comanda_estacion', {
+      p_restaurante_id: rid,
+      p_pedido_id: pedidoId,
+      p_estacion_codigo: estacion,
+    })
+    return { data: null, error: error ? mensajeOperacion(error.message, 'No se pudo actualizar la comanda. Actualiza el tablero e inténtalo de nuevo.') : null }
   },
   async cerrarCuenta(rid, mesaId, pedidos, metodo) {
     return realApi.cerrarCuentaDividida(rid, mesaId, pedidos, [{ metodo_pago: metodo, monto: 0 }], 0)
@@ -1673,6 +1968,63 @@ const realApi: DataApi = {
 /** Dataset en memoria que alimenta a un api simulado (mismo shape de localSeed). */
 type Dataset = LocalSeedData
 
+function politicaCobroLocal(ds: Dataset, rid: string): PoliticaCobro {
+  return ds.politicasCobro.find((p) => p.restaurante_id === rid) ?? {
+    restaurante_id: rid,
+    modalidad_cobro: ds.configuracionesOperativas.find((c) => c.restaurante_id === rid)?.modalidad_cobro ?? 'cobro_por_mesero',
+    modalidad_aplicada: null,
+    usuarios_autorizados: [],
+  }
+}
+
+function configuracionOperativaLocal(ds: Dataset, rid: string, materializar = false): ConfiguracionOperativaEditor {
+  const existente = ds.configuracionesOperativas.find((config) => config.restaurante_id === rid)
+  if (existente) {
+    if (materializar) {
+      for (const estacion of existente.estaciones) {
+        estacion.id ??= crypto.randomUUID()
+        for (const destino of estacion.destinos) destino.id ??= crypto.randomUUID()
+      }
+    }
+    return existente
+  }
+  const inicial = crearEditorOperativoPredeterminado(
+    rid,
+    ds.categorias.filter((categoria) => categoria.restaurante_id === rid),
+    ds.productos.filter((producto) => producto.restaurante_id === rid),
+  )
+  if (!materializar) return inicial
+  const conIds: ConfiguracionOperativaEditor = {
+    ...inicial,
+    estaciones: inicial.estaciones.map((estacion) => ({
+      ...estacion,
+      id: crypto.randomUUID(),
+      destinos: estacion.destinos.map((destino) => ({ ...destino, id: crypto.randomUUID() })),
+    })),
+  }
+  ds.configuracionesOperativas.push(conIds)
+  return conIds
+}
+
+function estacionEfectivaLocal(ds: Dataset, rid: string, producto: Producto | undefined): EstacionComanda {
+  if (!producto) return 'cocina'
+  const config = configuracionOperativaLocal(ds, rid)
+  const categoria = config.categorias.find((fila) => fila.id === producto.categoria_id)
+  return estacionEfectivaProducto(producto, categoria)
+}
+
+function sincronizarEstadoPedidoLocal(ds: Dataset, pedidoId: string): void {
+  const pedido = ds.pedidos.find((fila) => fila.id === pedidoId)
+  if (!pedido || pedido.estado === 'anulado') return
+  const estados = ds.estadosComandaEstacion.filter((fila) => fila.pedido_id === pedidoId && fila.estado !== 'anulado')
+  if (estados.length === 0) return
+  const estado: EstadoPedido = estados.some((fila) => fila.estado === 'pendiente') ? 'pendiente'
+    : estados.some((fila) => fila.estado === 'en_preparacion') ? 'en_preparacion'
+      : estados.some((fila) => fila.estado === 'listo') ? 'listo' : 'entregado'
+  pedido.estado = estado
+  pedido.updated_at = new Date().toISOString()
+}
+
 const espera = (ms = 200) => new Promise((r) => setTimeout(r, ms))
 
 /** Estado mutable del modo demo. Arranca VACÍO: el recorrido guiado lo llena. */
@@ -1684,6 +2036,8 @@ const db: Dataset = {
   usuarios: [...mockUsuarios],
   pedidos: [],
   items: [],
+  entregasComanda: [],
+  estadosComandaEstacion: [],
   cuentas: [],
   cuentaPedidos: [],
   pagos: [],
@@ -1693,6 +2047,8 @@ const db: Dataset = {
   historialSuscripciones: [],
   auditLogs: [],
   tickets: [],
+  configuracionesOperativas: [],
+  politicasCobro: [],
   configuracion: {
     ...CONFIGURACION_POR_DEFECTO,
     updated_at: new Date().toISOString(),
@@ -1713,6 +2069,8 @@ const localDb: Dataset = {
   usuarios: localSeed.usuarios,
   pedidos: localSeed.pedidos,
   items: localSeed.items,
+  entregasComanda: localSeed.entregasComanda,
+  estadosComandaEstacion: localSeed.estadosComandaEstacion,
   cuentas: localSeed.cuentas,
   cuentaPedidos: localSeed.cuentaPedidos,
   pagos: localSeed.pagos,
@@ -1722,6 +2080,8 @@ const localDb: Dataset = {
   historialSuscripciones: localSeed.historialSuscripciones,
   auditLogs: localSeed.auditLogs,
   tickets: localSeed.tickets,
+  configuracionesOperativas: localSeed.configuracionesOperativas,
+  politicasCobro: localSeed.politicasCobro,
   configuracion: localSeed.configuracion,
 }
 
@@ -1982,8 +2342,8 @@ async function cerrarCuentaDivididaConLock(
     return { data: null, error: 'La mesa no pertenece al restaurante' }
   }
   const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
-  if (!actor || !['mesero', 'admin_restaurante'].includes(actor.rol)) {
-    return { data: null, error: 'Sin permiso para cerrar cuentas en este restaurante' }
+  if (!puedeCobrarConPolitica(actor, rid, politicaCobroLocal(ds, rid))) {
+    return { data: null, error: 'No estás autorizado para cobrar en este restaurante.' }
   }
   const mesaActual = ds.mesas.find((m) => m.id === mesaId && m.restaurante_id === rid)
   if (actor.rol === 'mesero' && mesaActual?.mesero_responsable_id && mesaActual.mesero_responsable_id !== actor.id) {
@@ -2020,6 +2380,10 @@ async function cerrarCuentaDivididaConLock(
   const resumen = resumirPago(total, partes, propina)
   if (!resumen.valido) return { data: null, error: resumen.error }
 
+  const meseroIdSnapshot = actor.rol === 'mesero' ? actor.id :
+    ds.mesas.find((m) => m.id === mesaId && m.restaurante_id === rid)?.mesero_responsable_id ??
+    [...ds.pedidos].reverse().find((p) => p.mesa_id === mesaId && p.restaurante_id === rid && p.estado !== 'anulado')?.mesero_id ?? null
+
   const cuenta: Cuenta = {
     id,
     restaurante_id: rid,
@@ -2032,8 +2396,8 @@ async function cerrarCuentaDivididaConLock(
     numero: siguienteNumeroBoleta(ds, rid),
     propina: redondear(propina),
     vuelto: resumen.vuelto,
-    mesero_id_snapshot: apiMode.operadorId ?? null,
-    mesero_nombre_snapshot: ds.usuarios.find((u) => u.id === apiMode.operadorId)?.nombre ?? null,
+    mesero_id_snapshot: meseroIdSnapshot,
+    mesero_nombre_snapshot: ds.usuarios.find((u) => u.id === meseroIdSnapshot && u.restaurante_id === rid)?.nombre ?? null,
     mesa_nombre_snapshot: ds.mesas.find((m) => m.id === mesaId)?.nombre ?? null,
     restaurante_nombre_snapshot: ds.restaurantes.find((r) => r.id === rid)?.nombre ?? null,
     restaurante_direccion_snapshot: ds.restaurantes.find((r) => r.id === rid)?.direccion ?? null,
@@ -2041,6 +2405,15 @@ async function cerrarCuentaDivididaConLock(
     restaurante_telefono_snapshot: ds.restaurantes.find((r) => r.id === rid)?.telefono ?? null,
   }
   ds.cuentas.push(cuenta)
+  if (actor.rol === 'admin_restaurante') {
+    ds.auditLogs.unshift({
+      id: crypto.randomUUID(), actor_id: actor.id, actor_rol: actor.rol, actor_nombre: actor.nombre,
+      restaurante_id: rid, restaurante_nombre: ds.restaurantes.find((r) => r.id === rid)?.nombre ?? null,
+      entidad: 'cuenta', entidad_id: id, accion: 'cobro_contingencia_admin',
+      descripcion: 'El administrador cobró una cuenta por contingencia',
+      detalle: { cuenta_id: id, mesa_id: mesaId, total, numero: cuenta.numero }, created_at: ahora,
+    })
+  }
   // El detalle del pago dividido se guarda parte por parte: el arqueo de caja
   // necesita saber cuánta plata fue en efectivo, no solo "cuál fue el primer
   // método".
@@ -2173,6 +2546,145 @@ function crearApiDesde(
       data: opciones?.incluirAgotados ? productos : productos.filter((p) => p.disponible),
       error: null,
     }
+  },
+  async getEstacionesEnrutamiento(rid) {
+    await espera()
+    const configuracion = configuracionOperativaLocal(ds, rid)
+    return {
+      data: configuracion.estaciones.map(({ id, codigo, nombre, activo, orden, destinos }) => ({
+        id,
+        codigo,
+        nombre,
+        activo,
+        orden,
+        destinos: destinos.map(({ id: destinoId, tipo, grupo, nombre: destinoNombre, activo: destinoActivo }) => ({
+          id: destinoId, tipo, grupo, nombre: destinoNombre, activo: destinoActivo,
+        })),
+      })),
+      error: null,
+    }
+  },
+  async getConfiguracionOperativa(rid) {
+    await espera()
+    const actor = apiMode.operadorId
+      ? ds.usuarios.find((u) => u.id === apiMode.operadorId && u.activo !== false)
+      : null
+    if (!actor || actor.restaurante_id !== rid) {
+      return { data: null, error: 'No tienes acceso a la configuración de este restaurante.' }
+    }
+    const acceso = errorDeAcceso(ds, rid, actor.id)
+    if (acceso) return { data: null, error: acceso }
+    const categorias = ds.categorias.filter((c) => c.restaurante_id === rid)
+    const productos = ds.productos.filter((p) => p.restaurante_id === rid)
+    const guardada = ds.configuracionesOperativas.find((c) => c.restaurante_id === rid)
+    if (!guardada) return { data: crearEditorOperativoPredeterminado(rid, categorias, productos), error: null }
+    const asignadas = new Map(guardada.categorias.map((c) => [c.id, c.estacion_codigo]))
+    return {
+      data: {
+        ...guardada,
+        categorias: categorias.map((c) => ({ id: c.id, nombre: c.nombre, estacion_codigo: asignadas.get(c.id) ?? null })),
+        productos: productos.map(({ id, nombre, categoria_id, estacion, es_bebida }) => ({ id, nombre, categoria_id, estacion, es_bebida })),
+      },
+      error: null,
+    }
+  },
+  async guardarConfiguracionOperativa(rid, cambios) {
+    await espera()
+    const actor = apiMode.operadorId
+      ? ds.usuarios.find((u) => u.id === apiMode.operadorId && u.activo !== false)
+      : null
+    if (!actor || actor.rol !== 'admin_restaurante' || actor.restaurante_id !== rid) {
+      return { data: null, error: 'Solo el administrador activo de este restaurante puede guardar esta configuración.' }
+    }
+    const acceso = errorDeAcceso(ds, rid, actor.id)
+    if (acceso) return { data: null, error: acceso }
+    const errorValidacion = validarCambiosConfiguracionOperativa(rid, cambios)
+    if (errorValidacion) return { data: null, error: errorValidacion }
+    const categoriasActuales = ds.categorias.filter((c) => c.restaurante_id === rid)
+    const idsActuales = new Set(categoriasActuales.map((c) => c.id))
+    if (cambios.categorias.length !== idsActuales.size || cambios.categorias.some((c) => !idsActuales.has(c.id))) {
+      return { data: null, error: 'Una categoría ya no pertenece a este restaurante. Actualiza la pantalla e inténtalo de nuevo.' }
+    }
+    const guardada = ds.configuracionesOperativas.find((c) => c.restaurante_id === rid)
+    const destinosPermitidos = new Map<string, string>()
+    for (const estacion of guardada?.estaciones ?? []) {
+      for (const destino of estacion.destinos) if (destino.id) destinosPermitidos.set(destino.id, estacion.codigo)
+    }
+    for (const estacion of cambios.estaciones) {
+      if (estacion.destinos.some((destino) => destino.id && destinosPermitidos.get(destino.id) !== estacion.codigo)) {
+        return { data: null, error: 'Uno de los destinos no pertenece a este restaurante. Actualiza la pantalla e inténtalo de nuevo.' }
+      }
+    }
+
+    const estaciones = cambios.estaciones.map((estacion) => ({
+      ...estacion,
+      id: estacion.id ?? crypto.randomUUID(),
+      destinos: estacion.destinos.map((destino) => ({ ...destino, id: destino.id ?? crypto.randomUUID() })),
+    }))
+    const configuracion: ConfiguracionOperativaEditor = {
+      restaurante_id: rid,
+      modalidad_cobro: cambios.modalidad_cobro,
+      version: (guardada?.version ?? 0) + 1,
+      estaciones,
+      categorias: cambios.categorias.map((c) => ({ ...c })),
+      productos: ds.productos.filter((p) => p.restaurante_id === rid)
+        .map(({ id, nombre, categoria_id, estacion, es_bebida }) => ({ id, nombre, categoria_id, estacion, es_bebida })),
+    }
+    const indice = ds.configuracionesOperativas.findIndex((c) => c.restaurante_id === rid)
+    if (indice < 0) ds.configuracionesOperativas.push(configuracion)
+    else ds.configuracionesOperativas[indice] = configuracion
+    registrarAuditoria('configuracion_operativa_actualizar', {
+      restauranteId: rid,
+      entidad: 'configuracion',
+      entidadId: rid,
+      descripcion: 'Actualizó la configuración operativa del restaurante',
+      detalle: {
+        modalidad_cobro: configuracion.modalidad_cobro,
+        estaciones_activas: estaciones.filter((e) => e.activo).map((e) => e.codigo),
+        categorias: configuracion.categorias.map((c) => ({ id: c.id, estacion_codigo: c.estacion_codigo })),
+      },
+    })
+    persiste()
+    return { data: configuracion, error: null }
+  },
+  async getPoliticaCobro(rid) {
+    await espera()
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+    if (!actor || actor.rol !== 'admin_restaurante') return { data: null, error: 'Solo el administrador activo puede consultar estos permisos.' }
+    return { data: { ...politicaCobroLocal(ds, rid), usuarios_autorizados: [...politicaCobroLocal(ds, rid).usuarios_autorizados] }, error: null }
+  },
+  async guardarPoliticaCobro(rid, modalidad, usuarios) {
+    await espera()
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+    if (!actor || actor.rol !== 'admin_restaurante') return { data: null, error: 'Solo el administrador activo puede cambiar quién cobra.' }
+    const acceso = errorDeAcceso(ds, rid, actor.id)
+    if (acceso) return { data: null, error: acceso }
+    const error = validarPoliticaCobro(rid, modalidad, usuarios, ds.usuarios)
+    if (error) return { data: null, error }
+    const anterior = politicaCobroLocal(ds, rid)
+    const politica: PoliticaCobro = {
+      restaurante_id: rid, modalidad_cobro: modalidad, modalidad_aplicada: modalidad,
+      usuarios_autorizados: [...usuarios],
+    }
+    const indice = ds.politicasCobro.findIndex((p) => p.restaurante_id === rid)
+    if (indice < 0) ds.politicasCobro.push(politica)
+    else ds.politicasCobro[indice] = politica
+    configuracionOperativaLocal(ds, rid, true).modalidad_cobro = modalidad
+    ds.auditLogs.unshift({
+      id: crypto.randomUUID(), actor_id: actor.id, actor_rol: actor.rol, actor_nombre: actor.nombre,
+      restaurante_id: rid, restaurante_nombre: ds.restaurantes.find((r) => r.id === rid)?.nombre ?? null,
+      entidad: 'configuracion', entidad_id: rid, accion: 'modalidad_cobro_aplicar',
+      descripcion: 'Actualizó la modalidad y las autorizaciones de cobro',
+      detalle: { anterior: anterior.modalidad_aplicada, nueva: modalidad, usuarios_autorizados: [...usuarios] },
+      created_at: new Date().toISOString(),
+    })
+    persiste()
+    return { data: politica, error: null }
+  },
+  async puedeCobrar(rid) {
+    await espera()
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid)
+    return { data: puedeCobrarConPolitica(actor, rid, politicaCobroLocal(ds, rid)), error: null }
   },
   async getMeseros(rid) {
     await espera()
@@ -2316,8 +2828,15 @@ function crearApiDesde(
   },
   async getPedidosActivos(rid) {
     await espera()
+    const rutas = await this.getEstacionesEnrutamiento(rid)
+    const salidasAbiertas = new Set(ds.entregasComanda
+      .filter((e) => e.restaurante_id === rid && e.grupo === 'principal' && e.tipo_destino === 'impresora' && ['pendiente', 'enviada', 'fallida'].includes(e.estado))
+      .map((e) => e.pedido_id))
+    const recientesParaReimpresion = new Set(ds.entregasComanda
+      .filter((e) => e.restaurante_id === rid && e.grupo === 'principal' && e.tipo_destino === 'impresora' && e.estado === 'confirmada' && e.updated_at >= new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .map((e) => e.pedido_id))
     const activos = ds.pedidos
-      .filter((p) => p.restaurante_id === rid && p.estado !== 'entregado' && p.estado !== 'anulado')
+      .filter((p) => p.restaurante_id === rid && p.estado !== 'anulado' && (p.estado !== 'entregado' || salidasAbiertas.has(p.id) || recientesParaReimpresion.has(p.id)))
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
     const conItems = activos
       .map((p) => {
@@ -2335,6 +2854,7 @@ function crearApiDesde(
           ...p,
           items: suyos.filter((it) => it.anulado !== true),
           anulados: suyos.filter((it) => it.anulado === true),
+          rutasPorEstacion: resolverRutasPedido(p, rutas.data ?? [], ds.entregasComanda, ds.estadosComandaEstacion, suyos),
         }
       })
       .filter((p) => p.items.length > 0)
@@ -2401,6 +2921,74 @@ function crearApiDesde(
     persiste()
     return { data: { estado: 'registrada', accion }, error: null }
   },
+  async registrarImpresionSalidaComanda(rid, pedidoId, estacion, entregaId, solicitudId, motivo) {
+    const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
+    if (acceso) return { data: null, error: acceso }
+    await espera(80)
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+    if (!actor || !['admin_restaurante', 'mesero', 'cocina'].includes(actor.rol)) return { data: null, error: 'Tu perfil no tiene permiso para imprimir comandas.' }
+    const entrega = ds.entregasComanda.find((e) => e.id === entregaId && e.restaurante_id === rid && e.pedido_id === pedidoId && e.estacion_codigo === estacion && e.grupo === 'principal' && e.tipo_destino === 'impresora')
+    if (!entrega || entrega.estado === 'cancelada') return { data: null, error: 'La salida de impresión ya no está disponible para esta comanda.' }
+    const pedido = ds.pedidos.find((p) => p.id === pedidoId && p.restaurante_id === rid)
+    if (!pedido || pedido.estado === 'anulado') return { data: null, error: 'La comanda está anulada o no pertenece a este restaurante.' }
+    if (!ds.items.some((it) => it.pedido_id === pedidoId && it.estacion === estacion && it.anulado !== true)) return { data: null, error: 'Esta comanda no tiene productos vigentes para esa estación.' }
+
+    const solicitudExistente = ds.auditLogs.find((log) => log.detalle?.solicitud_id === solicitudId)
+    if (solicitudExistente) {
+      if (solicitudExistente.actor_id === actor.id && solicitudExistente.restaurante_id === rid && solicitudExistente.entidad_id === pedidoId && solicitudExistente.detalle?.entrega_id === entregaId) {
+        return { data: { estado: 'registrada', accion: solicitudExistente.accion as 'comanda_imprimir' | 'comanda_reimprimir' }, error: null }
+      }
+      return { data: null, error: 'La solicitud de impresión ya se usó para otra comanda.' }
+    }
+    const anteriores = ds.auditLogs.filter((log) => log.restaurante_id === rid && log.entidad === 'pedido' && log.entidad_id === pedidoId && ['comanda_imprimir', 'comanda_reimprimir'].includes(log.accion) && log.detalle?.entrega_id === entregaId)
+    const motivoLimpio = motivo?.trim() ?? ''
+    if (anteriores.length > 0 && !motivoLimpio) return { data: { estado: 'requiere_motivo' }, error: null }
+    if (anteriores.length > 0 && (motivoLimpio.length < 5 || motivoLimpio.length > 300)) return { data: null, error: 'Escribe un motivo de reimpresión de entre 5 y 300 caracteres.' }
+
+    const mesa = ds.mesas.find((m) => m.id === pedido.mesa_id && m.restaurante_id === rid)
+    const accion = anteriores.length > 0 ? 'comanda_reimprimir' : 'comanda_imprimir'
+    registrarAuditoria(accion, {
+      restauranteId: rid,
+      entidad: 'pedido',
+      entidadId: pedidoId,
+      descripcion: `${accion === 'comanda_reimprimir' ? 'Comanda reimpresa' : 'Comanda enviada a impresión'} en ${estacion}, mesa ${mesa?.nombre ?? 'sin mesa'}.`,
+      detalle: {
+        solicitud_id: solicitudId,
+        pedido_id: pedidoId,
+        entrega_id: entregaId,
+        mesa_id: pedido.mesa_id,
+        mesa_nombre: mesa?.nombre ?? null,
+        estacion,
+        impresora: entrega.destino_nombre,
+        configuracion_version: entrega.configuracion_version,
+        configuracion_destino: entrega.configuracion_destino,
+        motivo: accion === 'comanda_reimprimir' ? motivoLimpio : null,
+      },
+    })
+    entrega.estado = 'enviada'
+    entrega.solicitud_impresion_id = solicitudId
+    entrega.updated_at = new Date().toISOString()
+    persiste()
+    return { data: { estado: 'registrada', accion }, error: null }
+  },
+  async actualizarEstadoSalidaComanda(rid, entregaId, solicitudId, estado) {
+    const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
+    if (acceso) return { data: null, error: acceso }
+    await espera(80)
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+    if (!actor || !['admin_restaurante', 'mesero', 'cocina'].includes(actor.rol)) return { data: null, error: 'Tu perfil no tiene permiso para actualizar esta salida.' }
+    const entrega = ds.entregasComanda.find((e) => e.id === entregaId && e.restaurante_id === rid && e.grupo === 'principal' && e.tipo_destino === 'impresora')
+    if (!entrega || entrega.estado === 'cancelada') return { data: null, error: 'La salida de impresión ya no está disponible.' }
+    const log = ds.auditLogs.find((fila) => fila.detalle?.solicitud_id === solicitudId && fila.detalle?.entrega_id === entregaId && fila.actor_id === actor.id && fila.restaurante_id === rid)
+    if (!log || !['comanda_imprimir', 'comanda_reimprimir'].includes(log.accion)) return { data: null, error: 'No se encontró la solicitud de impresión asociada.' }
+    if (entrega.solicitud_impresion_id !== solicitudId) return { data: null, error: 'Hay otra solicitud activa. Actualiza la cola antes de confirmar.' }
+    if (entrega.estado === estado) return { data: null, error: null }
+    if (!['enviada', 'fallida'].includes(entrega.estado)) return { data: null, error: 'La salida no está esperando confirmación de impresión.' }
+    entrega.estado = estado
+    entrega.updated_at = new Date().toISOString()
+    persiste()
+    return { data: null, error: null }
+  },
   async crearPedido(rid, mesaId, items) {
     const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
     if (acceso) return { data: null, error: acceso }
@@ -2422,6 +3010,32 @@ function crearApiDesde(
       return { data: null, error: 'Esta mesa tiene comandas de otro mesero. Pide al administrador que asigne la mesa.' }
     }
     if (items.length === 0) return { data: null, error: 'El pedido no tiene ítems' }
+    const configuracionOperativa = configuracionOperativaLocal(ds, rid, true)
+    const productosPreparados: { item: ItemComanda; producto: Producto; estacion: EstacionComanda }[] = []
+    for (const item of items) {
+      const producto = ds.productos.find((p) => p.id === item.producto_id && p.restaurante_id === rid)
+      if (!producto) return { data: null, error: 'Uno de los productos ya no pertenece a este restaurante. Actualiza el menú.' }
+      const estacion = estacionEfectivaLocal(ds, rid, producto)
+      const estacionOperativa = configuracionOperativa.estaciones.find((fila) => fila.codigo === estacion)
+      if (!estacionOperativa?.activo) {
+        return { data: null, error: `La estación ${estacionOperativa?.nombre ?? estacion} está desactivada. Pide al administrador que revise la configuración operativa.` }
+      }
+      const destinosPrincipales = estacionOperativa.destinos.filter((destino) => destino.activo && destino.grupo === 'principal')
+      if (!estacionOperativa.id || destinosPrincipales.some((destino) => !destino.id)) {
+        return { data: null, error: 'No se pudo identificar la estación o el destino operativo. Vuelve a cargar el sistema.' }
+      }
+      productosPreparados.push({ item, producto, estacion })
+    }
+    const estacionesDePedido = [...new Set(productosPreparados.map((fila) => fila.estacion))]
+    const rutasPreparadas = estacionesDePedido.map((codigo) => {
+      const estacion = configuracionOperativa.estaciones.find((fila) => fila.codigo === codigo)
+      const destinos = estacion?.destinos.filter((destino) => destino.activo && destino.grupo === 'principal') ?? []
+      if (!estacion?.id || destinos.some((destino) => !destino.id)) return null
+      return { codigo, estacion, destinos }
+    })
+    if (rutasPreparadas.some((ruta) => ruta === null)) {
+      return { data: null, error: 'No se pudo identificar la estación o el destino operativo. Vuelve a cargar el sistema.' }
+    }
     const id = crypto.randomUUID()
     const ahora = new Date().toISOString()
     ds.pedidos.push({
@@ -2430,13 +3044,13 @@ function crearApiDesde(
       mesa_id: mesaId,
       mesero_id: actor.id,
       estado: 'pendiente',
+      ruteo_configurado: true,
       observacion: null,
       created_at: ahora,
       updated_at: ahora,
     })
-    for (const it of items) {
-      const producto = ds.productos.find((p) => p.id === it.producto_id && p.restaurante_id === rid)
-      const es_bebida = producto?.es_bebida ?? false
+    for (const { item: it, producto, estacion } of productosPreparados) {
+      const es_bebida = producto.es_bebida ?? false
       ds.items.push({
         id: crypto.randomUUID(),
         pedido_id: id,
@@ -2447,9 +3061,51 @@ function crearApiDesde(
         nota: it.nota ?? null,
         anulado: false,
         es_bebida,
-        estacion: producto ? estacionDeProducto(producto) : estacionDeProducto({ es_bebida }),
+        estacion,
         created_at: ahora,
       })
+    }
+    for (const ruta of rutasPreparadas) {
+      if (!ruta) continue
+      const { codigo, estacion, destinos } = ruta
+      if (destinos.some((destino) => destino.tipo === 'kds')) ds.estadosComandaEstacion.push({
+        id: crypto.randomUUID(),
+        restaurante_id: rid,
+        pedido_id: id,
+        estacion_id: estacion.id,
+        estado: 'pendiente',
+        iniciado_at: null,
+        listo_at: null,
+        entregado_at: null,
+        created_at: ahora,
+        updated_at: ahora,
+      })
+      for (const destino of destinos) {
+        ds.entregasComanda.push({
+          id: crypto.randomUUID(),
+          restaurante_id: rid,
+          pedido_id: id,
+          estacion_id: estacion.id,
+          estacion_codigo: codigo,
+          estacion_nombre: estacion.nombre,
+          destino_estacion_id: destino.id,
+          destino_nombre: destino.nombre,
+          configuracion_destino: {
+            ...destino.configuracion,
+            ...(destino.papel_mm === null ? {} : { papel_mm: destino.papel_mm }),
+          },
+          grupo: 'principal',
+          tipo_destino: destino.tipo,
+          configuracion_version: configuracionOperativa.version,
+          clave_idempotencia: crypto.randomUUID(),
+          numero_entrega: 1,
+          estado: destino.tipo === 'kds' ? 'confirmada' : 'pendiente',
+          solicitud_impresion_id: null,
+          error_publico: null,
+          created_at: ahora,
+          updated_at: ahora,
+        })
+      }
     }
     const mesa = ds.mesas.find((m) => m.id === mesaId)
     if (mesa) {
@@ -2518,6 +3174,23 @@ function crearApiDesde(
     item.anulado_por = apiMode.operadorId
     item.anulado_at = ahora
     pedido.updated_at = ahora
+    const estacionItem = item.estacion ?? estacionDeProducto({ estacion: item.estacion, es_bebida: item.es_bebida ?? esBebidaEn(ds, rid, item.producto_id) })
+    const otrosDeLaEstacion = ds.items.some((otro) =>
+      otro.pedido_id === pedidoId && otro.id !== item.id && otro.anulado !== true &&
+      (otro.estacion ?? estacionDeProducto({ estacion: otro.estacion, es_bebida: otro.es_bebida ?? esBebidaEn(ds, rid, otro.producto_id) })) === estacionItem,
+    )
+    if (!otrosDeLaEstacion) {
+      const estacionCfg = configuracionOperativaLocal(ds, rid).estaciones.find((fila) => fila.codigo === estacionItem)
+      const estadoCfg = ds.estadosComandaEstacion.find((fila) => fila.pedido_id === pedidoId && fila.estacion_id === estacionCfg?.id)
+      if (estadoCfg) {
+        estadoCfg.estado = 'anulado'
+        estadoCfg.updated_at = ahora
+      }
+      for (const entrega of ds.entregasComanda.filter((fila) => fila.pedido_id === pedidoId && fila.estacion_codigo === estacionItem && fila.estado === 'pendiente')) {
+        entrega.estado = 'cancelada'
+        entrega.updated_at = ahora
+      }
+    }
     registrarAuditoria('comanda_item_anular', {
       restauranteId: rid,
       entidad: 'pedido_item',
@@ -2536,7 +3209,7 @@ function crearApiDesde(
     // Si era el último ítem vigente, la comanda deja de existir para cocina y caja.
     if (!ds.items.some((it) => it.pedido_id === pedidoId && it.anulado !== true)) {
       pedido.estado = 'anulado'
-    }
+    } else sincronizarEstadoPedidoLocal(ds, pedidoId)
     // Si la mesa se quedó sin comandas por cobrar, vuelve a estar libre.
     if (pedidosAbiertosDeMesa(ds, rid, pedido.mesa_id).length === 0) {
       const mesa = ds.mesas.find((m) => m.id === pedido.mesa_id && m.restaurante_id === rid)
@@ -2546,11 +3219,40 @@ function crearApiDesde(
     persiste()
     return { data: null, error: null }
   },
-  async avanzarPedido(rid, pedidoId) {
+  async avanzarPedido(rid, pedidoId, estacion = 'cocina') {
     await espera(250)
     const p = ds.pedidos.find((x) => x.id === pedidoId && x.restaurante_id === rid)
     if (!p) return { data: null, error: 'Pedido no encontrado' }
     if (p.estado === 'anulado') return { data: null, error: 'La comanda está anulada' }
+    const configuracion = configuracionOperativaLocal(ds, rid)
+    const estacionConfigurada = configuracion.estaciones.find((fila) => fila.codigo === estacion)
+    const estadoEstacion = ds.estadosComandaEstacion.find((fila) =>
+      fila.pedido_id === pedidoId && fila.restaurante_id === rid && fila.estacion_id === estacionConfigurada?.id,
+    )
+    if (estadoEstacion) {
+      const siguiente = siguienteEstado(estadoEstacion.estado)
+      if (siguiente === estadoEstacion.estado) return { data: null, error: 'La estación ya terminó esta comanda.' }
+      const ahora = new Date().toISOString()
+      estadoEstacion.estado = siguiente
+      estadoEstacion.iniciado_at ??= siguiente === 'en_preparacion' ? ahora : null
+      estadoEstacion.listo_at = siguiente === 'listo' ? ahora : estadoEstacion.listo_at
+      estadoEstacion.entregado_at = siguiente === 'entregado' ? ahora : estadoEstacion.entregado_at
+      estadoEstacion.updated_at = ahora
+      sincronizarEstadoPedidoLocal(ds, pedidoId)
+      persiste()
+      return { data: null, error: null }
+    }
+    if (p.ruteo_configurado) {
+      const tieneRutaKds = ds.entregasComanda.some((entrega) =>
+        entrega.pedido_id === pedidoId &&
+        entrega.restaurante_id === rid &&
+        entrega.grupo === 'principal' &&
+        entrega.estacion_codigo === estacion &&
+        entrega.tipo_destino === 'kds',
+      )
+      if (!tieneRutaKds) return { data: null, error: 'Esta estaciÃ³n no tiene una salida KDS configurada para la comanda.' }
+      return { data: null, error: 'No se encontrÃ³ el estado KDS de esta comanda. Actualiza el tablero.' }
+    }
     const siguiente = siguienteEstado(p.estado)
     if (siguiente === p.estado) return { data: null, error: 'La comanda ya no tiene estados pendientes' }
     p.estado = siguiente
@@ -3640,7 +4342,7 @@ function crearApiDesde(
       es_promocion: datos.es_promocion ?? false,
       precio_promocion: datos.es_promocion && datos.precio_promocion ? datos.precio_promocion : null,
       es_bebida: datos.es_bebida ?? false,
-      estacion: datos.estacion ?? (datos.es_bebida ? 'bar' : 'cocina'),
+      estacion: datos.estacion ?? null,
       created_at: new Date().toISOString(),
     }
     ds.productos.push(producto)
@@ -3953,6 +4655,8 @@ export function reiniciarDemoDatos(): void {
   db.historialSuscripciones = []
   db.auditLogs = []
   db.tickets = []
+  db.configuracionesOperativas = []
+  db.politicasCobro = []
   db.configuracion = {
     ...CONFIGURACION_POR_DEFECTO,
     updated_at: new Date().toISOString(),

@@ -25,7 +25,7 @@ type ModalProducto = {
   esPromocion: boolean
   precioPromocion: string
   esBebida: boolean
-  estacion: EstacionComanda
+  estacion: EstacionComanda | null
 } | null
 type Confirmar = { tipo: 'categoria' | 'producto'; id: string; nombre: string } | null
 /** Campo del formulario que el autocompletado está rellenando ahora mismo. */
@@ -120,7 +120,7 @@ export default function MenuTab() {
       esPromocion: false,
       precioPromocion: '',
       esBebida: false,
-      estacion: 'cocina',
+      estacion: null,
     })
     setCategoriaAuto(categoriaId)
     setCorrida((n) => n + 1)
@@ -387,7 +387,7 @@ export default function MenuTab() {
       esPromocion: false,
       precioPromocion: '',
       esBebida: false,
-      estacion: 'cocina',
+      estacion: null,
     })
   }
 
@@ -405,7 +405,7 @@ export default function MenuTab() {
       esPromocion: Boolean(p.es_promocion),
       precioPromocion: p.precio_promocion != null ? String(p.precio_promocion) : '',
       esBebida: p.es_bebida === true,
-      estacion: p.estacion ?? (p.es_bebida === true ? 'bar' : 'cocina'),
+      estacion: p.estacion ?? null,
     })
   }
 
@@ -673,15 +673,19 @@ export default function MenuTab() {
             <Campo etiqueta="Estación de preparación" htmlFor="producto-estacion" error={null}>
               <select
                 id="producto-estacion"
-                value={modalProducto.estacion}
-                onChange={(e) => setModalProducto({ ...modalProducto, estacion: e.target.value as EstacionComanda })}
+                value={modalProducto.estacion ?? ''}
+                onChange={(e) => setModalProducto({
+                  ...modalProducto,
+                  estacion: e.target.value ? e.target.value as EstacionComanda : null,
+                })}
                 className="input h-11"
               >
+                <option value="">Heredar de categoría</option>
                 {ESTACIONES_COMANDA.map((estacion) => (
                   <option key={estacion} value={estacion}>{NOMBRES_ESTACION_COMANDA[estacion]}</option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-zinc-500">Las comandas se separan por esta estación y conservan esta selección aunque luego edites el menú.</p>
+              <p className="mt-1 text-xs text-zinc-500">Si hereda, usa la estación predeterminada de la categoría; si no está definida, bebidas van a Barra y los demás productos a Cocina. Cada comanda guarda su ruta al enviarse.</p>
             </Campo>
 
             <Campo etiqueta={null} htmlFor={undefined} error={null}>

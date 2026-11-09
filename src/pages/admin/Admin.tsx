@@ -6,6 +6,8 @@ import MesasZonasTab from './MesasZonasTab'
 import MenuTab from './MenuTab'
 import PersonalTab from './PersonalTab'
 import ConfiguracionTab from './ConfiguracionTab'
+import ConfiguracionOperativaTab from './ConfiguracionOperativaTab'
+import AgentesImpresionTab from './AgentesImpresionTab'
 import SoporteTab from './SoporteTab'
 import CajaTab from './CajaTab'
 import CobrosTab from './CobrosTab'
@@ -13,7 +15,7 @@ import VentasTab from './VentasTab'
 import AvisoSuscripcion from './AvisoSuscripcion'
 import AuditoriaRestauranteTab from './AuditoriaRestauranteTab'
 
-type SeccionTab = 'dashboard' | 'ventas' | 'caja' | 'cobros' | 'mesas' | 'menu' | 'personal' | 'configuracion' | 'auditoria' | 'soporte'
+type SeccionTab = 'dashboard' | 'ventas' | 'caja' | 'cobros' | 'mesas' | 'menu' | 'personal' | 'configuracion' | 'configuracion-operativa' | 'agentes-impresion' | 'auditoria' | 'soporte'
 
 const SECCIONES: { id: SeccionTab; label: string }[] = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -24,6 +26,8 @@ const SECCIONES: { id: SeccionTab; label: string }[] = [
   { id: 'menu', label: 'Menú' },
   { id: 'personal', label: 'Personal' },
   { id: 'configuracion', label: 'Datos del local' },
+  { id: 'configuracion-operativa', label: 'Configuración operativa' },
+  { id: 'agentes-impresion', label: 'Impresión automática' },
   { id: 'auditoria', label: 'Auditoría' },
   { id: 'soporte', label: 'Soporte' },
 ]
@@ -50,7 +54,7 @@ export default function Admin() {
 
       <AvisoSuscripcion />
 
-      <nav className="no-print mb-8 flex flex-wrap gap-2" aria-label="Secciones de administración">
+      <nav className="no-print mb-8 flex flex-nowrap gap-2 overflow-x-auto pb-2 sm:flex-wrap sm:overflow-visible" aria-label="Secciones de administración">
         {SECCIONES.map((s) => (
           <button
             key={s.id}
@@ -58,7 +62,7 @@ export default function Admin() {
             data-guia={`admin-tab-${s.id}`}
             aria-current={seccion === s.id ? 'page' : undefined}
             onClick={() => setSeccion(s.id)}
-            className={`min-h-11 touch-manipulation rounded-xl border px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98] ${
+            className={`min-h-11 shrink-0 touch-manipulation rounded-xl border px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98] ${
               seccion === s.id
                 ? 'border-brand-500 bg-brand-500/15 text-brand-400 shadow-sm shadow-brand-500/10'
                 : 'border-surface-700 bg-surface-800 text-zinc-300 hover:border-surface-500 hover:text-white'
@@ -77,6 +81,8 @@ export default function Admin() {
       {seccion === 'menu' && <MenuTab />}
       {seccion === 'personal' && <PersonalTab />}
       {seccion === 'configuracion' && <ConfiguracionTab />}
+      {seccion === 'configuracion-operativa' && <ConfiguracionOperativaTab />}
+      {seccion === 'agentes-impresion' && <AgentesImpresionTab />}
       {seccion === 'auditoria' && <AuditoriaRestauranteTab />}
       {seccion === 'soporte' && <SoporteTab />}
     </div>

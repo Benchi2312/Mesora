@@ -3579,6 +3579,358 @@ const auditoriaReimpresionQa = localSeed.auditLogs.find((l) => l.accion === 'com
 check('30g · reimpresión pide motivo y audita usuario/fecha/mesa/motivo', motivoPendienteQa.data?.estado === 'requiere_motivo' && reimpresionQa.data?.accion === 'comanda_reimprimir' && auditoriaReimpresionQa?.actor_id === meseroMariaQa.id && auditoriaReimpresionQa.created_at && auditoriaReimpresionQa.detalle?.mesa_id === pedidoParaImprimir.mesa_id && auditoriaReimpresionQa.detalle?.motivo === 'Papel no salió')
 check('30h · la impresión no crea ni modifica pedidos', localSeed.pedidos.find((p) => p.id === pedidoParaImprimir.id)?.estado === 'pendiente' && localSeed.pedidos.filter((p) => p.id === pedidoParaImprimir.id).length === 1)
 
+titulo('31 · Tipos y defaults de Operación configurable')
+const operacionDomain = await servidor.ssrLoadModule('/src/domain/restaurant/operacion.ts')
+const defaultsOperacion = operacionDomain.crearConfiguracionOperativaPredeterminada(RID)
+check('31a · el default mantiene cobro por mesero y las estaciones actuales',
+  defaultsOperacion.configuracion.modalidad_cobro === 'cobro_por_mesero' &&
+  defaultsOperacion.estaciones.map((e) => e.codigo).join(',') === 'cocina,bar,otros')
+check('31b · cada estación mantiene KDS activo sin activar impresoras',
+  defaultsOperacion.estaciones.every((e) => e.activo && e.destinos.length === 1 && e.destinos[0].tipo === 'kds' && e.destinos[0].activo && e.destinos[0].grupo === 'principal'))
+check('31c · la resolución soporta KDS, impresora, ambos y ninguno',
+  operacionDomain.modoDestinoEstacion([{ tipo: 'kds', grupo: 'principal', activo: true }]) === 'kds' &&
+  operacionDomain.modoDestinoEstacion([{ tipo: 'impresora', grupo: 'principal', activo: true }]) === 'impresora' &&
+  operacionDomain.modoDestinoEstacion([
+    { tipo: 'kds', grupo: 'principal', activo: true },
+    { tipo: 'impresora', grupo: 'principal', activo: true },
+  ]) === 'ambos' &&
+  operacionDomain.modoDestinoEstacion([{ tipo: 'kds', grupo: 'respaldo', activo: true }]) === 'ninguno')
+check('31d · los destinos inactivos no participan del enrutamiento',
+  operacionDomain.modoDestinoEstacion([{ tipo: 'impresora', grupo: 'principal', activo: false }]) === 'ninguno' &&
+  operacionDomain.estadoDeDestino(false) === 'inactivo')
+
+titulo('32 · Configurador operativo de Admin: permisos, guardado y tenant')
+const ahoraOperacionAdmin = new Date().toISOString()
+const RID_OP_ADMIN_A = 'qa-operacion-admin-a'
+const RID_OP_ADMIN_B = 'qa-operacion-admin-b'
+const ADMIN_OP_A = 'qa-operacion-admin-actor-a'
+const ADMIN_OP_B = 'qa-operacion-admin-actor-b'
+const MESERO_OP_A = 'qa-operacion-admin-mesero-a'
+const ZONA_OP_A = 'qa-operacion-admin-zona-a'
+const MESA_OP_A = 'qa-operacion-admin-mesa-a'
+const CATEGORIA_OP_A = 'qa-operacion-admin-categoria-a'
+const CATEGORIA_OP_B = 'qa-operacion-admin-categoria-b'
+const PRODUCTO_OP_BEBIDA = 'qa-operacion-admin-bebida-sin-categoria'
+localSeed.restaurantes.push(
+  { ...mockRestaurante, id: RID_OP_ADMIN_A, nombre: 'Configuración QA A', suscripcion_activa: true, fecha_vencimiento: null },
+  { ...mockRestaurante, id: RID_OP_ADMIN_B, nombre: 'Configuración QA B', suscripcion_activa: true, fecha_vencimiento: null },
+)
+localSeed.usuarios.push(
+  { id: ADMIN_OP_A, restaurante_id: RID_OP_ADMIN_A, rol: 'admin_restaurante', nombre: 'Admin Config A', activo: true, created_at: ahoraOperacionAdmin },
+  { id: ADMIN_OP_B, restaurante_id: RID_OP_ADMIN_B, rol: 'admin_restaurante', nombre: 'Admin Config B', activo: true, created_at: ahoraOperacionAdmin },
+  { id: MESERO_OP_A, restaurante_id: RID_OP_ADMIN_A, rol: 'mesero', nombre: 'Mesero Config A', activo: true, created_at: ahoraOperacionAdmin },
+)
+localSeed.zonas.push({ id: ZONA_OP_A, restaurante_id: RID_OP_ADMIN_A, nombre: 'Zona de enrutamiento QA', created_at: ahoraOperacionAdmin })
+localSeed.mesas.push({ id: MESA_OP_A, restaurante_id: RID_OP_ADMIN_A, zona_id: ZONA_OP_A, nombre: 'Mesa de enrutamiento QA', estado: 'libre', created_at: ahoraOperacionAdmin })
+localSeed.categorias.push(
+  { id: CATEGORIA_OP_A, restaurante_id: RID_OP_ADMIN_A, nombre: 'Platos QA', estacion_id: null, created_at: ahoraOperacionAdmin },
+  { id: CATEGORIA_OP_B, restaurante_id: RID_OP_ADMIN_B, nombre: 'Categoría ajena QA', estacion_id: null, created_at: ahoraOperacionAdmin },
+)
+localSeed.productos.push({
+  id: 'qa-operacion-admin-producto-a', restaurante_id: RID_OP_ADMIN_A, categoria_id: CATEGORIA_OP_A,
+  nombre: 'Producto de estación explícita', descripcion: null, precio: 9, disponible: true,
+  es_bebida: true, estacion: 'bar', created_at: ahoraOperacionAdmin,
+}, {
+  id: 'qa-operacion-admin-producto-b', restaurante_id: RID_OP_ADMIN_A, categoria_id: CATEGORIA_OP_A,
+  nombre: 'Producto que hereda la categoría', descripcion: null, precio: 12, disponible: true,
+  es_bebida: false, estacion: null, created_at: ahoraOperacionAdmin,
+}, {
+  id: PRODUCTO_OP_BEBIDA, restaurante_id: RID_OP_ADMIN_A, categoria_id: null,
+  nombre: 'Bebida fallback QA', descripcion: null, precio: 4, disponible: true,
+  es_bebida: true, estacion: null, created_at: ahoraOperacionAdmin,
+})
+const operadorPrevioOperacionAdmin = apiMode.operadorId
+const pedidosAntesOperacionAdmin = localSeed.pedidos.length
+const cuentasAntesOperacionAdmin = localSeed.cuentas.length
+apiMode.operadorId = ADMIN_OP_A
+const configuracionOperativaDefault = await api.getConfiguracionOperativa(RID_OP_ADMIN_A)
+check('32a · carga defaults de Cocina, Barra, Otros, KDS y cobro actual',
+  !configuracionOperativaDefault.error && configuracionOperativaDefault.data?.modalidad_cobro === 'cobro_por_mesero' &&
+  configuracionOperativaDefault.data?.estaciones.map((e) => e.nombre).join(',') === 'Cocina,Barra,Otros' &&
+  configuracionOperativaDefault.data?.estaciones.every((e) => e.activo && e.destinos.some((d) => d.tipo === 'kds' && d.activo)) &&
+  configuracionOperativaDefault.data?.estaciones.every((e) => !e.destinos.some((d) => d.tipo === 'impresora')))
+check('32b · la estación explícita del producto tiene prioridad y detecta categoría mixta',
+  operacionDomain.estacionEfectivaProducto(configuracionOperativaDefault.data.productos[0], configuracionOperativaDefault.data.categorias[0]) === 'bar' &&
+  operacionDomain.categoriaEsMixta(configuracionOperativaDefault.data.categorias[0], configuracionOperativaDefault.data.productos))
+const cambiosOperativosA = {
+  modalidad_cobro: 'solo_cajero',
+  estaciones: configuracionOperativaDefault.data.estaciones.map((estacion) => ({
+    ...estacion,
+    activo: estacion.codigo === 'bar' ? false : estacion.activo,
+    destinos: estacion.codigo === 'cocina'
+      ? [...estacion.destinos, { id: null, tipo: 'impresora', grupo: 'respaldo', nombre: 'Impresora QA', papel_mm: 58, configuracion: { copias: 2 }, activo: true }]
+      : estacion.destinos,
+  })),
+  categorias: configuracionOperativaDefault.data.categorias.map((categoria) => ({ ...categoria, estacion_codigo: 'cocina' })),
+}
+const guardadoOperativoA = await api.guardarConfiguracionOperativa(RID_OP_ADMIN_A, cambiosOperativosA)
+check('32c · guarda modalidad, estación, categoría y destino con papel/copias',
+  !guardadoOperativoA.error && guardadoOperativoA.data?.modalidad_cobro === 'solo_cajero' &&
+  guardadoOperativoA.data?.estaciones.find((e) => e.codigo === 'bar')?.activo === false &&
+  guardadoOperativoA.data?.categorias[0]?.estacion_codigo === 'cocina' &&
+  guardadoOperativoA.data?.estaciones.find((e) => e.codigo === 'cocina')?.destinos.some((d) => d.tipo === 'impresora' && d.grupo === 'respaldo' && d.papel_mm === 58 && d.configuracion.copias === 2))
+const recargadoOperativoA = await api.getConfiguracionOperativa(RID_OP_ADMIN_A)
+check('32d · vuelve a cargar lo guardado y mantiene el aislamiento de categorías',
+  !recargadoOperativoA.error && recargadoOperativoA.data?.categorias.length === 1 && recargadoOperativoA.data.categorias[0].estacion_codigo === 'cocina')
+const edicionOperativaA = {
+  modalidad_cobro: 'caja_central_meseros_autorizados',
+  estaciones: recargadoOperativoA.data.estaciones.map((estacion) => ({ ...estacion, activo: estacion.codigo === 'bar' ? true : estacion.activo })),
+  categorias: recargadoOperativoA.data.categorias.map((categoria) => ({ ...categoria, estacion_codigo: 'bar' })),
+}
+const guardadoEdicionOperativaA = await api.guardarConfiguracionOperativa(RID_OP_ADMIN_A, edicionOperativaA)
+check('32e · permite editar modalidad, reactivar estación y reasignar categoría',
+  !guardadoEdicionOperativaA.error && guardadoEdicionOperativaA.data?.modalidad_cobro === 'caja_central_meseros_autorizados' &&
+  guardadoEdicionOperativaA.data.estaciones.find((e) => e.codigo === 'bar')?.activo === true &&
+  guardadoEdicionOperativaA.data.categorias[0]?.estacion_codigo === 'bar')
+const lecturaOtroTenant = await api.getConfiguracionOperativa(RID_OP_ADMIN_B)
+const escrituraOtroTenant = await api.guardarConfiguracionOperativa(RID_OP_ADMIN_B, cambiosOperativosA)
+check('32f · un administrador no puede leer ni escribir la configuración de otro restaurante',
+  !!lecturaOtroTenant.error && !!escrituraOtroTenant.error)
+const asignacionCategoriaAjena = await api.guardarConfiguracionOperativa(RID_OP_ADMIN_A, {
+  ...edicionOperativaA,
+  categorias: [{ ...edicionOperativaA.categorias[0], id: CATEGORIA_OP_B }],
+})
+check('32g · rechaza asignar a la configuración una categoría de otro restaurante', !!asignacionCategoriaAjena.error)
+apiMode.operadorId = MESERO_OP_A
+const guardarComoMesero = await api.guardarConfiguracionOperativa(RID_OP_ADMIN_A, cambiosOperativosA)
+check('32h · rechaza guardado por mesero aunque pueda consultar su tenant', !!guardarComoMesero.error)
+apiMode.operadorId = ''
+const leerComoAnonimo = await api.getConfiguracionOperativa(RID_OP_ADMIN_A)
+const guardarComoAnonimo = await api.guardarConfiguracionOperativa(RID_OP_ADMIN_A, cambiosOperativosA)
+check('32i · rechaza lectura y escritura sin usuario autenticado', !!leerComoAnonimo.error && !!guardarComoAnonimo.error)
+const auditoriaOperativaA = localSeed.auditLogs.filter((l) => l.restaurante_id === RID_OP_ADMIN_A && l.accion === 'configuracion_operativa_actualizar')
+check('32j · cada guardado queda en auditoría con el administrador y la configuración afectada',
+  auditoriaOperativaA.length === 2 && auditoriaOperativaA.every((l) => [ADMIN_OP_A].includes(l.actor_id) && l.detalle?.modalidad_cobro))
+check('32k · editar el configurador no toca pedidos ni cuentas',
+  localSeed.pedidos.length === pedidosAntesOperacionAdmin && localSeed.cuentas.length === cuentasAntesOperacionAdmin)
+
+titulo('33 · Enrutamiento real por configuración y estado independiente por estación')
+apiMode.operadorId = ADMIN_OP_A
+const configEnrutamientoBase = await api.getConfiguracionOperativa(RID_OP_ADMIN_A)
+const configEnrutamiento = {
+  ...configEnrutamientoBase.data,
+  modalidad_cobro: configEnrutamientoBase.data.modalidad_cobro,
+  estaciones: configEnrutamientoBase.data.estaciones.map((estacion) => {
+    if (estacion.codigo === 'cocina') return {
+      ...estacion,
+      destinos: [
+        ...estacion.destinos,
+        { id: null, tipo: 'impresora', grupo: 'principal', nombre: 'Impresora Cocina Enrutamiento QA', papel_mm: 80, configuracion: { copias: 1 }, activo: true },
+        { id: null, tipo: 'impresora', grupo: 'respaldo', nombre: 'Respaldo Cocina Enrutamiento QA', papel_mm: 58, configuracion: { copias: 2 }, activo: true },
+      ],
+    }
+    if (estacion.codigo === 'bar') return {
+      ...estacion,
+      destinos: [
+        ...estacion.destinos.map((destino) => ({ ...destino, activo: false })),
+        { id: null, tipo: 'impresora', grupo: 'principal', nombre: 'Impresora Barra Enrutamiento QA', papel_mm: 58, configuracion: { copias: 1 }, activo: true },
+      ],
+    }
+    return estacion
+  }),
+  categorias: configEnrutamientoBase.data.categorias.map((categoria) => ({ ...categoria, estacion_codigo: 'cocina' })),
+}
+const guardadoEnrutamiento = await api.guardarConfiguracionOperativa(RID_OP_ADMIN_A, configEnrutamiento)
+const cantidadPedidosAntesEnrutamiento = localSeed.pedidos.length
+const cantidadItemsAntesEnrutamiento = localSeed.items.length
+const cuentasAntesEnrutamiento = localSeed.cuentas.length
+const pagosAntesEnrutamiento = localSeed.pagos.length
+const pedidoEnrutado = await api.crearPedido(RID_OP_ADMIN_A, MESA_OP_A, [
+  pedir(prod('qa-operacion-admin-producto-a'), 1),
+  pedir(prod('qa-operacion-admin-producto-b'), 1),
+  pedir(prod(PRODUCTO_OP_BEBIDA), 1),
+])
+const pedidoEnrutadoLocal = localSeed.pedidos.find((p) => p.id === pedidoEnrutado.data)
+const itemsEnrutados = localSeed.items.filter((item) => item.pedido_id === pedidoEnrutado.data)
+const entregasEnrutadas = localSeed.entregasComanda.filter((entrega) => entrega.pedido_id === pedidoEnrutado.data)
+check('33a · prioridad producto explícito > categoría y bebida sin categoría va a Barra',
+  !guardadoEnrutamiento.error && !pedidoEnrutado.error &&
+  itemsEnrutados.find((item) => item.producto_id === 'qa-operacion-admin-producto-a')?.estacion === 'bar' &&
+  itemsEnrutados.find((item) => item.producto_id === 'qa-operacion-admin-producto-b')?.estacion === 'cocina' &&
+  itemsEnrutados.find((item) => item.producto_id === PRODUCTO_OP_BEBIDA)?.estacion === 'bar')
+check('33b · Cocina enruta a KDS e impresora principal y omite impresora de respaldo',
+  entregasEnrutadas.length === 3 &&
+  entregasEnrutadas.filter((fila) => fila.estacion_codigo === 'cocina' && fila.grupo === 'principal').length === 2 &&
+  entregasEnrutadas.filter((fila) => fila.estacion_codigo === 'cocina' && fila.tipo_destino === 'kds' && fila.estado === 'confirmada').length === 1 &&
+  entregasEnrutadas.filter((fila) => fila.estacion_codigo === 'cocina' && fila.tipo_destino === 'impresora' && fila.estado === 'pendiente' && fila.configuracion_destino.copias === 1 && fila.configuracion_destino.papel_mm === 80).length === 1 &&
+  !entregasEnrutadas.some((fila) => fila.grupo === 'respaldo'))
+check('33c · Barra enruta solo a impresora manual y no crea estado KDS',
+  entregasEnrutadas.filter((fila) => fila.estacion_codigo === 'bar').length === 1 &&
+  entregasEnrutadas.find((fila) => fila.estacion_codigo === 'bar')?.tipo_destino === 'impresora' &&
+  entregasEnrutadas.find((fila) => fila.estacion_codigo === 'bar')?.estado === 'pendiente' &&
+  localSeed.estadosComandaEstacion.filter((fila) => fila.pedido_id === pedidoEnrutado.data).length === 1 &&
+  !localSeed.estadosComandaEstacion.some((fila) => fila.pedido_id === pedidoEnrutado.data && fila.estacion_id === configEnrutamiento.estaciones.find((e) => e.codigo === 'bar')?.id))
+const avanzarCocinaQA = await api.avanzarPedido(RID_OP_ADMIN_A, pedidoEnrutado.data, 'cocina')
+const avanzarBarraSinKdsQA = await api.avanzarPedido(RID_OP_ADMIN_A, pedidoEnrutado.data, 'bar')
+const rutasConCocinaActiva = (await api.getPedidosActivos(RID_OP_ADMIN_A)).data.find((p) => p.id === pedidoEnrutado.data)?.rutasPorEstacion
+check('33d · Cocina KDS avanza; Barra solo impresora no cambia el estado KDS',
+  !avanzarCocinaQA.error && !!avanzarBarraSinKdsQA.error && pedidoEnrutadoLocal?.estado === 'en_preparacion' &&
+  rutasConCocinaActiva?.cocina?.estado === 'en_preparacion' &&
+  localSeed.estadosComandaEstacion.filter((fila) => fila.pedido_id === pedidoEnrutado.data).length === 1 &&
+  entregasEnrutadas.find((fila) => fila.estacion_codigo === 'bar')?.estado === 'pendiente')
+const itemBarParaAnular = itemsEnrutados.find((item) => item.producto_id === 'qa-operacion-admin-producto-a')
+const anularEstacionBar = itemBarParaAnular && await api.anularItem(RID_OP_ADMIN_A, pedidoEnrutado.data, itemBarParaAnular.id)
+const bebidaBarParaAnular = itemsEnrutados.find((item) => item.producto_id === PRODUCTO_OP_BEBIDA)
+const anularUltimoItemBar = bebidaBarParaAnular && await api.anularItem(RID_OP_ADMIN_A, pedidoEnrutado.data, bebidaBarParaAnular.id)
+check('33e · anular el último ítem de Barra cancela su entrega pendiente sin alterar Cocina',
+  !!anularEstacionBar && !anularEstacionBar.error &&
+  !!anularUltimoItemBar && !anularUltimoItemBar.error &&
+  !localSeed.estadosComandaEstacion.some((fila) => fila.pedido_id === pedidoEnrutado.data && configEnrutamiento.estaciones.find((e) => e.codigo === 'bar')?.id === fila.estacion_id) &&
+  entregasEnrutadas.find((fila) => fila.estacion_codigo === 'bar')?.estado === 'cancelada' &&
+  localSeed.estadosComandaEstacion.find((fila) => fila.pedido_id === pedidoEnrutado.data && fila.estacion_id === configEnrutamiento.estaciones.find((e) => e.codigo === 'cocina')?.id)?.estado === 'en_preparacion' &&
+  pedidoEnrutadoLocal?.estado === 'en_preparacion')
+const cambioCategoriaFuturo = {
+  ...guardadoEnrutamiento.data,
+  categorias: guardadoEnrutamiento.data.categorias.map((categoria) => ({ ...categoria, estacion_codigo: 'bar' })),
+}
+const configCategoriaFutura = await api.guardarConfiguracionOperativa(RID_OP_ADMIN_A, cambioCategoriaFuturo)
+const pedidoFuturoCategoria = await api.crearPedido(RID_OP_ADMIN_A, MESA_OP_A, [pedir(prod('qa-operacion-admin-producto-b'), 1)])
+check('33f · cambiar la categoría solo enruta comandas nuevas',
+  !configCategoriaFutura.error && !pedidoFuturoCategoria.error &&
+  itemsEnrutados.find((item) => item.producto_id === 'qa-operacion-admin-producto-b')?.estacion === 'cocina' &&
+  localSeed.items.find((item) => item.pedido_id === pedidoFuturoCategoria.data)?.estacion === 'bar' &&
+  !localSeed.entregasComanda.some((fila) => fila.pedido_id === pedidoFuturoCategoria.data && fila.grupo === 'respaldo'))
+const cantidadPedidosAntesEstacionInactiva = localSeed.pedidos.length
+const cantidadItemsAntesEstacionInactiva = localSeed.items.length
+const configConBarInactiva = {
+  ...configCategoriaFutura.data,
+  estaciones: configCategoriaFutura.data.estaciones.map((estacion) => ({ ...estacion, activo: estacion.codigo === 'bar' ? false : estacion.activo })),
+}
+await api.guardarConfiguracionOperativa(RID_OP_ADMIN_A, configConBarInactiva)
+const pedidoEstacionInactiva = await api.crearPedido(RID_OP_ADMIN_A, MESA_OP_A, [pedir(prod('qa-operacion-admin-producto-b'), 1)])
+check('33g · una estación inactiva rechaza la comanda sin dejar pedido ni ítems parciales',
+  !!pedidoEstacionInactiva.error && localSeed.pedidos.length === cantidadPedidosAntesEstacionInactiva &&
+  localSeed.items.length === cantidadItemsAntesEstacionInactiva)
+check('33h · enrutar comandas no crea ni modifica cuentas o pagos',
+  localSeed.cuentas.length === cuentasAntesEnrutamiento && localSeed.pagos.length === pagosAntesEnrutamiento)
+check('33i · la ruta se valida antes de mutar el dataset local',
+  localSeed.pedidos.length === cantidadPedidosAntesEnrutamiento + 2 &&
+  localSeed.items.length >= cantidadItemsAntesEnrutamiento + 4 && pedidoEnrutadoLocal?.estado === 'en_preparacion')
+
+titulo('34 · Política efectiva de cobro por restaurante')
+const CAJERO_COBRO_A = 'qa-cobro-cajero-a'
+const MESERO_COBRO_2 = 'qa-cobro-mesero-2'
+const COCINA_COBRO_A = 'qa-cobro-cocina-a'
+const INACTIVO_COBRO_A = 'qa-cobro-inactivo-a'
+const CAJERO_COBRO_B = 'qa-cobro-cajero-b'
+localSeed.usuarios.push(
+  { id: CAJERO_COBRO_A, restaurante_id: RID_OP_ADMIN_A, rol: 'cajero', nombre: 'Cajero QA', activo: true, created_at: ahoraOperacionAdmin },
+  { id: MESERO_COBRO_2, restaurante_id: RID_OP_ADMIN_A, rol: 'mesero', nombre: 'Mesero QA 2', activo: true, created_at: ahoraOperacionAdmin },
+  { id: COCINA_COBRO_A, restaurante_id: RID_OP_ADMIN_A, rol: 'cocina', nombre: 'Cocina QA', activo: true, created_at: ahoraOperacionAdmin },
+  { id: INACTIVO_COBRO_A, restaurante_id: RID_OP_ADMIN_A, rol: 'mesero', nombre: 'Inactivo QA', activo: false, created_at: ahoraOperacionAdmin },
+  { id: CAJERO_COBRO_B, restaurante_id: RID_OP_ADMIN_B, rol: 'cajero', nombre: 'Cajero ajeno QA', activo: true, created_at: ahoraOperacionAdmin },
+)
+function mesaDeCobroQA(numero) {
+  const mesaId = `qa-cobro-mesa-${numero}`
+  const pedidoId = `qa-cobro-pedido-${numero}`
+  localSeed.mesas.push({ id: mesaId, restaurante_id: RID_OP_ADMIN_A, zona_id: ZONA_OP_A,
+    nombre: `Mesa cobro ${numero}`, estado: 'ocupada', mesero_responsable_id: MESERO_OP_A, created_at: ahoraOperacionAdmin })
+  localSeed.pedidos.push({ id: pedidoId, restaurante_id: RID_OP_ADMIN_A, mesa_id: mesaId,
+    mesero_id: MESERO_OP_A, estado: 'pendiente', created_at: ahoraOperacionAdmin, updated_at: ahoraOperacionAdmin })
+  localSeed.items.push({ id: `qa-cobro-item-${numero}`, pedido_id: pedidoId, producto_id: null,
+    nombre_producto: 'Producto QA', cantidad: 1, precio_unitario: 10, anulado: false, created_at: ahoraOperacionAdmin })
+  return { mesaId, pedidoId }
+}
+apiMode.operadorId = ADMIN_OP_A
+const politicaHeredada = await api.getPoliticaCobro(RID_OP_ADMIN_A)
+apiMode.operadorId = MESERO_OP_A
+const permisoMeseroHeredado = await api.puedeCobrar(RID_OP_ADMIN_A)
+apiMode.operadorId = CAJERO_COBRO_A
+const permisoCajeroHeredado = await api.puedeCobrar(RID_OP_ADMIN_A)
+check('34a · la preferencia previa no activa la política ni bloquea al mesero',
+  !politicaHeredada.error && politicaHeredada.data?.modalidad_aplicada === null &&
+  permisoMeseroHeredado.data === true && permisoCajeroHeredado.data === false)
+apiMode.operadorId = ADMIN_OP_A
+const permisoAjeno = await api.guardarPoliticaCobro(RID_OP_ADMIN_B, 'solo_cajero', [CAJERO_COBRO_B])
+const permisoCocina = await api.guardarPoliticaCobro(RID_OP_ADMIN_A, 'solo_cajero', [COCINA_COBRO_A])
+const permisoInactivo = await api.guardarPoliticaCobro(RID_OP_ADMIN_A, 'cobro_por_mesero', [INACTIVO_COBRO_A])
+const permisoUsuarioAjeno = await api.guardarPoliticaCobro(RID_OP_ADMIN_A, 'solo_cajero', [CAJERO_COBRO_B])
+check('34b · solo Admin del tenant y personal activo del rol correcto pueden configurar',
+  !!permisoAjeno.error && !!permisoCocina.error && !!permisoInactivo.error && !!permisoUsuarioAjeno.error)
+const soloCajaQA = await api.guardarPoliticaCobro(RID_OP_ADMIN_A, 'solo_cajero', [CAJERO_COBRO_A])
+const mesaSoloCaja = mesaDeCobroQA(1)
+apiMode.operadorId = MESERO_OP_A
+const rechazoMeseroSoloCaja = await api.cerrarCuenta(RID_OP_ADMIN_A, mesaSoloCaja.mesaId, [mesaSoloCaja.pedidoId], 'efectivo')
+apiMode.operadorId = CAJERO_COBRO_A
+const cobroCajeroSoloCaja = await api.cerrarCuenta(RID_OP_ADMIN_A, mesaSoloCaja.mesaId, [mesaSoloCaja.pedidoId], 'efectivo')
+check('34c · solo caja rechaza mesero y acepta cajero sin confundirlo con el mesero del recibo',
+  !soloCajaQA.error && !!rechazoMeseroSoloCaja.error && !cobroCajeroSoloCaja.error &&
+  cobroCajeroSoloCaja.data?.mesero_id_snapshot === MESERO_OP_A)
+const cuentaHistoricaCobroQA = { ...cobroCajeroSoloCaja.data }
+apiMode.operadorId = COCINA_COBRO_A
+const rechazoCocinaCobro = await api.cerrarCuenta(RID_OP_ADMIN_A, mesaDeCobroQA(2).mesaId, ['qa-cobro-pedido-2'], 'efectivo')
+apiMode.operadorId = INACTIVO_COBRO_A
+const rechazoInactivoCobro = await api.cerrarCuenta(RID_OP_ADMIN_A, 'qa-cobro-mesa-2', ['qa-cobro-pedido-2'], 'efectivo')
+apiMode.operadorId = CAJERO_COBRO_B
+const rechazoCajeroAjeno = await api.cerrarCuenta(RID_OP_ADMIN_A, 'qa-cobro-mesa-2', ['qa-cobro-pedido-2'], 'efectivo')
+check('34d · cocina, usuario inactivo y cajero de otro restaurante no pueden cobrar por API directa',
+  !!rechazoCocinaCobro.error && !!rechazoInactivoCobro.error && !!rechazoCajeroAjeno.error)
+apiMode.operadorId = ADMIN_OP_A
+const soloMeserosQA = await api.guardarPoliticaCobro(RID_OP_ADMIN_A, 'cobro_por_mesero', [MESERO_OP_A])
+apiMode.operadorId = CAJERO_COBRO_A
+const rechazoCajeroMeseros = await api.cerrarCuenta(RID_OP_ADMIN_A, 'qa-cobro-mesa-2', ['qa-cobro-pedido-2'], 'efectivo')
+apiMode.operadorId = MESERO_OP_A
+const cobroMeseroQA = await api.cerrarCuenta(RID_OP_ADMIN_A, 'qa-cobro-mesa-2', ['qa-cobro-pedido-2'], 'efectivo')
+check('34e · modo meseros acepta al autorizado y rechaza al cajero',
+  !soloMeserosQA.error && !!rechazoCajeroMeseros.error && !cobroMeseroQA.error)
+apiMode.operadorId = ADMIN_OP_A
+const mixtoQA = await api.guardarPoliticaCobro(RID_OP_ADMIN_A, 'caja_central_meseros_autorizados', [CAJERO_COBRO_A, MESERO_COBRO_2])
+const mesaMixtaCajero = mesaDeCobroQA(3)
+const mesaMixtaMesero = mesaDeCobroQA(4)
+localSeed.mesas.find((m) => m.id === mesaMixtaMesero.mesaId).mesero_responsable_id = MESERO_COBRO_2
+apiMode.operadorId = CAJERO_COBRO_A
+const cobroMixtoCajero = await api.cerrarCuenta(RID_OP_ADMIN_A, mesaMixtaCajero.mesaId, [mesaMixtaCajero.pedidoId], 'efectivo')
+apiMode.operadorId = MESERO_COBRO_2
+const cobroMixtoMesero = await api.cerrarCuenta(RID_OP_ADMIN_A, mesaMixtaMesero.mesaId, [mesaMixtaMesero.pedidoId], 'efectivo')
+apiMode.operadorId = MESERO_OP_A
+const permisoMeseroRevocado = await api.puedeCobrar(RID_OP_ADMIN_A)
+check('34f · mixto acepta cajero y mesero autorizado; revoca al mesero no seleccionado',
+  !mixtoQA.error && !cobroMixtoCajero.error && !cobroMixtoMesero.error && permisoMeseroRevocado.data === false)
+apiMode.operadorId = ADMIN_OP_A
+const mesaContingencia = mesaDeCobroQA(5)
+const cobroContingencia = await api.cerrarCuenta(RID_OP_ADMIN_A, mesaContingencia.mesaId, [mesaContingencia.pedidoId], 'efectivo')
+check('34g · el cobro administrativo de contingencia crea una auditoría por cuenta',
+  !cobroContingencia.error && localSeed.auditLogs.filter((l) => l.accion === 'cobro_contingencia_admin' &&
+    l.entidad_id === cobroContingencia.data?.id && l.actor_id === ADMIN_OP_A).length === 1)
+check('34h · cambiar modalidad no altera cuenta ni recibo históricos',
+  localSeed.cuentas.find((c) => c.id === cuentaHistoricaCobroQA.id)?.numero === cuentaHistoricaCobroQA.numero &&
+  localSeed.cuentas.find((c) => c.id === cuentaHistoricaCobroQA.id)?.mesero_id_snapshot === cuentaHistoricaCobroQA.mesero_id_snapshot &&
+  localSeed.auditLogs.filter((l) => l.accion === 'modalidad_cobro_aplicar' && l.restaurante_id === RID_OP_ADMIN_A).length === 3)
+apiMode.operadorId = MESERO_OP_A
+const politicaComoMeseroQA = await api.getPoliticaCobro(RID_OP_ADMIN_A)
+apiMode.operadorId = ''
+const politicaComoAnonQA = await api.getPoliticaCobro(RID_OP_ADMIN_A)
+check('34i · mesero y anónimo no consultan autorizaciones individuales', !!politicaComoMeseroQA.error && !!politicaComoAnonQA.error)
+apiMode.operadorId = operadorPrevioOperacionAdmin
+for (const rid of [RID_OP_ADMIN_A, RID_OP_ADMIN_B]) {
+  localSeed.configuracionesOperativas.splice(0, localSeed.configuracionesOperativas.length,
+    ...localSeed.configuracionesOperativas.filter((c) => c.restaurante_id !== rid))
+  localSeed.politicasCobro.splice(0, localSeed.politicasCobro.length,
+    ...localSeed.politicasCobro.filter((p) => p.restaurante_id !== rid))
+  localSeed.restaurantes.splice(0, localSeed.restaurantes.length,
+    ...localSeed.restaurantes.filter((r) => r.id !== rid))
+  localSeed.usuarios.splice(0, localSeed.usuarios.length,
+    ...localSeed.usuarios.filter((u) => u.restaurante_id !== rid))
+  localSeed.categorias.splice(0, localSeed.categorias.length,
+    ...localSeed.categorias.filter((c) => c.restaurante_id !== rid))
+  localSeed.zonas.splice(0, localSeed.zonas.length,
+    ...localSeed.zonas.filter((z) => z.restaurante_id !== rid))
+  localSeed.mesas.splice(0, localSeed.mesas.length,
+    ...localSeed.mesas.filter((m) => m.restaurante_id !== rid))
+  localSeed.entregasComanda.splice(0, localSeed.entregasComanda.length,
+    ...localSeed.entregasComanda.filter((e) => e.restaurante_id !== rid))
+  localSeed.estadosComandaEstacion.splice(0, localSeed.estadosComandaEstacion.length,
+    ...localSeed.estadosComandaEstacion.filter((e) => e.restaurante_id !== rid))
+  localSeed.items.splice(0, localSeed.items.length,
+    ...localSeed.items.filter((i) => !localSeed.pedidos.some((p) => p.id === i.pedido_id && p.restaurante_id === rid)))
+  localSeed.pedidos.splice(0, localSeed.pedidos.length,
+    ...localSeed.pedidos.filter((p) => p.restaurante_id !== rid))
+  localSeed.productos.splice(0, localSeed.productos.length,
+    ...localSeed.productos.filter((p) => p.restaurante_id !== rid))
+  localSeed.auditLogs.splice(0, localSeed.auditLogs.length,
+    ...localSeed.auditLogs.filter((l) => l.restaurante_id !== rid))
+}
+
 await servidor.close()
 rmSync(ENV_DIR, { recursive: true, force: true })
 

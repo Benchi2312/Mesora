@@ -18,14 +18,14 @@
 --   - Si algo falla, los comentarios de bloque indican donde revisar.
 --   - Generado por npm run sql:install. Edita los fuentes, no este archivo.
 --
--- Contenido: 47 archivos · sha256(cuerpo) = 075cfcd76596
--- Orden: 00_schema_base.sql → ../migrations/20261022120000_password_recovery.sql → ../migrations/20261103032730_admin_email_recovery.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql → ../migrations/20261031075708_reporte_ventas_dashboard.sql → ../migrations/20261029052901_datos_local_dominio.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql → ../migrations/20261030173318_seguridad_rpc_piloto.sql → ../migrations/20261030173320_consultas_pendientes_piloto.sql → ../migrations/20261030173503_diagnostico_piloto.sql → ../migrations/20261030173925_indice_mesas_zona.sql → ../migrations/20261102081247_acotar_politicas_rls_piloto.sql → ../migrations/20261104065434_contacto_guardrails_incidentes.sql → ../migrations/20261104065733_confirmar_password_auth_trigger.sql → ../migrations/20261104172538_bandeja_comercial_alertas.sql → ../migrations/20261105033712_soporte_conversaciones_seguimiento.sql → ../migrations/20261105034329_soporte_mensajes_suscripcion.sql → ../migrations/20261105042359_cerrar_borrado_directo_soporte.sql → ../migrations/20261105042814_indexar_foreign_keys_soporte.sql → ../migrations/20261105050740_fijar_actor_historial_suscripciones.sql → ../migrations/20261105050911_revoke_direct_access_internal_tables.sql → ../migrations/20261105055856_limitar_consulta_vigencia_suscripcion.sql → ../migrations/20261105212322_transferir_mesas_y_reimprimir_boletas.sql → ../migrations/20261105212447_indizar_responsables_y_reimpresiones.sql → ../migrations/20261105212734_proteger_cierre_mesa_reasignada.sql → ../migrations/20261106064127_listar_meseros_activos_mismo_restaurante.sql → ../migrations/20261106070508_proteger_traslados_mesa_con_pin_y_auditoria.sql → ../migrations/20261106075551_auditar_operaciones_caja_mesa.sql → ../migrations/20261107043104_bloque2_seguridad_personal_auditoria.sql → ../migrations/20261107063406_auditoria_item_descripcion_utf8.sql → ../migrations/20261107201714_bloque3_impresion_comandas.sql
+-- Contenido: 53 archivos · sha256(cuerpo) = 057a5c076dde
+-- Orden: 00_schema_base.sql → ../migrations/20261022120000_password_recovery.sql → ../migrations/20261103032730_admin_email_recovery.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql → ../migrations/20261031075708_reporte_ventas_dashboard.sql → ../migrations/20261029052901_datos_local_dominio.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql → ../migrations/20261030173318_seguridad_rpc_piloto.sql → ../migrations/20261030173320_consultas_pendientes_piloto.sql → ../migrations/20261030173503_diagnostico_piloto.sql → ../migrations/20261030173925_indice_mesas_zona.sql → ../migrations/20261102081247_acotar_politicas_rls_piloto.sql → ../migrations/20261104065434_contacto_guardrails_incidentes.sql → ../migrations/20261104065733_confirmar_password_auth_trigger.sql → ../migrations/20261104172538_bandeja_comercial_alertas.sql → ../migrations/20261105033712_soporte_conversaciones_seguimiento.sql → ../migrations/20261105034329_soporte_mensajes_suscripcion.sql → ../migrations/20261105042359_cerrar_borrado_directo_soporte.sql → ../migrations/20261105042814_indexar_foreign_keys_soporte.sql → ../migrations/20261105050740_fijar_actor_historial_suscripciones.sql → ../migrations/20261105050911_revoke_direct_access_internal_tables.sql → ../migrations/20261105055856_limitar_consulta_vigencia_suscripcion.sql → ../migrations/20261105212322_transferir_mesas_y_reimprimir_boletas.sql → ../migrations/20261105212447_indizar_responsables_y_reimpresiones.sql → ../migrations/20261105212734_proteger_cierre_mesa_reasignada.sql → ../migrations/20261106064127_listar_meseros_activos_mismo_restaurante.sql → ../migrations/20261106070508_proteger_traslados_mesa_con_pin_y_auditoria.sql → ../migrations/20261106075551_auditar_operaciones_caja_mesa.sql → ../migrations/20261107043104_bloque2_seguridad_personal_auditoria.sql → ../migrations/20261107063406_auditoria_item_descripcion_utf8.sql → ../migrations/20261107201714_bloque3_impresion_comandas.sql → ../migrations/20261108120000_sistema_operativo_configurable.sql → ../migrations/20261109012624_fase3_configuracion_operativa_admin.sql → ../migrations/20261109024411_fase4_enrutamiento_comandas.sql → ../migrations/20261109045958_fase5_kds_salida_manual_comandas.sql → ../migrations/20261109061058_fase6_agente_impresion_automatica.sql → ../migrations/20261109075129_validar_modalidad_cobro_restaurante.sql
 -- =============================================================================
 
 
 
 -- #############################################################################
--- # 1/47 · 00_schema_base.sql
+-- # 1/53 · 00_schema_base.sql
 -- #############################################################################
 
 -- -- Mesora: schema base para instalaciones NUEVAS.
@@ -197,7 +197,7 @@ $$;
 
 
 -- #############################################################################
--- # 2/47 · ../migrations/20261022120000_password_recovery.sql
+-- # 2/53 · ../migrations/20261022120000_password_recovery.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -276,7 +276,7 @@ grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
--- # 3/47 · ../migrations/20261103032730_admin_email_recovery.sql
+-- # 3/53 · ../migrations/20261103032730_admin_email_recovery.sql
 -- #############################################################################
 
 -- -- Recuperación por correo verificado para administradores de restaurante.
@@ -433,7 +433,7 @@ comment on table private.admin_recovery_rate_limits is 'Límites por usuario par
 
 
 -- #############################################################################
--- # 4/47 · 00_seguridad_rpcs.sql
+-- # 4/53 · 00_seguridad_rpcs.sql
 -- #############################################################################
 
 -- -- Mesora · Control de acceso en el SERVIDOR (ejecutar tras 00_schema_base.sql).
@@ -544,7 +544,7 @@ grant execute on function public.validar_acceso_restaurante(uuid) to authenticat
 
 
 -- #############################################################################
--- # 5/47 · migracion_items_anulables.sql
+-- # 5/53 · migracion_items_anulables.sql
 -- #############################################################################
 
 -- -- Mesora · Edición y anulación de ítems de una comanda.
@@ -891,7 +891,7 @@ $$;
 
 
 -- #############################################################################
--- # 6/47 · migracion_productos_es_bebida.sql
+-- # 6/53 · migracion_productos_es_bebida.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -930,7 +930,7 @@ select r.nombre as restaurante,
 
 
 -- #############################################################################
--- # 7/47 · ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql
+-- # 7/53 · ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql
 -- #############################################################################
 
 -- -- Conserva la clasificación de cocina/barra al momento de vender y entrega
@@ -1086,7 +1086,7 @@ grant execute on function public.reporte_ventas_restaurante(uuid, timestamptz, t
 
 
 -- #############################################################################
--- # 8/47 · ../migrations/20261031075708_reporte_ventas_dashboard.sql
+-- # 8/53 · ../migrations/20261031075708_reporte_ventas_dashboard.sql
 -- #############################################################################
 
 -- -- Conserva la clasificación de cocina/barra al momento de vender y entrega
@@ -1273,7 +1273,7 @@ grant execute on function public.reporte_ventas_restaurante(uuid, timestamptz, t
 
 
 -- #############################################################################
--- # 9/47 · ../migrations/20261029052901_datos_local_dominio.sql
+-- # 9/53 · ../migrations/20261029052901_datos_local_dominio.sql
 -- #############################################################################
 
 -- -- Datos del local: dominio opcional para identificar al personal.
@@ -1309,7 +1309,7 @@ grant update (dominio) on public.restaurantes to authenticated;
 
 
 -- #############################################################################
--- # 10/47 · pin_autorizacion.sql
+-- # 10/53 · pin_autorizacion.sql
 -- #############################################################################
 
 -- -- Mesora · PIN de autorización + anulación de cobros.
@@ -1568,7 +1568,7 @@ $$;
 
 
 -- #############################################################################
--- # 11/47 · rpc_crear_pedido.sql
+-- # 11/53 · rpc_crear_pedido.sql
 -- #############################################################################
 
 -- -- Mesora · RPC: crear pedido (comanda) de forma atómica.
@@ -1699,7 +1699,7 @@ $$;
 
 
 -- #############################################################################
--- # 12/47 · rpc_cerrar_cuenta.sql
+-- # 12/53 · rpc_cerrar_cuenta.sql
 -- #############################################################################
 
 -- -- Mesora · RPC: cerrar cuenta y registrar el pago en una sola transacción.
@@ -2022,7 +2022,7 @@ $$;
 
 
 -- #############################################################################
--- # 13/47 · rpc_anular_cuenta.sql
+-- # 13/53 · rpc_anular_cuenta.sql
 -- #############################################################################
 
 -- -- Mesora · Anulación de cobros (void de una boleta ya emitida).
@@ -2238,7 +2238,7 @@ comment on function public.anular_cuenta(uuid, uuid, text, text) is
 
 
 -- #############################################################################
--- # 14/47 · caja_turnos.sql
+-- # 14/53 · caja_turnos.sql
 -- #############################################################################
 
 -- -- Mesora · Caja por turnos: tabla `caja_turnos` + RPC de apertura y cierre.
@@ -2534,7 +2534,7 @@ $$;
 
 
 -- #############################################################################
--- # 15/47 · 01_rls_completo.sql
+-- # 15/53 · 01_rls_completo.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3431,7 +3431,7 @@ select c.relname as tabla,
 
 
 -- #############################################################################
--- # 16/47 · admin_super_restaurante.sql
+-- # 16/53 · admin_super_restaurante.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3638,7 +3638,7 @@ select a.attname as columna,
 
 
 -- #############################################################################
--- # 17/47 · usuarios_super_admin.sql
+-- # 17/53 · usuarios_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3865,7 +3865,7 @@ select c.relname as tabla,
 
 
 -- #############################################################################
--- # 18/47 · estadisticas_super_admin.sql
+-- # 18/53 · estadisticas_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4083,7 +4083,7 @@ select p.proname,
 
 
 -- #############################################################################
--- # 19/47 · soporte.sql
+-- # 19/53 · soporte.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4218,7 +4218,7 @@ select
 
 
 -- #############################################################################
--- # 20/47 · suscripciones_super_admin.sql
+-- # 20/53 · suscripciones_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4658,7 +4658,7 @@ select
 
 
 -- #############################################################################
--- # 21/47 · auditoria.sql
+-- # 21/53 · auditoria.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -5016,7 +5016,7 @@ select
 
 
 -- #############################################################################
--- # 22/47 · configuracion_global.sql
+-- # 22/53 · configuracion_global.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -5304,7 +5304,7 @@ select
 
 
 -- #############################################################################
--- # 23/47 · seguridad_piloto.sql
+-- # 23/53 · seguridad_piloto.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -5441,7 +5441,7 @@ grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
--- # 24/47 · ../migrations/20261030173318_seguridad_rpc_piloto.sql
+-- # 24/53 · ../migrations/20261030173318_seguridad_rpc_piloto.sql
 -- #############################################################################
 
 -- -- Cierra la API de funciones a anónimos y preserva el acceso autenticado real.
@@ -5484,7 +5484,7 @@ alter default privileges in schema public revoke execute on functions from publi
 
 
 -- #############################################################################
--- # 25/47 · ../migrations/20261030173320_consultas_pendientes_piloto.sql
+-- # 25/53 · ../migrations/20261030173320_consultas_pendientes_piloto.sql
 -- #############################################################################
 
 -- -- Consultas acotadas a lo pendiente. JSON evita truncar el agregado por el
@@ -5576,7 +5576,7 @@ $$;
 
 
 -- #############################################################################
--- # 26/47 · ../migrations/20261030173503_diagnostico_piloto.sql
+-- # 26/53 · ../migrations/20261030173503_diagnostico_piloto.sql
 -- #############################################################################
 
 -- -- Diagnóstico mínimo: únicamente categorías y rutas normalizadas, sin mensajes,
@@ -5602,7 +5602,7 @@ grant execute on function public.registrar_error_cliente(text,text,text) to auth
 
 
 -- #############################################################################
--- # 27/47 · ../migrations/20261030173925_indice_mesas_zona.sql
+-- # 27/53 · ../migrations/20261030173925_indice_mesas_zona.sql
 -- #############################################################################
 
 -- -- Cubre también la FK compuesta que garantiza zona y mesa del mismo local.
@@ -5610,7 +5610,7 @@ create index if not exists idx_mesas_zona_restaurante on public.mesas(zona_id, r
 
 
 -- #############################################################################
--- # 28/47 · ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
+-- # 28/53 · ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
 -- #############################################################################
 
 -- -- Acota las políticas de catálogo/mesas a usuarios autenticados y separa
@@ -5724,7 +5724,7 @@ commit;
 
 
 -- #############################################################################
--- # 29/47 · ../migrations/20261104065434_contacto_guardrails_incidentes.sql
+-- # 29/53 · ../migrations/20261104065434_contacto_guardrails_incidentes.sql
 -- #############################################################################
 
 -- -- Protección del contacto comercial y registro de fallos operativos.
@@ -5901,7 +5901,7 @@ grant execute on function public.mesora_system_alerts() to authenticated;
 
 
 -- #############################################################################
--- # 30/47 · ../migrations/20261104065733_confirmar_password_auth_trigger.sql
+-- # 30/53 · ../migrations/20261104065733_confirmar_password_auth_trigger.sql
 -- #############################################################################
 
 -- -- Solo una contrasena cambiada en Supabase Auth puede desmarcar la clave temporal.
@@ -6086,7 +6086,7 @@ grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
--- # 31/47 · ../migrations/20261104172538_bandeja_comercial_alertas.sql
+-- # 31/53 · ../migrations/20261104172538_bandeja_comercial_alertas.sql
 -- #############################################################################
 
 -- -- Bandeja comercial privada y avisos por correo con reintentos.
@@ -6370,7 +6370,7 @@ grant execute on function public.mesora_update_commercial_lead(uuid,text) to aut
 
 
 -- #############################################################################
--- # 32/47 · ../migrations/20261105033712_soporte_conversaciones_seguimiento.sql
+-- # 32/53 · ../migrations/20261105033712_soporte_conversaciones_seguimiento.sql
 -- #############################################################################
 
 -- -- Conversaciones de soporte visibles únicamente para el restaurante afectado y Mesora.
@@ -6475,7 +6475,7 @@ grant execute on function public.mesora_update_commercial_followup(uuid,text,tex
 
 
 -- #############################################################################
--- # 33/47 · ../migrations/20261105034329_soporte_mensajes_suscripcion.sql
+-- # 33/53 · ../migrations/20261105034329_soporte_mensajes_suscripcion.sql
 -- #############################################################################
 
 -- -- La suscripción vencida bloquea también las escrituras del módulo de soporte.
@@ -6501,7 +6501,7 @@ create policy soporte_mensajes_insert on public.soporte_mensajes
 
 
 -- #############################################################################
--- # 34/47 · ../migrations/20261105042359_cerrar_borrado_directo_soporte.sql
+-- # 34/53 · ../migrations/20261105042359_cerrar_borrado_directo_soporte.sql
 -- #############################################################################
 
 -- -- Revocar el privilegio SQL de borrado además de no definir una policy DELETE.
@@ -6510,7 +6510,7 @@ revoke delete on public.soporte_mensajes from public, anon, authenticated;
 
 
 -- #############################################################################
--- # 35/47 · ../migrations/20261105042814_indexar_foreign_keys_soporte.sql
+-- # 35/53 · ../migrations/20261105042814_indexar_foreign_keys_soporte.sql
 -- #############################################################################
 
 -- -- Índices para cubrir claves foráneas detectadas en el análisis de Supabase.
@@ -6523,7 +6523,7 @@ create index if not exists admin_recovery_tokens_usuario_id_idx
 
 
 -- #############################################################################
--- # 36/47 · ../migrations/20261105050740_fijar_actor_historial_suscripciones.sql
+-- # 36/53 · ../migrations/20261105050740_fijar_actor_historial_suscripciones.sql
 -- #############################################################################
 
 -- -- Evita que el cliente suplante al autor de una acción de suscripción.
@@ -6552,7 +6552,7 @@ create trigger trg_fijar_actor_historial_suscripciones
 
 
 -- #############################################################################
--- # 37/47 · ../migrations/20261105050911_revoke_direct_access_internal_tables.sql
+-- # 37/53 · ../migrations/20261105050911_revoke_direct_access_internal_tables.sql
 -- #############################################################################
 
 -- -- Estas tablas internas solo se usan desde RPC privilegiadas.
@@ -6563,7 +6563,7 @@ revoke all on public.restaurante_pins from anon, authenticated;
 
 
 -- #############################################################################
--- # 38/47 · ../migrations/20261105055856_limitar_consulta_vigencia_suscripcion.sql
+-- # 38/53 · ../migrations/20261105055856_limitar_consulta_vigencia_suscripcion.sql
 -- #############################################################################
 
 -- -- Limita la consulta directa del estado de suscripción al superadmin y a
@@ -6600,7 +6600,7 @@ comment on function public.suscripcion_vigente(uuid) is
 
 
 -- #############################################################################
--- # 39/47 · ../migrations/20261105212322_transferir_mesas_y_reimprimir_boletas.sql
+-- # 39/53 · ../migrations/20261105212322_transferir_mesas_y_reimprimir_boletas.sql
 -- #############################################################################
 
 -- -- Mesora · responsabilidad de mesas, traslado de consumo y reimpresión de recibos
@@ -7277,7 +7277,7 @@ select p.proname,
 
 
 -- #############################################################################
--- # 40/47 · ../migrations/20261105212447_indizar_responsables_y_reimpresiones.sql
+-- # 40/53 · ../migrations/20261105212447_indizar_responsables_y_reimpresiones.sql
 -- #############################################################################
 
 -- -- Indices de las nuevas claves foraneas y busquedas de responsable.
@@ -7294,7 +7294,7 @@ create index if not exists reimpresion_pin_intentos_usuario_idx
 
 
 -- #############################################################################
--- # 41/47 · ../migrations/20261105212734_proteger_cierre_mesa_reasignada.sql
+-- # 41/53 · ../migrations/20261105212734_proteger_cierre_mesa_reasignada.sql
 -- #############################################################################
 
 -- -- Una vez transferida la responsabilidad, el mesero anterior no puede cobrar
@@ -7346,7 +7346,7 @@ revoke all on function public.validar_responsable_cierre_cuenta() from public, a
 
 
 -- #############################################################################
--- # 42/47 · ../migrations/20261106064127_listar_meseros_activos_mismo_restaurante.sql
+-- # 42/53 · ../migrations/20261106064127_listar_meseros_activos_mismo_restaurante.sql
 -- #############################################################################
 
 -- -- Permite mostrar nombres de compañeros en cocina y en el traspaso de mesa.
@@ -7408,7 +7408,7 @@ commit;
 
 
 -- #############################################################################
--- # 43/47 · ../migrations/20261106070508_proteger_traslados_mesa_con_pin_y_auditoria.sql
+-- # 43/53 · ../migrations/20261106070508_proteger_traslados_mesa_con_pin_y_auditoria.sql
 -- #############################################################################
 
 -- -- Refuerza ambos traslados de mesa con motivo auditable y PIN del restaurante.
@@ -7764,7 +7764,7 @@ commit;
 
 
 -- #############################################################################
--- # 44/47 · ../migrations/20261106075551_auditar_operaciones_caja_mesa.sql
+-- # 44/53 · ../migrations/20261106075551_auditar_operaciones_caja_mesa.sql
 -- #############################################################################
 
 -- -- Registra anulaciones de ítems, boletas y cierres de caja sin abrir permisos
@@ -7932,7 +7932,7 @@ commit;
 
 
 -- #############################################################################
--- # 45/47 · ../migrations/20261107043104_bloque2_seguridad_personal_auditoria.sql
+-- # 45/53 · ../migrations/20261107043104_bloque2_seguridad_personal_auditoria.sql
 -- #############################################################################
 
 -- begin;
@@ -8277,7 +8277,7 @@ commit;
 
 
 -- #############################################################################
--- # 46/47 · ../migrations/20261107063406_auditoria_item_descripcion_utf8.sql
+-- # 46/53 · ../migrations/20261107063406_auditoria_item_descripcion_utf8.sql
 -- #############################################################################
 
 -- -- Corrige la codificación de la descripción de anulaciones nuevas.
@@ -8340,7 +8340,7 @@ commit;
 
 
 -- #############################################################################
--- # 47/47 · ../migrations/20261107201714_bloque3_impresion_comandas.sql
+-- # 47/53 · ../migrations/20261107201714_bloque3_impresion_comandas.sql
 -- #############################################################################
 
 -- -- Mesora · Bloque 3: estaciones de preparación e impresión de comandas.
@@ -8555,3 +8555,2907 @@ revoke all on function public.registrar_impresion_comanda(uuid, uuid, text, uuid
 grant execute on function public.registrar_impresion_comanda(uuid, uuid, text, uuid, text) to authenticated;
 
 commit;
+
+
+-- #############################################################################
+-- # 48/53 · ../migrations/20261108120000_sistema_operativo_configurable.sql
+-- #############################################################################
+
+-- -- Mesora · Sistema operativo configurable (fases 1 y 2, esquema expansivo).
+-- No conecta pedidos, KDS, impresión ni cobros a estas tablas todavía.
+
+create table if not exists public.configuracion_operativa (
+  restaurante_id uuid primary key references public.restaurantes(id) on delete cascade,
+  modalidad_cobro text not null default 'cobro_por_mesero'
+    check (modalidad_cobro in (
+      'solo_cajero', 'cobro_por_mesero', 'caja_central_meseros_autorizados'
+    )),
+  version integer not null default 1 check (version >= 1),
+  actualizado_por uuid references public.usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.estaciones_restaurante (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  codigo text not null check (codigo in ('cocina', 'bar', 'otros')),
+  nombre text not null check (length(btrim(nombre)) > 0),
+  activo boolean not null default true,
+  orden integer not null default 0 check (orden >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint estaciones_restaurante_codigo_unique unique (restaurante_id, codigo),
+  constraint estaciones_restaurante_id_restaurante_unique unique (id, restaurante_id)
+);
+
+create table if not exists public.destinos_estacion (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  estacion_id uuid not null,
+  tipo text not null check (tipo in ('kds', 'impresora')),
+  grupo text not null default 'principal' check (grupo in ('principal', 'respaldo')),
+  nombre text not null check (length(btrim(nombre)) > 0),
+  papel_mm smallint,
+  configuracion jsonb not null default '{}'::jsonb
+    check (jsonb_typeof(configuracion) = 'object'),
+  activo boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint destinos_estacion_papel_check check (
+    (tipo = 'kds' and papel_mm is null)
+    or (tipo = 'impresora' and papel_mm is not null and papel_mm in (58, 80))
+  ),
+  constraint destinos_estacion_fk_estacion
+    foreign key (estacion_id, restaurante_id)
+    references public.estaciones_restaurante(id, restaurante_id)
+    on delete restrict,
+  constraint destinos_estacion_id_restaurante_unique unique (id, restaurante_id),
+  constraint destinos_estacion_id_estacion_restaurante_unique
+    unique (id, estacion_id, restaurante_id),
+  constraint destinos_estacion_nombre_unique
+    unique (estacion_id, tipo, grupo, nombre)
+);
+
+alter table public.categorias_productos
+  add column if not exists estacion_id uuid;
+
+create unique index if not exists pedidos_id_restaurante_unique
+  on public.pedidos (id, restaurante_id);
+
+create unique index if not exists usuarios_id_restaurante_unique
+  on public.usuarios (id, restaurante_id);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+     where conrelid = 'public.categorias_productos'::regclass
+       and conname = 'categorias_productos_estacion_restaurante_fk'
+  ) then
+    alter table public.categorias_productos
+      add constraint categorias_productos_estacion_restaurante_fk
+      foreign key (estacion_id, restaurante_id)
+      references public.estaciones_restaurante(id, restaurante_id)
+      on delete restrict;
+  end if;
+end;
+$$;
+
+create index if not exists categorias_productos_estacion_idx
+  on public.categorias_productos (estacion_id)
+  where estacion_id is not null;
+
+create table if not exists public.entregas_comanda (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  pedido_id uuid not null,
+  estacion_id uuid not null,
+  destino_estacion_id uuid not null,
+  grupo text not null check (grupo in ('principal', 'respaldo')),
+  tipo_destino text not null check (tipo_destino in ('kds', 'impresora')),
+  configuracion_version integer not null default 1 check (configuracion_version >= 1),
+  clave_idempotencia uuid not null default gen_random_uuid(),
+  numero_entrega integer not null default 1 check (numero_entrega >= 1),
+  estado text not null default 'pendiente'
+    check (estado in ('pendiente', 'enviada', 'confirmada', 'fallida', 'cancelada')),
+  error_publico text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint entregas_comanda_fk_pedido_restaurante
+    foreign key (pedido_id, restaurante_id)
+    references public.pedidos(id, restaurante_id)
+    on delete restrict,
+  constraint entregas_comanda_fk_estacion_restaurante
+    foreign key (estacion_id, restaurante_id)
+    references public.estaciones_restaurante(id, restaurante_id)
+    on delete restrict,
+  constraint entregas_comanda_fk_destino_estacion_restaurante
+    foreign key (destino_estacion_id, estacion_id, restaurante_id)
+    references public.destinos_estacion(id, estacion_id, restaurante_id)
+    on delete restrict,
+  constraint entregas_comanda_idempotencia_unique
+    unique (restaurante_id, clave_idempotencia),
+  constraint entregas_comanda_intento_unique
+    unique (restaurante_id, pedido_id, estacion_id, destino_estacion_id, numero_entrega)
+);
+
+create index if not exists entregas_comanda_pendientes_idx
+  on public.entregas_comanda (restaurante_id, estado, created_at)
+  where estado in ('pendiente', 'fallida');
+
+create table if not exists public.estado_comanda_estacion (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  pedido_id uuid not null,
+  estacion_id uuid not null,
+  estado text not null default 'pendiente'
+    check (estado in ('pendiente', 'en_preparacion', 'listo', 'entregado', 'anulado')),
+  iniciado_at timestamptz,
+  listo_at timestamptz,
+  entregado_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint estado_comanda_estacion_fk_pedido_restaurante
+    foreign key (pedido_id, restaurante_id)
+    references public.pedidos(id, restaurante_id)
+    on delete restrict,
+  constraint estado_comanda_estacion_fk_estacion_restaurante
+    foreign key (estacion_id, restaurante_id)
+    references public.estaciones_restaurante(id, restaurante_id)
+    on delete restrict,
+  constraint estado_comanda_estacion_pedido_estacion_unique
+    unique (restaurante_id, pedido_id, estacion_id)
+);
+
+create index if not exists estado_comanda_estacion_tablero_idx
+  on public.estado_comanda_estacion (restaurante_id, estacion_id, estado, created_at);
+
+create table if not exists public.autorizaciones_cobro (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  usuario_id uuid not null,
+  activo boolean not null default false,
+  creado_por uuid references public.usuarios(id) on delete set null,
+  actualizado_por uuid references public.usuarios(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint autorizaciones_cobro_fk_usuario_restaurante
+    foreign key (usuario_id, restaurante_id)
+    references public.usuarios(id, restaurante_id)
+    on delete restrict,
+  constraint autorizaciones_cobro_usuario_unique unique (restaurante_id, usuario_id)
+);
+
+create index if not exists autorizaciones_cobro_activas_idx
+  on public.autorizaciones_cobro (restaurante_id, usuario_id)
+  where activo;
+
+-- Metadatos del registro padre: el cliente no elige el actor ni la versión.
+create or replace function public.mesora_config_operativa_metadata()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    new.version := greatest(coalesce(new.version, 1), 1);
+    new.created_at := coalesce(new.created_at, now());
+    new.updated_at := coalesce(new.updated_at, now());
+    if auth.uid() is not null then new.actualizado_por := auth.uid(); end if;
+  else
+    new.version := old.version + 1;
+    new.created_at := old.created_at;
+    new.updated_at := now();
+    new.actualizado_por := coalesce(auth.uid(), old.actualizado_por);
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.mesora_config_operativa_metadata() from public, anon, authenticated;
+
+drop trigger if exists configuracion_operativa_metadata on public.configuracion_operativa;
+create trigger configuracion_operativa_metadata
+before insert or update on public.configuracion_operativa
+for each row execute function public.mesora_config_operativa_metadata();
+
+-- Las modificaciones de destinos, estaciones, asignación de categoría o
+-- autorizaciones avanzan la versión del agregado operativo. La inicialización
+-- anidada de un restaurante nuevo no cuenta como una edición del administrador.
+create or replace function public.mesora_version_config_operativa_hijo()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_restaurante_id uuid;
+begin
+  if pg_trigger_depth() > 1 then
+    if tg_op = 'DELETE' then return old; else return new; end if;
+  end if;
+
+  if tg_table_name = 'categorias_productos' then
+    if tg_op = 'UPDATE' and old.estacion_id is not distinct from new.estacion_id then
+      return new;
+    end if;
+    if tg_op = 'INSERT' and new.estacion_id is null then return new; end if;
+  end if;
+
+  if tg_op = 'DELETE' then
+    v_restaurante_id := old.restaurante_id;
+  else
+    v_restaurante_id := new.restaurante_id;
+  end if;
+
+  update public.configuracion_operativa
+     set version = version + 1,
+         actualizado_por = coalesce(auth.uid(), actualizado_por),
+         updated_at = now()
+   where restaurante_id = v_restaurante_id;
+
+  if tg_op = 'DELETE' then return old; else return new; end if;
+end;
+$$;
+
+revoke all on function public.mesora_version_config_operativa_hijo() from public, anon, authenticated;
+
+drop trigger if exists estaciones_version_config_operativa on public.estaciones_restaurante;
+create trigger estaciones_version_config_operativa
+after insert or update or delete on public.estaciones_restaurante
+for each row execute function public.mesora_version_config_operativa_hijo();
+
+drop trigger if exists destinos_version_config_operativa on public.destinos_estacion;
+create trigger destinos_version_config_operativa
+after insert or update or delete on public.destinos_estacion
+for each row execute function public.mesora_version_config_operativa_hijo();
+
+drop trigger if exists categorias_version_config_operativa on public.categorias_productos;
+create trigger categorias_version_config_operativa
+after insert or update of estacion_id or delete on public.categorias_productos
+for each row execute function public.mesora_version_config_operativa_hijo();
+
+drop trigger if exists autorizaciones_version_config_operativa on public.autorizaciones_cobro;
+create trigger autorizaciones_version_config_operativa
+after insert or update or delete on public.autorizaciones_cobro
+for each row execute function public.mesora_version_config_operativa_hijo();
+
+-- Defaults conservadores: conservan el cobro por mesero, mantienen las tres
+-- pantallas KDS actuales y no activan impresoras ni impresión automática.
+insert into public.configuracion_operativa (restaurante_id, modalidad_cobro)
+select r.id, 'cobro_por_mesero'
+  from public.restaurantes r
+on conflict (restaurante_id) do nothing;
+
+insert into public.estaciones_restaurante (restaurante_id, codigo, nombre, activo, orden)
+select r.id, e.codigo, e.nombre, true, e.orden
+  from public.restaurantes r
+ cross join (values
+   ('cocina', 'Cocina', 10),
+   ('bar', 'Bar', 20),
+   ('otros', 'Otros', 30)
+ ) as e(codigo, nombre, orden)
+on conflict (restaurante_id, codigo) do nothing;
+
+insert into public.destinos_estacion
+  (restaurante_id, estacion_id, tipo, grupo, nombre, papel_mm, activo)
+select e.restaurante_id, e.id, 'kds', 'principal', 'KDS ' || e.nombre, null, true
+  from public.estaciones_restaurante e
+ where not exists (
+   select 1 from public.destinos_estacion d
+    where d.estacion_id = e.id and d.tipo = 'kds'
+      and d.grupo = 'principal' and d.nombre = 'KDS ' || e.nombre
+ )
+on conflict (estacion_id, tipo, grupo, nombre) do nothing;
+
+create or replace function public.mesora_inicializar_operacion_restaurante()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into public.configuracion_operativa (restaurante_id, modalidad_cobro)
+  values (new.id, 'cobro_por_mesero')
+  on conflict (restaurante_id) do nothing;
+
+  insert into public.estaciones_restaurante (restaurante_id, codigo, nombre, activo, orden)
+  values
+    (new.id, 'cocina', 'Cocina', true, 10),
+    (new.id, 'bar', 'Bar', true, 20),
+    (new.id, 'otros', 'Otros', true, 30)
+  on conflict (restaurante_id, codigo) do nothing;
+
+  insert into public.destinos_estacion
+    (restaurante_id, estacion_id, tipo, grupo, nombre, papel_mm, activo)
+  select e.restaurante_id, e.id, 'kds', 'principal', 'KDS ' || e.nombre, null, true
+    from public.estaciones_restaurante e
+   where e.restaurante_id = new.id
+     and not exists (
+       select 1 from public.destinos_estacion d
+        where d.estacion_id = e.id and d.tipo = 'kds'
+          and d.grupo = 'principal' and d.nombre = 'KDS ' || e.nombre
+     )
+  on conflict (estacion_id, tipo, grupo, nombre) do nothing;
+
+  return new;
+end;
+$$;
+
+revoke all on function public.mesora_inicializar_operacion_restaurante() from public, anon, authenticated;
+
+drop trigger if exists restaurantes_inicializar_operacion on public.restaurantes;
+create trigger restaurantes_inicializar_operacion
+after insert on public.restaurantes
+for each row execute function public.mesora_inicializar_operacion_restaurante();
+
+-- El estado operativo se consulta dentro del propio restaurante. Los registros
+-- financieros de autorizaciones se limitan a admin/cajero; solo admin escribe.
+alter table public.configuracion_operativa enable row level security;
+alter table public.estaciones_restaurante enable row level security;
+alter table public.destinos_estacion enable row level security;
+alter table public.entregas_comanda enable row level security;
+alter table public.estado_comanda_estacion enable row level security;
+alter table public.autorizaciones_cobro enable row level security;
+
+drop policy if exists configuracion_operativa_select on public.configuracion_operativa;
+create policy configuracion_operativa_select on public.configuracion_operativa
+  for select to authenticated
+  using ((select public.soy_del_restaurante(restaurante_id)));
+drop policy if exists configuracion_operativa_insert_admin on public.configuracion_operativa;
+create policy configuracion_operativa_insert_admin on public.configuracion_operativa
+  for insert to authenticated
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+drop policy if exists configuracion_operativa_update_admin on public.configuracion_operativa;
+create policy configuracion_operativa_update_admin on public.configuracion_operativa
+  for update to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])))
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+
+drop policy if exists estaciones_restaurante_select on public.estaciones_restaurante;
+create policy estaciones_restaurante_select on public.estaciones_restaurante
+  for select to authenticated
+  using ((select public.soy_del_restaurante(restaurante_id)));
+drop policy if exists estaciones_restaurante_insert_admin on public.estaciones_restaurante;
+create policy estaciones_restaurante_insert_admin on public.estaciones_restaurante
+  for insert to authenticated
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+drop policy if exists estaciones_restaurante_update_admin on public.estaciones_restaurante;
+create policy estaciones_restaurante_update_admin on public.estaciones_restaurante
+  for update to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])))
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+
+drop policy if exists destinos_estacion_select on public.destinos_estacion;
+create policy destinos_estacion_select on public.destinos_estacion
+  for select to authenticated
+  using ((select public.soy_del_restaurante(restaurante_id)));
+drop policy if exists destinos_estacion_insert_admin on public.destinos_estacion;
+create policy destinos_estacion_insert_admin on public.destinos_estacion
+  for insert to authenticated
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+drop policy if exists destinos_estacion_update_admin on public.destinos_estacion;
+create policy destinos_estacion_update_admin on public.destinos_estacion
+  for update to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])))
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+
+drop policy if exists entregas_comanda_select on public.entregas_comanda;
+create policy entregas_comanda_select on public.entregas_comanda
+  for select to authenticated
+  using ((select public.soy_del_restaurante(restaurante_id)));
+
+drop policy if exists estado_comanda_estacion_select on public.estado_comanda_estacion;
+create policy estado_comanda_estacion_select on public.estado_comanda_estacion
+  for select to authenticated
+  using ((select public.soy_del_restaurante(restaurante_id)));
+
+drop policy if exists autorizaciones_cobro_select on public.autorizaciones_cobro;
+create policy autorizaciones_cobro_select on public.autorizaciones_cobro
+  for select to authenticated
+  using (
+    (select public.soy_del_restaurante(restaurante_id))
+    and (select public.tengo_rol(array['admin_restaurante', 'cajero']))
+  );
+drop policy if exists autorizaciones_cobro_insert_admin on public.autorizaciones_cobro;
+create policy autorizaciones_cobro_insert_admin on public.autorizaciones_cobro
+  for insert to authenticated
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+drop policy if exists autorizaciones_cobro_update_admin on public.autorizaciones_cobro;
+create policy autorizaciones_cobro_update_admin on public.autorizaciones_cobro
+  for update to authenticated
+  using ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])))
+  with check ((select public.puedo_escribir_en(restaurante_id, array['admin_restaurante'])));
+
+revoke all on public.configuracion_operativa, public.estaciones_restaurante,
+  public.destinos_estacion, public.entregas_comanda,
+  public.estado_comanda_estacion, public.autorizaciones_cobro
+  from public, anon, authenticated;
+
+grant select on public.configuracion_operativa, public.estaciones_restaurante,
+  public.destinos_estacion, public.entregas_comanda,
+  public.estado_comanda_estacion, public.autorizaciones_cobro to authenticated;
+
+grant insert, update on public.configuracion_operativa,
+  public.estaciones_restaurante, public.destinos_estacion,
+  public.autorizaciones_cobro to authenticated;
+
+grant all on public.configuracion_operativa, public.estaciones_restaurante,
+  public.destinos_estacion, public.entregas_comanda,
+  public.estado_comanda_estacion, public.autorizaciones_cobro to service_role;
+
+revoke truncate on public.configuracion_operativa, public.estaciones_restaurante,
+  public.destinos_estacion, public.entregas_comanda,
+  public.estado_comanda_estacion, public.autorizaciones_cobro from authenticated;
+
+comment on table public.configuracion_operativa is
+  'Configuración operativa versionada por restaurante. La modalidad por defecto conserva el cobro actual por mesero.';
+comment on table public.estaciones_restaurante is
+  'Estaciones del restaurante; cocina, bar y otros se crean como valores compatibles.';
+comment on table public.destinos_estacion is
+  'Destinos lógicos de estación. El instalador activa KDS y deja las impresoras sin configurar.';
+comment on table public.entregas_comanda is
+  'Cola idempotente preparada; todavía no se escribe desde crear_pedido.';
+comment on table public.estado_comanda_estacion is
+  'Estado por estación preparado; el KDS actual sigue usando pedidos.estado.';
+comment on table public.autorizaciones_cobro is
+  'Permisos individuales preparados; cerrar_cuenta todavía no los consulta.';
+
+
+-- #############################################################################
+-- # 49/53 · ../migrations/20261109012624_fase3_configuracion_operativa_admin.sql
+-- #############################################################################
+
+-- -- Mesora · Fase 3: lectura y guardado del configurador operativo.
+-- No conecta la configuración con pedidos, pagos, caja, KDS ni impresión.
+
+create or replace function public.admin_obtener_configuracion_operativa(
+  p_restaurante_id uuid
+) returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_resultado jsonb;
+begin
+  if auth.uid() is null or not public.soy_del_restaurante(p_restaurante_id) then
+    raise exception 'No tienes acceso a la configuración de este restaurante.' using errcode = '42501';
+  end if;
+
+  select jsonb_build_object(
+    'restaurante_id', p_restaurante_id,
+    'modalidad_cobro', coalesce((
+      select c.modalidad_cobro
+        from public.configuracion_operativa c
+       where c.restaurante_id = p_restaurante_id
+    ), 'cobro_por_mesero'),
+    'version', coalesce((
+      select c.version
+        from public.configuracion_operativa c
+       where c.restaurante_id = p_restaurante_id
+    ), 1),
+    'estaciones', coalesce((
+      select jsonb_agg(
+        jsonb_build_object(
+          'id', e.id,
+          'codigo', e.codigo,
+          'nombre', e.nombre,
+          'activo', e.activo,
+          'orden', e.orden,
+          'destinos', coalesce((
+            select jsonb_agg(jsonb_build_object(
+              'id', d.id,
+              'tipo', d.tipo,
+              'grupo', d.grupo,
+              'nombre', d.nombre,
+              'papel_mm', d.papel_mm,
+              'configuracion', d.configuracion,
+              'activo', d.activo
+            ) order by d.grupo, d.tipo, d.nombre)
+            from public.destinos_estacion d
+           where d.restaurante_id = p_restaurante_id
+             and d.estacion_id = e.id
+          ), '[]'::jsonb)
+        ) order by e.orden, e.codigo
+      )
+        from public.estaciones_restaurante e
+       where e.restaurante_id = p_restaurante_id
+    ), jsonb_build_array(
+      jsonb_build_object('id', null, 'codigo', 'cocina', 'nombre', 'Cocina', 'activo', true, 'orden', 10,
+        'destinos', jsonb_build_array(jsonb_build_object('id', null, 'tipo', 'kds', 'grupo', 'principal', 'nombre', 'KDS Cocina', 'papel_mm', null, 'configuracion', '{}'::jsonb, 'activo', true))),
+      jsonb_build_object('id', null, 'codigo', 'bar', 'nombre', 'Barra', 'activo', true, 'orden', 20,
+        'destinos', jsonb_build_array(jsonb_build_object('id', null, 'tipo', 'kds', 'grupo', 'principal', 'nombre', 'KDS Barra', 'papel_mm', null, 'configuracion', '{}'::jsonb, 'activo', true))),
+      jsonb_build_object('id', null, 'codigo', 'otros', 'nombre', 'Otros', 'activo', true, 'orden', 30,
+        'destinos', jsonb_build_array(jsonb_build_object('id', null, 'tipo', 'kds', 'grupo', 'principal', 'nombre', 'KDS Otros', 'papel_mm', null, 'configuracion', '{}'::jsonb, 'activo', true)))
+    )),
+    'categorias', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', c.id,
+        'nombre', c.nombre,
+        'estacion_codigo', e.codigo
+      ) order by c.nombre, c.id)
+        from public.categorias_productos c
+        left join public.estaciones_restaurante e
+          on e.id = c.estacion_id and e.restaurante_id = p_restaurante_id
+       where c.restaurante_id = p_restaurante_id
+    ), '[]'::jsonb),
+    'productos', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', p.id,
+        'nombre', p.nombre,
+        'categoria_id', p.categoria_id,
+        'estacion', p.estacion,
+        'es_bebida', coalesce(p.es_bebida, false)
+      ) order by p.nombre, p.id)
+        from public.productos p
+       where p.restaurante_id = p_restaurante_id
+    ), '[]'::jsonb)
+  ) into v_resultado;
+
+  return v_resultado;
+end;
+$$;
+
+comment on function public.admin_obtener_configuracion_operativa(uuid) is
+  'Lee la configuración operativa de un restaurante miembro con RLS y filtros de tenant; no expone datos de otros locales.';
+
+create or replace function public.admin_guardar_configuracion_operativa(
+  p_restaurante_id uuid,
+  p_configuracion jsonb
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_estacion jsonb;
+  v_destino jsonb;
+  v_categoria jsonb;
+  v_estacion_id uuid;
+  v_destino_id uuid;
+  v_categoria_id uuid;
+  v_codigo text;
+  v_tipo text;
+  v_grupo text;
+  v_papel smallint;
+  v_nombre text;
+  v_copias integer;
+  v_activo boolean;
+  v_orden integer;
+  v_anterior_estacion uuid;
+  v_actualizados integer;
+begin
+  if auth.uid() is null or not public.puedo_escribir_en(p_restaurante_id, array['admin_restaurante']) then
+    raise exception 'Solo el administrador activo de este restaurante puede guardar esta configuración.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_configuracion) <> 'object'
+     or jsonb_typeof(p_configuracion->'estaciones') <> 'array'
+     or jsonb_typeof(p_configuracion->'categorias') <> 'array' then
+    raise exception 'La configuración recibida no tiene el formato esperado.' using errcode = '22023';
+  end if;
+  if coalesce(p_configuracion->>'modalidad_cobro', '') not in (
+    'solo_cajero', 'cobro_por_mesero', 'caja_central_meseros_autorizados'
+  ) then
+    raise exception 'La modalidad de cobro no es válida.' using errcode = '22023';
+  end if;
+  if jsonb_array_length(p_configuracion->'estaciones') <> 3
+     or (select count(distinct x.value->>'codigo')
+           from jsonb_array_elements(p_configuracion->'estaciones') x(value)) <> 3
+     or exists (
+       select 1 from jsonb_array_elements(p_configuracion->'estaciones') x(value)
+        where coalesce(x.value->>'codigo', '') not in ('cocina', 'bar', 'otros')
+     ) then
+    raise exception 'La configuración debe conservar Cocina, Barra y Otros.' using errcode = '22023';
+  end if;
+
+  insert into public.configuracion_operativa (restaurante_id, modalidad_cobro)
+  values (p_restaurante_id, p_configuracion->>'modalidad_cobro')
+  on conflict (restaurante_id) do update
+     set modalidad_cobro = excluded.modalidad_cobro
+   where public.configuracion_operativa.modalidad_cobro is distinct from excluded.modalidad_cobro;
+
+  for v_estacion in
+    select x.value from jsonb_array_elements(p_configuracion->'estaciones') x(value)
+  loop
+    v_codigo := v_estacion->>'codigo';
+    v_nombre := btrim(coalesce(v_estacion->>'nombre', ''));
+    if v_nombre = '' or length(v_nombre) > 60
+       or coalesce(v_estacion->>'activo', '') not in ('true', 'false')
+       or coalesce(v_estacion->>'orden', '') !~ '^\d{1,5}$' then
+      raise exception 'Revisa el nombre, estado y orden de las estaciones.' using errcode = '22023';
+    end if;
+    v_activo := (v_estacion->>'activo')::boolean;
+    v_orden := (v_estacion->>'orden')::integer;
+    if jsonb_typeof(v_estacion->'destinos') <> 'array' then
+      raise exception 'Revisa los destinos configurados para cada estación.' using errcode = '22023';
+    end if;
+
+    insert into public.estaciones_restaurante (restaurante_id, codigo, nombre, activo, orden)
+    values (p_restaurante_id, v_codigo, v_nombre, v_activo, v_orden)
+    on conflict (restaurante_id, codigo) do update
+       set nombre = excluded.nombre,
+           activo = excluded.activo,
+           orden = excluded.orden,
+           updated_at = now()
+     where public.estaciones_restaurante.nombre is distinct from excluded.nombre
+        or public.estaciones_restaurante.activo is distinct from excluded.activo
+        or public.estaciones_restaurante.orden is distinct from excluded.orden;
+
+    select e.id into v_estacion_id
+      from public.estaciones_restaurante e
+     where e.restaurante_id = p_restaurante_id and e.codigo = v_codigo;
+    if v_estacion_id is null then
+      raise exception 'No se pudo guardar la estación solicitada.' using errcode = '23503';
+    end if;
+
+    for v_destino in
+      select x.value from jsonb_array_elements(v_estacion->'destinos') x(value)
+    loop
+      v_tipo := v_destino->>'tipo';
+      v_grupo := v_destino->>'grupo';
+      v_nombre := btrim(coalesce(v_destino->>'nombre', ''));
+      if v_tipo not in ('kds', 'impresora') or v_grupo not in ('principal', 'respaldo')
+         or v_nombre = '' or length(v_nombre) > 80
+         or coalesce(v_destino->>'activo', '') not in ('true', 'false') then
+        raise exception 'Revisa el tipo, grupo, nombre y estado de los destinos.' using errcode = '22023';
+      end if;
+      v_activo := (v_destino->>'activo')::boolean;
+      if jsonb_typeof(coalesce(v_destino->'configuracion', '{}'::jsonb)) <> 'object' then
+        raise exception 'La configuración del destino no es válida.' using errcode = '22023';
+      end if;
+      if v_tipo = 'impresora' then
+        if coalesce(v_destino->>'papel_mm', '') not in ('58', '80')
+           or coalesce(v_destino->'configuracion'->>'copias', '') !~ '^[1-5]$' then
+          raise exception 'Configura papel de 58 u 80 mm y entre 1 y 5 copias para la impresora.' using errcode = '22023';
+        end if;
+        v_papel := (v_destino->>'papel_mm')::smallint;
+        v_copias := (v_destino->'configuracion'->>'copias')::integer;
+      else
+        if v_destino->'papel_mm' is not null and v_destino->'papel_mm' <> 'null'::jsonb then
+          raise exception 'Los destinos KDS no llevan tamaño de papel.' using errcode = '22023';
+        end if;
+        v_papel := null;
+        v_copias := 1;
+      end if;
+      v_destino_id := nullif(v_destino->>'id', '')::uuid;
+      if v_destino_id is not null then
+        select d.estacion_id into v_anterior_estacion
+          from public.destinos_estacion d
+         where d.id = v_destino_id and d.restaurante_id = p_restaurante_id;
+        if not found then
+          if exists (select 1 from public.destinos_estacion d where d.id = v_destino_id) then
+            raise exception 'El destino indicado no pertenece a este restaurante.' using errcode = '42501';
+          end if;
+          insert into public.destinos_estacion
+            (id, restaurante_id, estacion_id, tipo, grupo, nombre, papel_mm, configuracion, activo)
+          values (v_destino_id, p_restaurante_id, v_estacion_id, v_tipo, v_grupo, v_nombre, v_papel,
+                  case when v_tipo = 'impresora' then jsonb_build_object('copias', v_copias) else '{}'::jsonb end,
+                  v_activo);
+        else
+          if v_anterior_estacion <> v_estacion_id then
+            raise exception 'El destino no corresponde a la estación seleccionada.' using errcode = '42501';
+          end if;
+          update public.destinos_estacion d
+             set tipo = v_tipo,
+                 grupo = v_grupo,
+                 nombre = v_nombre,
+                 papel_mm = v_papel,
+                 configuracion = case when v_tipo = 'impresora' then jsonb_build_object('copias', v_copias) else '{}'::jsonb end,
+                 activo = v_activo,
+                 updated_at = now()
+           where d.id = v_destino_id and d.restaurante_id = p_restaurante_id
+             and d.estacion_id = v_estacion_id
+             and (d.tipo, d.grupo, d.nombre, d.papel_mm, d.configuracion, d.activo)
+                 is distinct from (v_tipo, v_grupo, v_nombre, v_papel,
+                   case when v_tipo = 'impresora' then jsonb_build_object('copias', v_copias) else '{}'::jsonb end,
+                   v_activo);
+        end if;
+      else
+        insert into public.destinos_estacion
+          (restaurante_id, estacion_id, tipo, grupo, nombre, papel_mm, configuracion, activo)
+        values (p_restaurante_id, v_estacion_id, v_tipo, v_grupo, v_nombre, v_papel,
+                case when v_tipo = 'impresora' then jsonb_build_object('copias', v_copias) else '{}'::jsonb end,
+                v_activo)
+        on conflict (estacion_id, tipo, grupo, nombre) do update
+           set papel_mm = excluded.papel_mm,
+               configuracion = excluded.configuracion,
+               activo = excluded.activo,
+               updated_at = now()
+         where public.destinos_estacion.restaurante_id = excluded.restaurante_id
+           and (public.destinos_estacion.papel_mm, public.destinos_estacion.configuracion, public.destinos_estacion.activo)
+               is distinct from (excluded.papel_mm, excluded.configuracion, excluded.activo);
+      end if;
+    end loop;
+  end loop;
+
+  if (select count(*) from public.categorias_productos c where c.restaurante_id = p_restaurante_id)
+     <> jsonb_array_length(p_configuracion->'categorias')
+     or (select count(distinct x.value->>'id')
+           from jsonb_array_elements(p_configuracion->'categorias') x(value))
+        <> jsonb_array_length(p_configuracion->'categorias') then
+    raise exception 'Actualiza las categorías antes de guardar esta configuración.' using errcode = '40001';
+  end if;
+
+  for v_categoria in
+    select x.value from jsonb_array_elements(p_configuracion->'categorias') x(value)
+  loop
+    v_categoria_id := (v_categoria->>'id')::uuid;
+    v_codigo := nullif(v_categoria->>'estacion_codigo', '');
+    if v_codigo is not null and v_codigo not in ('cocina', 'bar', 'otros') then
+      raise exception 'Una categoría tiene una estación predeterminada inválida.' using errcode = '22023';
+    end if;
+    v_estacion_id := null;
+    if v_codigo is not null then
+      select e.id into v_estacion_id
+        from public.estaciones_restaurante e
+       where e.restaurante_id = p_restaurante_id and e.codigo = v_codigo;
+      if v_estacion_id is null then
+        raise exception 'No se encontró la estación elegida para la categoría.' using errcode = '23503';
+      end if;
+    end if;
+    update public.categorias_productos c
+       set estacion_id = v_estacion_id
+     where c.id = v_categoria_id and c.restaurante_id = p_restaurante_id;
+    get diagnostics v_actualizados = row_count;
+    if v_actualizados <> 1 then
+      raise exception 'Una categoría ya no pertenece a este restaurante. Actualiza la pantalla e inténtalo de nuevo.' using errcode = '40001';
+    end if;
+  end loop;
+
+  return public.admin_obtener_configuracion_operativa(p_restaurante_id);
+end;
+$$;
+
+comment on function public.admin_guardar_configuracion_operativa(uuid, jsonb) is
+  'Guarda configuración operativa de forma atómica usando RLS, rol admin_restaurante y validación del tenant. No cambia operaciones actuales.';
+
+-- Las escrituras de configuración se registran desde triggers internos. El
+-- cliente autenticado nunca recibe permiso de INSERT sobre audit_logs.
+create or replace function public.mesora_auditar_configuracion_operativa()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_restaurante_id uuid;
+  v_entidad_id uuid;
+  v_actor_id uuid := auth.uid();
+  v_actor_rol text;
+  v_actor_nombre text;
+  v_restaurante_nombre text;
+  v_accion text := 'configuracion_operativa_actualizar';
+  v_descripcion text;
+  v_detalle jsonb;
+  v_estacion text;
+begin
+  if tg_table_name = 'configuracion_operativa' then
+    if tg_op = 'UPDATE' and old.modalidad_cobro is not distinct from new.modalidad_cobro then
+      return new;
+    end if;
+    v_restaurante_id := new.restaurante_id;
+    v_entidad_id := new.restaurante_id;
+    v_descripcion := 'Actualizó la modalidad de cobro guardada para el restaurante';
+    v_detalle := jsonb_build_object(
+      'modalidad_anterior', case when tg_op = 'INSERT' then null else old.modalidad_cobro end,
+      'modalidad_nueva', new.modalidad_cobro
+    );
+  elsif tg_table_name = 'estaciones_restaurante' then
+    if tg_op = 'UPDATE' and (old.nombre, old.activo, old.orden) is not distinct from (new.nombre, new.activo, new.orden) then
+      return new;
+    end if;
+    v_restaurante_id := new.restaurante_id;
+    v_entidad_id := new.id;
+    v_descripcion := format('Actualizó la estación «%s»', new.nombre);
+    v_detalle := jsonb_build_object('codigo', new.codigo, 'nombre', new.nombre, 'activo', new.activo, 'orden', new.orden);
+  elsif tg_table_name = 'destinos_estacion' then
+    if tg_op = 'UPDATE' and (old.tipo, old.grupo, old.nombre, old.papel_mm, old.configuracion, old.activo)
+       is not distinct from (new.tipo, new.grupo, new.nombre, new.papel_mm, new.configuracion, new.activo) then
+      return new;
+    end if;
+    v_restaurante_id := new.restaurante_id;
+    v_entidad_id := new.id;
+    select e.nombre into v_estacion from public.estaciones_restaurante e
+     where e.id = new.estacion_id and e.restaurante_id = new.restaurante_id;
+    v_descripcion := format('Actualizó el destino «%s» de %s', new.nombre, coalesce(v_estacion, 'la estación'));
+    v_detalle := jsonb_build_object('estacion_id', new.estacion_id, 'tipo', new.tipo, 'grupo', new.grupo,
+      'nombre', new.nombre, 'papel_mm', new.papel_mm, 'configuracion', new.configuracion, 'activo', new.activo);
+  elsif tg_table_name = 'categorias_productos' then
+    if tg_op <> 'UPDATE' or old.estacion_id is not distinct from new.estacion_id then
+      return new;
+    end if;
+    v_restaurante_id := new.restaurante_id;
+    v_entidad_id := new.id;
+    v_descripcion := format('Actualizó la estación predeterminada de la categoría «%s»', new.nombre);
+    v_detalle := jsonb_build_object('categoria_id', new.id, 'estacion_anterior_id', old.estacion_id,
+      'estacion_nueva_id', new.estacion_id);
+  else
+    return new;
+  end if;
+
+  select u.rol::text, u.nombre into v_actor_rol, v_actor_nombre
+    from public.usuarios u where u.id = v_actor_id;
+  select r.nombre into v_restaurante_nombre
+    from public.restaurantes r where r.id = v_restaurante_id;
+
+  insert into public.audit_logs (
+    actor_id, actor_rol, actor_nombre, restaurante_id, restaurante_nombre,
+    entidad, entidad_id, accion, descripcion, detalle
+  ) values (
+    v_actor_id, v_actor_rol, v_actor_nombre, v_restaurante_id, v_restaurante_nombre,
+    case when tg_table_name = 'categorias_productos' then 'categoria' else 'configuracion' end,
+    v_entidad_id, v_accion, v_descripcion, v_detalle
+  );
+  return new;
+end;
+$$;
+
+revoke all on function public.admin_obtener_configuracion_operativa(uuid) from public, anon;
+revoke all on function public.admin_guardar_configuracion_operativa(uuid, jsonb) from public, anon;
+grant execute on function public.admin_obtener_configuracion_operativa(uuid) to authenticated;
+grant execute on function public.admin_guardar_configuracion_operativa(uuid, jsonb) to authenticated;
+revoke all on function public.mesora_auditar_configuracion_operativa() from public, anon, authenticated;
+
+drop trigger if exists configuracion_operativa_auditoria on public.configuracion_operativa;
+create trigger configuracion_operativa_auditoria
+  after insert or update on public.configuracion_operativa
+  for each row execute function public.mesora_auditar_configuracion_operativa();
+drop trigger if exists estaciones_restaurante_auditoria on public.estaciones_restaurante;
+create trigger estaciones_restaurante_auditoria
+  after insert or update on public.estaciones_restaurante
+  for each row execute function public.mesora_auditar_configuracion_operativa();
+drop trigger if exists destinos_estacion_auditoria on public.destinos_estacion;
+create trigger destinos_estacion_auditoria
+  after insert or update on public.destinos_estacion
+  for each row execute function public.mesora_auditar_configuracion_operativa();
+drop trigger if exists categorias_estacion_auditoria on public.categorias_productos;
+create trigger categorias_estacion_auditoria
+  after update of estacion_id on public.categorias_productos
+  for each row execute function public.mesora_auditar_configuracion_operativa();
+
+
+-- #############################################################################
+-- # 50/53 · ../migrations/20261109024411_fase4_enrutamiento_comandas.sql
+-- #############################################################################
+
+-- -- Mesora · Fase 4: enrutamiento de comandas según configuración operativa.
+-- La ruta y el estado de cada estación quedan congelados al crear la comanda.
+-- Las impresoras quedan en cola manual: esta migración no imprime ni inicia agentes.
+begin;
+
+-- Los productos nuevos pueden heredar la estación de su categoría. Los valores
+-- explícitos existentes se conservan y siguen teniendo prioridad.
+alter table public.productos
+  alter column estacion drop default,
+  alter column estacion drop not null;
+
+-- Snapshot autoritativo de estación: producto explícito > categoría > bebida > cocina.
+create or replace function public.fijar_estacion_snapshot_pedido_item()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_restaurante_id uuid;
+begin
+  if new.producto_id is null then
+    new.estacion := coalesce(new.estacion, case when coalesce(new.es_bebida, false) then 'bar' else 'cocina' end);
+    return new;
+  end if;
+
+  select coalesce(
+           pr.estacion,
+           e.codigo,
+           case when coalesce(pr.es_bebida, false) then 'bar' else 'cocina' end
+         ), p.restaurante_id
+    into new.estacion, v_restaurante_id
+    from public.productos pr
+    join public.pedidos p on p.id = new.pedido_id and p.restaurante_id = pr.restaurante_id
+    left join public.categorias_productos c
+      on c.id = pr.categoria_id and c.restaurante_id = pr.restaurante_id
+    left join public.estaciones_restaurante e
+      on e.id = c.estacion_id and e.restaurante_id = pr.restaurante_id
+   where pr.id = new.producto_id;
+
+  if not found or v_restaurante_id is null then
+    raise exception 'El producto no pertenece a la comanda.' using errcode = '23503';
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.fijar_estacion_snapshot_pedido_item() from public, anon, authenticated;
+
+-- La comanda y sus destinos nacen en una sola transacción. Solo se crean
+-- entregas al grupo principal; el respaldo queda reservado para manejo de fallos.
+create or replace function public.crear_pedido(
+  p_restaurante_id uuid,
+  p_mesa_id uuid,
+  p_items jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_pedido_id uuid;
+  v_item jsonb;
+  v_producto_id uuid;
+  v_cantidad int;
+  v_producto public.productos%rowtype;
+  v_precio numeric;
+  v_mesero_id uuid;
+  v_estacion_codigo text;
+  v_estacion_id uuid;
+  v_estacion_nombre text;
+  v_estacion_activa boolean;
+  v_destino record;
+  v_config_version integer;
+begin
+  perform public.validar_acceso_restaurante(p_restaurante_id);
+
+  select u.id into v_mesero_id
+    from public.usuarios u
+   where u.id = auth.uid()
+     and u.restaurante_id = p_restaurante_id
+     and coalesce(u.activo, true)
+     and u.rol::text in ('mesero', 'admin_restaurante');
+  if v_mesero_id is null then
+    raise exception 'Sin permiso para crear pedidos en este restaurante' using errcode = '42501';
+  end if;
+
+  if not exists (
+    select 1 from public.mesas m
+     where m.id = p_mesa_id and m.restaurante_id = p_restaurante_id
+  ) then
+    raise exception 'La mesa no pertenece al restaurante' using errcode = '23503';
+  end if;
+  if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'El pedido no tiene ítems' using errcode = '22023';
+  end if;
+
+  select coalesce(c.version, 1) into v_config_version
+    from (select 1) x
+    left join public.configuracion_operativa c on c.restaurante_id = p_restaurante_id;
+
+  insert into public.pedidos (restaurante_id, mesa_id, mesero_id, estado)
+  values (p_restaurante_id, p_mesa_id, v_mesero_id, 'pendiente')
+  returning id into v_pedido_id;
+
+  for v_item in select value from jsonb_array_elements(p_items)
+  loop
+    v_producto_id := nullif(v_item->>'producto_id', '')::uuid;
+    v_cantidad := coalesce((v_item->>'cantidad')::int, 1);
+    if v_producto_id is null then
+      raise exception 'Ítem sin producto_id' using errcode = '22023';
+    end if;
+    if v_cantidad < 1 or v_cantidad > 99 then
+      raise exception 'La cantidad debe ser un número entre 1 y 99' using errcode = '22023';
+    end if;
+
+    select * into v_producto
+      from public.productos pr
+     where pr.id = v_producto_id and pr.restaurante_id = p_restaurante_id
+     for update;
+    if v_producto.id is null then
+      raise exception 'El producto no existe en este restaurante' using errcode = '23503';
+    end if;
+    if not v_producto.disponible then
+      raise exception 'El producto % no está disponible', v_producto.nombre using errcode = '22023';
+    end if;
+
+    select coalesce(
+             v_producto.estacion,
+             e.codigo,
+             case when coalesce(v_producto.es_bebida, false) then 'bar' else 'cocina' end
+           ) into v_estacion_codigo
+      from (select 1) x
+      left join public.categorias_productos c
+        on c.id = v_producto.categoria_id and c.restaurante_id = p_restaurante_id
+      left join public.estaciones_restaurante e
+        on e.id = c.estacion_id and e.restaurante_id = p_restaurante_id;
+
+    select e.id, e.nombre, e.activo
+      into v_estacion_id, v_estacion_nombre, v_estacion_activa
+      from public.estaciones_restaurante e
+     where e.restaurante_id = p_restaurante_id and e.codigo = v_estacion_codigo;
+    if not found or v_estacion_activa is not true then
+      raise exception 'La estación % está desactivada o no existe. Pide al administrador que revise la configuración operativa.',
+        coalesce(v_estacion_nombre, v_estacion_codigo)
+        using errcode = '22023';
+    end if;
+    if not exists (
+      select 1 from public.destinos_estacion d
+       where d.restaurante_id = p_restaurante_id and d.estacion_id = v_estacion_id
+         and d.grupo = 'principal' and d.activo
+    ) then
+      raise exception 'La estación % no tiene un destino principal activo. Pide al administrador que revise su configuración.',
+        v_estacion_nombre
+        using errcode = '22023';
+    end if;
+
+    v_precio := case
+      when v_producto.es_promocion and v_producto.precio_promocion is not null then v_producto.precio_promocion
+      else v_producto.precio
+    end;
+    if v_precio is null or v_precio < 0 then
+      raise exception 'El producto % no tiene precio válido', v_producto.nombre using errcode = '22023';
+    end if;
+
+    insert into public.pedido_items (
+      pedido_id, producto_id, nombre_producto, cantidad, precio_unitario,
+      nota, es_bebida, estacion
+    ) values (
+      v_pedido_id, v_producto.id, v_producto.nombre, v_cantidad, v_precio,
+      nullif(btrim(coalesce(v_item->>'nota', '')), ''),
+      coalesce(v_producto.es_bebida, false), v_estacion_codigo
+    );
+  end loop;
+
+  for v_estacion_codigo in
+    select distinct pi.estacion
+      from public.pedido_items pi
+     where pi.pedido_id = v_pedido_id
+     order by pi.estacion
+  loop
+    select e.id, e.nombre, e.activo
+      into v_estacion_id, v_estacion_nombre, v_estacion_activa
+      from public.estaciones_restaurante e
+     where e.restaurante_id = p_restaurante_id and e.codigo = v_estacion_codigo;
+    if not found or v_estacion_activa is not true then
+      raise exception 'La estación % está desactivada o no existe. Pide al administrador que revise la configuración operativa.',
+        coalesce(v_estacion_nombre, v_estacion_codigo)
+        using errcode = '22023';
+    end if;
+
+    insert into public.estado_comanda_estacion (restaurante_id, pedido_id, estacion_id, estado)
+    values (p_restaurante_id, v_pedido_id, v_estacion_id, 'pendiente');
+
+    for v_destino in
+      select d.id, d.tipo, d.grupo, d.nombre, d.papel_mm, d.configuracion
+        from public.destinos_estacion d
+       where d.restaurante_id = p_restaurante_id
+         and d.estacion_id = v_estacion_id
+         and d.activo
+         and d.grupo = 'principal'
+       order by d.tipo, d.nombre
+    loop
+      insert into public.entregas_comanda (
+        restaurante_id, pedido_id, estacion_id, estacion_codigo, estacion_nombre,
+        destino_estacion_id, destino_nombre, configuracion_destino,
+        grupo, tipo_destino, configuracion_version, numero_entrega, estado
+      ) values (
+        p_restaurante_id, v_pedido_id, v_estacion_id, v_estacion_codigo, v_estacion_nombre,
+        v_destino.id, v_destino.nombre,
+        coalesce(v_destino.configuracion, '{}'::jsonb) ||
+          case when v_destino.papel_mm is null then '{}'::jsonb
+               else jsonb_build_object('papel_mm', v_destino.papel_mm) end,
+        'principal', v_destino.tipo, v_config_version, 1,
+        case when v_destino.tipo = 'kds' then 'confirmada' else 'pendiente' end
+      );
+    end loop;
+  end loop;
+
+  update public.mesas m set estado = 'ocupada'
+   where m.id = p_mesa_id and m.restaurante_id = p_restaurante_id;
+  return v_pedido_id;
+end;
+$$;
+
+comment on function public.crear_pedido(uuid, uuid, jsonb) is
+  'Crea una comanda y resuelve productos > categoría > bebida > cocina. Congela estación, crea estado por estación y enrutamiento a destinos principales; impresoras quedan pendientes para impresión manual.';
+
+-- Los ítems cancelados dejan de bloquear el estado agregado de la comanda.
+create or replace function public.mesora_reconciliar_estacion_anulada()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_estacion_id uuid;
+  v_estado_global text;
+begin
+  if new.anulado is not true or old.anulado is true then return new; end if;
+  if exists (
+    select 1 from public.pedido_items pi
+     where pi.pedido_id = new.pedido_id
+       and coalesce(pi.estacion, 'cocina') = coalesce(new.estacion, 'cocina')
+       and pi.anulado is not true
+  ) then return new; end if;
+
+  select e.id into v_estacion_id
+    from public.estaciones_restaurante e
+    join public.pedidos p on p.restaurante_id = e.restaurante_id
+   where p.id = new.pedido_id and e.codigo = coalesce(new.estacion, 'cocina');
+  if v_estacion_id is null then return new; end if;
+
+  update public.estado_comanda_estacion s
+     set estado = 'anulado', updated_at = now()
+   where s.pedido_id = new.pedido_id and s.estacion_id = v_estacion_id
+     and s.estado <> 'anulado';
+  update public.entregas_comanda d
+     set estado = 'cancelada', updated_at = now()
+   where d.pedido_id = new.pedido_id and d.estacion_id = v_estacion_id
+     and d.estado = 'pendiente';
+
+  if exists (
+    select 1 from public.pedido_items pi
+     where pi.pedido_id = new.pedido_id and pi.anulado is not true
+  ) then
+    select case
+      when bool_or(s.estado = 'pendiente') then 'pendiente'
+      when bool_or(s.estado = 'en_preparacion') then 'en_preparacion'
+      when bool_or(s.estado = 'listo') then 'listo'
+      else 'entregado'
+    end into v_estado_global
+      from public.estado_comanda_estacion s
+     where s.pedido_id = new.pedido_id and s.estado <> 'anulado';
+    if v_estado_global is not null then
+      update public.pedidos p set estado = v_estado_global, updated_at = now()
+       where p.id = new.pedido_id and p.estado <> 'anulado';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.mesora_reconciliar_estacion_anulada() from public, anon, authenticated;
+drop trigger if exists pedido_item_reconciliar_estacion_anulada on public.pedido_items;
+create trigger pedido_item_reconciliar_estacion_anulada
+after update of anulado on public.pedido_items
+for each row execute function public.mesora_reconciliar_estacion_anulada();
+
+-- Avance compare-and-set por estación. Si no hay snapshots, se conserva el
+-- comportamiento global de comandas históricas creadas antes de esta fase.
+create or replace function public.avanzar_comanda_estacion(
+  p_restaurante_id uuid,
+  p_pedido_id uuid,
+  p_estacion_codigo text
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_rol text;
+  v_estado_pedido text;
+  v_estado_estacion text;
+  v_nuevo_estado text;
+  v_estacion_id uuid;
+begin
+  perform public.validar_acceso_restaurante(p_restaurante_id);
+
+  select u.rol::text into v_rol
+    from public.usuarios u
+   where u.id = auth.uid() and u.restaurante_id = p_restaurante_id and coalesce(u.activo, true);
+  if v_rol is null or v_rol not in ('cocina', 'mesero', 'admin_restaurante') then
+    raise exception 'Tu perfil no tiene permiso para actualizar las estaciones de preparación.' using errcode = '42501';
+  end if;
+  if p_estacion_codigo not in ('cocina', 'bar', 'otros') then
+    raise exception 'La estación indicada no es válida.' using errcode = '22023';
+  end if;
+
+  select p.estado into v_estado_pedido
+    from public.pedidos p
+   where p.id = p_pedido_id and p.restaurante_id = p_restaurante_id
+   for update;
+  if not found then raise exception 'La comanda no pertenece al restaurante.' using errcode = '23503'; end if;
+  if v_estado_pedido = 'anulado' then raise exception 'La comanda está anulada.' using errcode = '22023'; end if;
+  if exists (
+    select 1 from public.cuenta_pedidos cp
+    join public.cuentas c on c.id = cp.cuenta_id
+     where cp.pedido_id = p_pedido_id and c.estado = 'pagada'
+  ) then raise exception 'La comanda ya fue cobrada.' using errcode = '22023'; end if;
+
+  select e.id into v_estacion_id
+    from public.estaciones_restaurante e
+   where e.restaurante_id = p_restaurante_id and e.codigo = p_estacion_codigo;
+  if v_estacion_id is null then raise exception 'No se encontró la estación de esta comanda.' using errcode = '23503'; end if;
+
+  select s.estado into v_estado_estacion
+    from public.estado_comanda_estacion s
+   where s.restaurante_id = p_restaurante_id and s.pedido_id = p_pedido_id and s.estacion_id = v_estacion_id
+   for update;
+  if not found then
+    if exists (select 1 from public.entregas_comanda d where d.pedido_id = p_pedido_id and d.restaurante_id = p_restaurante_id) then
+      raise exception 'La comanda no fue enrutada a esta estación.' using errcode = '42501';
+    end if;
+    v_nuevo_estado := case v_estado_pedido
+      when 'pendiente' then 'en_preparacion'
+      when 'en_preparacion' then 'listo'
+      when 'listo' then 'entregado'
+      else v_estado_pedido
+    end;
+    if v_nuevo_estado = v_estado_pedido then
+      raise exception 'La comanda ya no tiene estados pendientes.' using errcode = '22023';
+    end if;
+    update public.pedidos p set estado = v_nuevo_estado, updated_at = now()
+     where p.id = p_pedido_id and p.restaurante_id = p_restaurante_id and p.estado = v_estado_pedido;
+    if not found then raise exception 'La comanda cambió de estado. Actualiza el tablero.' using errcode = '40001'; end if;
+    return;
+  end if;
+
+  v_nuevo_estado := case v_estado_estacion
+    when 'pendiente' then 'en_preparacion'
+    when 'en_preparacion' then 'listo'
+    when 'listo' then 'entregado'
+    else v_estado_estacion
+  end;
+  if v_nuevo_estado = v_estado_estacion then
+    raise exception 'Esta estación ya terminó la comanda.' using errcode = '22023';
+  end if;
+  update public.estado_comanda_estacion s
+     set estado = v_nuevo_estado,
+         iniciado_at = case when v_nuevo_estado = 'en_preparacion' then coalesce(s.iniciado_at, now()) else s.iniciado_at end,
+         listo_at = case when v_nuevo_estado = 'listo' then now() else s.listo_at end,
+         entregado_at = case when v_nuevo_estado = 'entregado' then now() else s.entregado_at end,
+         updated_at = now()
+   where s.restaurante_id = p_restaurante_id and s.pedido_id = p_pedido_id and s.estacion_id = v_estacion_id;
+
+  select case
+    when bool_or(s.estado = 'pendiente') then 'pendiente'
+    when bool_or(s.estado = 'en_preparacion') then 'en_preparacion'
+    when bool_or(s.estado = 'listo') then 'listo'
+    else 'entregado'
+  end into v_nuevo_estado
+    from public.estado_comanda_estacion s
+   where s.restaurante_id = p_restaurante_id and s.pedido_id = p_pedido_id and s.estado <> 'anulado';
+  if v_nuevo_estado is not null then
+    update public.pedidos p set estado = v_nuevo_estado, updated_at = now()
+     where p.id = p_pedido_id and p.restaurante_id = p_restaurante_id and p.estado <> 'anulado';
+  end if;
+end;
+$$;
+
+comment on function public.avanzar_comanda_estacion(uuid, uuid, text) is
+  'Avanza compare-and-set el estado de una estación enrutada y recalcula el estado agregado de la comanda; comandas históricas mantienen el avance global.';
+
+alter table public.entregas_comanda
+  add column if not exists estacion_codigo text,
+  add column if not exists estacion_nombre text,
+  add column if not exists destino_nombre text,
+  add column if not exists configuracion_destino jsonb not null default '{}'::jsonb;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+     where conrelid = 'public.entregas_comanda'::regclass
+       and conname = 'entregas_comanda_estacion_codigo_check'
+  ) then
+    alter table public.entregas_comanda
+      add constraint entregas_comanda_estacion_codigo_check
+      check (estacion_codigo is null or estacion_codigo in ('cocina', 'bar', 'otros'));
+  end if;
+end;
+$$;
+
+revoke all on function public.crear_pedido(uuid, uuid, jsonb) from public, anon;
+revoke all on function public.avanzar_comanda_estacion(uuid, uuid, text) from public, anon;
+grant execute on function public.crear_pedido(uuid, uuid, jsonb) to authenticated;
+grant execute on function public.avanzar_comanda_estacion(uuid, uuid, text) to authenticated;
+
+commit;
+
+
+-- #############################################################################
+-- # 51/53 · ../migrations/20261109045958_fase5_kds_salida_manual_comandas.sql
+-- #############################################################################
+
+-- -- Mesora · Fase 5: KDS operativo y salidas de impresión manual.
+-- Las rutas quedan congeladas al crear el pedido; ninguna configuración nueva
+-- modifica sus destinos históricos.
+begin;
+
+alter table public.pedidos
+  add column if not exists ruteo_configurado boolean not null default false;
+
+alter table public.entregas_comanda
+  add column if not exists solicitud_impresion_id uuid;
+
+create unique index if not exists entregas_comanda_solicitud_impresion_unique
+  on public.entregas_comanda (solicitud_impresion_id)
+  where solicitud_impresion_id is not null;
+
+comment on column public.entregas_comanda.solicitud_impresion_id is
+  'Identificador de la solicitud manual de impresión vigente; bloquea confirmaciones atrasadas.';
+create or replace function public.crear_pedido(
+  p_restaurante_id uuid,
+  p_mesa_id uuid,
+  p_items jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_pedido_id uuid;
+  v_item jsonb;
+  v_producto_id uuid;
+  v_cantidad int;
+  v_producto public.productos%rowtype;
+  v_precio numeric;
+  v_mesero_id uuid;
+  v_estacion_codigo text;
+  v_estacion_id uuid;
+  v_estacion_nombre text;
+  v_estacion_activa boolean;
+  v_destino record;
+  v_config_version integer;
+begin
+  perform public.validar_acceso_restaurante(p_restaurante_id);
+
+  select u.id into v_mesero_id
+    from public.usuarios u
+   where u.id = auth.uid()
+     and u.restaurante_id = p_restaurante_id
+     and coalesce(u.activo, true)
+     and u.rol::text in ('mesero', 'admin_restaurante');
+  if v_mesero_id is null then
+    raise exception 'Sin permiso para crear pedidos en este restaurante' using errcode = '42501';
+  end if;
+
+  if not exists (
+    select 1 from public.mesas m
+     where m.id = p_mesa_id and m.restaurante_id = p_restaurante_id
+  ) then
+    raise exception 'La mesa no pertenece al restaurante' using errcode = '23503';
+  end if;
+  if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'El pedido no tiene ítems' using errcode = '22023';
+  end if;
+
+  select coalesce(c.version, 1) into v_config_version
+    from (select 1) x
+    left join public.configuracion_operativa c on c.restaurante_id = p_restaurante_id;
+
+  insert into public.pedidos (restaurante_id, mesa_id, mesero_id, estado, ruteo_configurado)
+  values (p_restaurante_id, p_mesa_id, v_mesero_id, 'pendiente', true)
+  returning id into v_pedido_id;
+
+  for v_item in select value from jsonb_array_elements(p_items)
+  loop
+    v_producto_id := nullif(v_item->>'producto_id', '')::uuid;
+    v_cantidad := coalesce((v_item->>'cantidad')::int, 1);
+    if v_producto_id is null then
+      raise exception 'Ítem sin producto_id' using errcode = '22023';
+    end if;
+    if v_cantidad < 1 or v_cantidad > 99 then
+      raise exception 'La cantidad debe ser un número entre 1 y 99' using errcode = '22023';
+    end if;
+
+    select * into v_producto
+      from public.productos pr
+     where pr.id = v_producto_id and pr.restaurante_id = p_restaurante_id
+     for update;
+    if v_producto.id is null then
+      raise exception 'El producto no existe en este restaurante' using errcode = '23503';
+    end if;
+    if not v_producto.disponible then
+      raise exception 'El producto % no está disponible', v_producto.nombre using errcode = '22023';
+    end if;
+
+    select coalesce(
+             v_producto.estacion,
+             e.codigo,
+             case when coalesce(v_producto.es_bebida, false) then 'bar' else 'cocina' end
+           ) into v_estacion_codigo
+      from (select 1) x
+      left join public.categorias_productos c
+        on c.id = v_producto.categoria_id and c.restaurante_id = p_restaurante_id
+      left join public.estaciones_restaurante e
+        on e.id = c.estacion_id and e.restaurante_id = p_restaurante_id;
+
+    select e.id, e.nombre, e.activo
+      into v_estacion_id, v_estacion_nombre, v_estacion_activa
+      from public.estaciones_restaurante e
+     where e.restaurante_id = p_restaurante_id and e.codigo = v_estacion_codigo;
+    if not found or v_estacion_activa is not true then
+      raise exception 'La estación % está desactivada o no existe. Pide al administrador que revise la configuración operativa.',
+        coalesce(v_estacion_nombre, v_estacion_codigo)
+        using errcode = '22023';
+    end if;
+
+
+    v_precio := case
+      when v_producto.es_promocion and v_producto.precio_promocion is not null then v_producto.precio_promocion
+      else v_producto.precio
+    end;
+    if v_precio is null or v_precio < 0 then
+      raise exception 'El producto % no tiene precio válido', v_producto.nombre using errcode = '22023';
+    end if;
+
+    insert into public.pedido_items (
+      pedido_id, producto_id, nombre_producto, cantidad, precio_unitario,
+      nota, es_bebida, estacion
+    ) values (
+      v_pedido_id, v_producto.id, v_producto.nombre, v_cantidad, v_precio,
+      nullif(btrim(coalesce(v_item->>'nota', '')), ''),
+      coalesce(v_producto.es_bebida, false), v_estacion_codigo
+    );
+  end loop;
+
+  for v_estacion_codigo in
+    select distinct pi.estacion
+      from public.pedido_items pi
+     where pi.pedido_id = v_pedido_id
+     order by pi.estacion
+  loop
+    select e.id, e.nombre, e.activo
+      into v_estacion_id, v_estacion_nombre, v_estacion_activa
+      from public.estaciones_restaurante e
+     where e.restaurante_id = p_restaurante_id and e.codigo = v_estacion_codigo;
+    if not found or v_estacion_activa is not true then
+      raise exception 'La estación % está desactivada o no existe. Pide al administrador que revise la configuración operativa.',
+        coalesce(v_estacion_nombre, v_estacion_codigo)
+        using errcode = '22023';
+    end if;
+
+    -- Solo las rutas con KDS crean estado de tablero. Las impresoras manuales
+    -- mantienen su propia entrega y una estación sin salida no crea estado operativo.
+    if exists (
+      select 1 from public.destinos_estacion d
+       where d.restaurante_id = p_restaurante_id
+         and d.estacion_id = v_estacion_id
+         and d.grupo = 'principal'
+         and d.activo
+         and d.tipo = 'kds'
+    ) then
+      insert into public.estado_comanda_estacion (restaurante_id, pedido_id, estacion_id, estado)
+      values (p_restaurante_id, v_pedido_id, v_estacion_id, 'pendiente');
+    end if;
+
+    for v_destino in
+      select d.id, d.tipo, d.grupo, d.nombre, d.papel_mm, d.configuracion
+        from public.destinos_estacion d
+       where d.restaurante_id = p_restaurante_id
+         and d.estacion_id = v_estacion_id
+         and d.activo
+         and d.grupo = 'principal'
+       order by d.tipo, d.nombre
+    loop
+      insert into public.entregas_comanda (
+        restaurante_id, pedido_id, estacion_id, estacion_codigo, estacion_nombre,
+        destino_estacion_id, destino_nombre, configuracion_destino,
+        grupo, tipo_destino, configuracion_version, numero_entrega, estado
+      ) values (
+        p_restaurante_id, v_pedido_id, v_estacion_id, v_estacion_codigo, v_estacion_nombre,
+        v_destino.id, v_destino.nombre,
+        coalesce(v_destino.configuracion, '{}'::jsonb) ||
+          case when v_destino.papel_mm is null then '{}'::jsonb
+               else jsonb_build_object('papel_mm', v_destino.papel_mm) end,
+        'principal', v_destino.tipo, v_config_version, 1,
+        case when v_destino.tipo = 'kds' then 'confirmada' else 'pendiente' end
+      );
+    end loop;
+  end loop;
+
+  update public.mesas m set estado = 'ocupada'
+   where m.id = p_mesa_id and m.restaurante_id = p_restaurante_id;
+  return v_pedido_id;
+end;
+$$;
+
+create or replace function public.mesora_reconciliar_estacion_anulada()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_estacion_id uuid;
+  v_estado_global text;
+begin
+  if new.anulado is not true or old.anulado is true then return new; end if;
+  if exists (
+    select 1 from public.pedido_items pi
+     where pi.pedido_id = new.pedido_id
+       and coalesce(pi.estacion, 'cocina') = coalesce(new.estacion, 'cocina')
+       and pi.anulado is not true
+  ) then return new; end if;
+
+  select e.id into v_estacion_id
+    from public.estaciones_restaurante e
+    join public.pedidos p on p.restaurante_id = e.restaurante_id
+   where p.id = new.pedido_id and e.codigo = coalesce(new.estacion, 'cocina');
+  if v_estacion_id is null then return new; end if;
+
+  update public.estado_comanda_estacion s
+     set estado = 'anulado', updated_at = now()
+   where s.pedido_id = new.pedido_id and s.estacion_id = v_estacion_id
+     and s.estado <> 'anulado';
+  update public.entregas_comanda d
+     set estado = 'cancelada', updated_at = now()
+   where d.pedido_id = new.pedido_id and d.estacion_id = v_estacion_id
+     and d.estado in ('pendiente', 'enviada', 'fallida');
+
+  if exists (
+    select 1 from public.pedido_items pi
+     where pi.pedido_id = new.pedido_id and pi.anulado is not true
+  ) then
+    select case
+      when bool_or(s.estado = 'pendiente') then 'pendiente'
+      when bool_or(s.estado = 'en_preparacion') then 'en_preparacion'
+      when bool_or(s.estado = 'listo') then 'listo'
+      else 'entregado'
+    end into v_estado_global
+      from public.estado_comanda_estacion s
+     where s.pedido_id = new.pedido_id and s.estado <> 'anulado';
+    if v_estado_global is not null then
+      update public.pedidos p set estado = v_estado_global, updated_at = now()
+       where p.id = new.pedido_id and p.estado <> 'anulado';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function public.avanzar_comanda_estacion(
+  p_restaurante_id uuid,
+  p_pedido_id uuid,
+  p_estacion_codigo text
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_rol text;
+  v_estado_pedido text;
+  v_estado_estacion text;
+  v_nuevo_estado text;
+  v_estacion_id uuid;
+  v_ruteo_configurado boolean;
+begin
+  perform public.validar_acceso_restaurante(p_restaurante_id);
+
+  select u.rol::text into v_rol
+    from public.usuarios u
+   where u.id = auth.uid() and u.restaurante_id = p_restaurante_id and coalesce(u.activo, true);
+  if v_rol is null or v_rol not in ('cocina', 'mesero', 'admin_restaurante') then
+    raise exception 'Tu perfil no tiene permiso para actualizar las estaciones de preparación.' using errcode = '42501';
+  end if;
+  if p_estacion_codigo not in ('cocina', 'bar', 'otros') then
+    raise exception 'La estación indicada no es válida.' using errcode = '22023';
+  end if;
+
+  select p.estado, coalesce(p.ruteo_configurado, false) into v_estado_pedido, v_ruteo_configurado
+    from public.pedidos p
+   where p.id = p_pedido_id and p.restaurante_id = p_restaurante_id
+   for update;
+  if not found then raise exception 'La comanda no pertenece al restaurante.' using errcode = '23503'; end if;
+  if v_estado_pedido = 'anulado' then raise exception 'La comanda está anulada.' using errcode = '22023'; end if;
+  if v_ruteo_configurado and not exists (
+    select 1 from public.entregas_comanda d
+     where d.restaurante_id = p_restaurante_id and d.pedido_id = p_pedido_id
+       and d.estacion_codigo = p_estacion_codigo and d.grupo = 'principal'
+       and d.tipo_destino = 'kds'
+  ) then
+    raise exception 'Esta estación no tiene una salida KDS configurada para la comanda.' using errcode = '42501';
+  end if;
+  if exists (
+    select 1 from public.cuenta_pedidos cp
+    join public.cuentas c on c.id = cp.cuenta_id
+     where cp.pedido_id = p_pedido_id and c.estado = 'pagada'
+  ) then raise exception 'La comanda ya fue cobrada.' using errcode = '22023'; end if;
+
+  select e.id into v_estacion_id
+    from public.estaciones_restaurante e
+   where e.restaurante_id = p_restaurante_id and e.codigo = p_estacion_codigo;
+  if v_estacion_id is null then raise exception 'No se encontró la estación de esta comanda.' using errcode = '23503'; end if;
+
+  select s.estado into v_estado_estacion
+    from public.estado_comanda_estacion s
+   where s.restaurante_id = p_restaurante_id and s.pedido_id = p_pedido_id and s.estacion_id = v_estacion_id
+   for update;
+  if not found then
+    if exists (select 1 from public.entregas_comanda d where d.pedido_id = p_pedido_id and d.restaurante_id = p_restaurante_id) then
+      raise exception 'La comanda no fue enrutada a esta estación.' using errcode = '42501';
+    end if;
+    v_nuevo_estado := case v_estado_pedido
+      when 'pendiente' then 'en_preparacion'
+      when 'en_preparacion' then 'listo'
+      when 'listo' then 'entregado'
+      else v_estado_pedido
+    end;
+    if v_nuevo_estado = v_estado_pedido then
+      raise exception 'La comanda ya no tiene estados pendientes.' using errcode = '22023';
+    end if;
+    update public.pedidos p set estado = v_nuevo_estado, updated_at = now()
+     where p.id = p_pedido_id and p.restaurante_id = p_restaurante_id and p.estado = v_estado_pedido;
+    if not found then raise exception 'La comanda cambió de estado. Actualiza el tablero.' using errcode = '40001'; end if;
+    return;
+  end if;
+
+  v_nuevo_estado := case v_estado_estacion
+    when 'pendiente' then 'en_preparacion'
+    when 'en_preparacion' then 'listo'
+    when 'listo' then 'entregado'
+    else v_estado_estacion
+  end;
+  if v_nuevo_estado = v_estado_estacion then
+    raise exception 'Esta estación ya terminó la comanda.' using errcode = '22023';
+  end if;
+  update public.estado_comanda_estacion s
+     set estado = v_nuevo_estado,
+         iniciado_at = case when v_nuevo_estado = 'en_preparacion' then coalesce(s.iniciado_at, now()) else s.iniciado_at end,
+         listo_at = case when v_nuevo_estado = 'listo' then now() else s.listo_at end,
+         entregado_at = case when v_nuevo_estado = 'entregado' then now() else s.entregado_at end,
+         updated_at = now()
+   where s.restaurante_id = p_restaurante_id and s.pedido_id = p_pedido_id and s.estacion_id = v_estacion_id;
+
+  select case
+    when bool_or(s.estado = 'pendiente') then 'pendiente'
+    when bool_or(s.estado = 'en_preparacion') then 'en_preparacion'
+    when bool_or(s.estado = 'listo') then 'listo'
+    else 'entregado'
+  end into v_nuevo_estado
+    from public.estado_comanda_estacion s
+   where s.restaurante_id = p_restaurante_id and s.pedido_id = p_pedido_id and s.estado <> 'anulado';
+  if v_nuevo_estado is not null then
+    update public.pedidos p set estado = v_nuevo_estado, updated_at = now()
+     where p.id = p_pedido_id and p.restaurante_id = p_restaurante_id and p.estado <> 'anulado';
+  end if;
+end;
+$$;
+comment on function public.crear_pedido(uuid, uuid, jsonb) is
+  'Crea una comanda con ruta histórica. Producto > categoría > bebida > cocina; sin destino conserva pedido e ítems sin generar salida. Solo crea estado de estación para destinos KDS.';
+revoke all on function public.crear_pedido(uuid, uuid, jsonb) from public, anon;
+grant execute on function public.crear_pedido(uuid, uuid, jsonb) to authenticated;
+
+revoke all on function public.mesora_reconciliar_estacion_anulada() from public, anon, authenticated;
+drop trigger if exists pedido_item_reconciliar_estacion_anulada on public.pedido_items;
+create trigger pedido_item_reconciliar_estacion_anulada
+after update of anulado on public.pedido_items
+for each row execute function public.mesora_reconciliar_estacion_anulada();
+
+comment on function public.avanzar_comanda_estacion(uuid, uuid, text) is
+  'Avanza el estado independiente de una estación KDS de la ruta histórica; el pedido agregado no mezcla estados de otras estaciones.';
+revoke all on function public.avanzar_comanda_estacion(uuid, uuid, text) from public, anon;
+grant execute on function public.avanzar_comanda_estacion(uuid, uuid, text) to authenticated;
+
+create or replace function public.registrar_impresion_salida_comanda(
+  p_restaurante_id uuid,
+  p_pedido_id uuid,
+  p_estacion text,
+  p_entrega_id uuid,
+  p_solicitud_id uuid,
+  p_motivo text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_rol text;
+  v_actor_nombre text;
+  v_restaurante_nombre text;
+  v_mesa_id uuid;
+  v_mesa_nombre text;
+  v_estado_pedido text;
+  v_entrega public.entregas_comanda%rowtype;
+  v_accion_existente text;
+  v_entrega_existente text;
+  v_es_reimpresion boolean;
+  v_accion text;
+  v_motivo text := nullif(btrim(coalesce(p_motivo, '')), '');
+begin
+  if auth.uid() is null then raise exception 'Inicia sesión para registrar la impresión.'; end if;
+  if p_solicitud_id is null then raise exception 'No se pudo identificar esta solicitud de impresión. Inténtalo de nuevo.'; end if;
+  if p_estacion not in ('cocina', 'bar', 'otros') then raise exception 'Selecciona una estación válida.'; end if;
+  perform public.validar_acceso_restaurante(p_restaurante_id);
+
+  select u.rol::text, u.nombre into v_rol, v_actor_nombre
+    from public.usuarios u
+   where u.id = auth.uid() and u.restaurante_id = p_restaurante_id and coalesce(u.activo, true);
+  if coalesce(v_rol, '') not in ('admin_restaurante', 'mesero', 'cocina') then
+    raise exception 'Tu perfil no tiene permiso para imprimir comandas.' using errcode = '42501';
+  end if;
+
+  select d.* into v_entrega
+    from public.entregas_comanda d
+   where d.id = p_entrega_id and d.restaurante_id = p_restaurante_id
+     and d.pedido_id = p_pedido_id and d.grupo = 'principal'
+     and d.tipo_destino = 'impresora'
+   for update;
+  if not found or coalesce(v_entrega.estacion_codigo, p_estacion) <> p_estacion then
+    raise exception 'La salida manual no pertenece a esta comanda y estación.' using errcode = '42501';
+  end if;
+  if v_entrega.estado = 'cancelada' then raise exception 'La salida de impresión fue cancelada.'; end if;
+
+  select p.estado, r.nombre, m.id, m.nombre
+    into v_estado_pedido, v_restaurante_nombre, v_mesa_id, v_mesa_nombre
+    from public.pedidos p
+    join public.restaurantes r on r.id = p.restaurante_id
+    join public.mesas m on m.id = p.mesa_id and m.restaurante_id = p.restaurante_id
+   where p.id = p_pedido_id and p.restaurante_id = p_restaurante_id;
+  if not found or v_estado_pedido = 'anulado' then raise exception 'La comanda está anulada o no pertenece a este restaurante.'; end if;
+  if not exists (
+    select 1 from public.pedido_items pi
+     where pi.pedido_id = p_pedido_id and pi.estacion = p_estacion and pi.anulado is not true
+  ) then raise exception 'Esta comanda no tiene productos vigentes para esa estación.'; end if;
+
+  select l.accion, l.detalle ->> 'entrega_id'
+    into v_accion_existente, v_entrega_existente
+    from public.audit_logs l
+   where l.detalle ->> 'solicitud_id' = p_solicitud_id::text
+   limit 1;
+  if found then
+    if v_entrega_existente = p_entrega_id::text and exists (
+      select 1 from public.audit_logs l
+       where l.detalle ->> 'solicitud_id' = p_solicitud_id::text
+         and l.actor_id = auth.uid() and l.restaurante_id = p_restaurante_id
+         and l.entidad = 'pedido' and l.entidad_id = p_pedido_id
+    ) then
+      return jsonb_build_object('estado', 'registrada', 'accion', v_accion_existente);
+    end if;
+    raise exception 'La solicitud de impresión ya se usó para otra salida.';
+  end if;
+
+  select exists (
+    select 1 from public.audit_logs l
+     where l.restaurante_id = p_restaurante_id and l.entidad = 'pedido'
+       and l.entidad_id = p_pedido_id
+       and l.accion in ('comanda_imprimir', 'comanda_reimprimir')
+       and l.detalle ->> 'entrega_id' = p_entrega_id::text
+  ) into v_es_reimpresion;
+  if v_es_reimpresion and v_motivo is null then return jsonb_build_object('estado', 'requiere_motivo'); end if;
+  if v_es_reimpresion and (length(v_motivo) < 5 or length(v_motivo) > 300) then
+    raise exception 'Escribe un motivo de reimpresión de entre 5 y 300 caracteres.';
+  end if;
+
+  v_accion := case when v_es_reimpresion then 'comanda_reimprimir' else 'comanda_imprimir' end;
+  begin
+    insert into public.audit_logs (
+      actor_id, actor_rol, actor_nombre, restaurante_id, restaurante_nombre,
+      entidad, entidad_id, accion, descripcion, detalle
+    ) values (
+      auth.uid(), v_rol, v_actor_nombre, p_restaurante_id, v_restaurante_nombre,
+      'pedido', p_pedido_id, v_accion,
+      case when v_es_reimpresion then 'Comanda reimpresa en ' else 'Comanda enviada a impresión en ' end
+        || initcap(p_estacion) || ', mesa ' || v_mesa_nombre || ' (' || coalesce(v_entrega.destino_nombre, 'impresora configurada') || ').',
+      jsonb_build_object(
+        'solicitud_id', p_solicitud_id,
+        'entrega_id', p_entrega_id,
+        'pedido_id', p_pedido_id,
+        'mesa_id', v_mesa_id,
+        'mesa_nombre', v_mesa_nombre,
+        'estacion', p_estacion,
+        'impresora', v_entrega.destino_nombre,
+        'papel_mm', v_entrega.configuracion_destino -> 'papel_mm',
+        'copias', coalesce(v_entrega.configuracion_destino -> 'copias', '1'::jsonb),
+        'configuracion_version', v_entrega.configuracion_version,
+        'configuracion_destino', v_entrega.configuracion_destino,
+        'motivo', case when v_es_reimpresion then v_motivo else null end
+      )
+    );
+  exception when unique_violation then
+    select l.accion into v_accion_existente
+      from public.audit_logs l
+     where l.detalle ->> 'solicitud_id' = p_solicitud_id::text
+       and l.detalle ->> 'entrega_id' = p_entrega_id::text
+       and l.actor_id = auth.uid() and l.restaurante_id = p_restaurante_id
+       and l.entidad_id = p_pedido_id;
+    if not found then raise exception 'La solicitud de impresión ya se usó para otra salida.'; end if;
+    return jsonb_build_object('estado', 'registrada', 'accion', v_accion_existente);
+  end;
+
+  update public.entregas_comanda d set estado = 'enviada', updated_at = now()
+       , solicitud_impresion_id = p_solicitud_id
+   where d.id = p_entrega_id and d.restaurante_id = p_restaurante_id;
+  return jsonb_build_object('estado', 'registrada', 'accion', v_accion);
+end;
+$$;
+
+create or replace function public.actualizar_estado_salida_comanda(
+  p_restaurante_id uuid,
+  p_entrega_id uuid,
+  p_solicitud_id uuid,
+  p_estado text
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_rol text;
+  v_estado_actual text;
+begin
+  if auth.uid() is null then raise exception 'Inicia sesión para actualizar la salida.'; end if;
+  if p_estado not in ('confirmada', 'fallida') then raise exception 'Estado de impresión no válido.'; end if;
+  perform public.validar_acceso_restaurante(p_restaurante_id);
+
+  select u.rol::text into v_rol
+    from public.usuarios u
+   where u.id = auth.uid() and u.restaurante_id = p_restaurante_id and coalesce(u.activo, true);
+  if coalesce(v_rol, '') not in ('admin_restaurante', 'mesero', 'cocina') then
+    raise exception 'Tu perfil no tiene permiso para actualizar esta salida.' using errcode = '42501';
+  end if;
+
+  select d.estado into v_estado_actual
+    from public.entregas_comanda d
+   where d.id = p_entrega_id and d.restaurante_id = p_restaurante_id
+     and d.grupo = 'principal' and d.tipo_destino = 'impresora'
+   for update;
+  if not found or v_estado_actual = 'cancelada' then raise exception 'La salida de impresión ya no está disponible.'; end if;
+  if not exists (
+    select 1 from public.audit_logs l
+     where l.detalle ->> 'solicitud_id' = p_solicitud_id::text
+       and l.detalle ->> 'entrega_id' = p_entrega_id::text
+       and l.actor_id = auth.uid() and l.restaurante_id = p_restaurante_id
+       and l.accion in ('comanda_imprimir', 'comanda_reimprimir')
+  ) then raise exception 'No se encontró la solicitud de impresión asociada.'; end if;
+
+  if not exists (
+    select 1 from public.entregas_comanda d
+     where d.id = p_entrega_id and d.restaurante_id = p_restaurante_id
+       and d.solicitud_impresion_id = p_solicitud_id
+  ) then
+    raise exception 'Hay otra solicitud de impresión activa. Actualiza la cola antes de confirmar.';
+  end if;
+  if v_estado_actual = p_estado then return; end if;
+  if v_estado_actual not in ('enviada', 'fallida') then
+    raise exception 'La salida no está esperando confirmación de impresión.';
+  end if;
+
+  update public.entregas_comanda d set estado = p_estado, updated_at = now()
+   where d.id = p_entrega_id and d.restaurante_id = p_restaurante_id;
+end;
+$$;
+
+revoke all on function public.registrar_impresion_salida_comanda(uuid, uuid, text, uuid, uuid, text) from public, anon;
+revoke all on function public.actualizar_estado_salida_comanda(uuid, uuid, uuid, text) from public, anon;
+grant execute on function public.registrar_impresion_salida_comanda(uuid, uuid, text, uuid, uuid, text) to authenticated;
+grant execute on function public.actualizar_estado_salida_comanda(uuid, uuid, uuid, text) to authenticated;
+
+commit;
+
+
+-- #############################################################################
+-- # 52/53 · ../migrations/20261109061058_fase6_agente_impresion_automatica.sql
+-- #############################################################################
+
+-- -- Mesora Fase 6. La cola y los verificadores viven fuera del esquema expuesto.
+-- Ninguna clave service_role se entrega al agente. La API pública valida un
+-- token aleatorio de 256 bits cuyo SHA-256 es el único valor persistido aquí.
+begin;
+
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+
+create table if not exists private.agentes_impresion (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  nombre text not null check (length(btrim(nombre)) between 2 and 80),
+  token_hash text not null unique check (token_hash ~ '^[0-9a-f]{64}$'),
+  estado text not null default 'activo' check (estado in ('activo','revocado')),
+  impresoras_detectadas jsonb not null default '[]'::jsonb check (jsonb_typeof(impresoras_detectadas) = 'array'),
+  creado_at timestamptz not null default now(),
+  ultimo_heartbeat_at timestamptz,
+  revocado_at timestamptz,
+  constraint agentes_impresion_id_restaurante unique (id, restaurante_id)
+);
+
+create table if not exists private.codigos_agente_impresion (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  codigo_hash text not null unique check (codigo_hash ~ '^[0-9a-f]{64}$'),
+  creado_por uuid not null references public.usuarios(id),
+  creado_at timestamptz not null default now(),
+  expira_at timestamptz not null,
+  usado_at timestamptz,
+  constraint codigos_agente_expira check (expira_at > creado_at and expira_at <= creado_at + interval '15 minutes')
+);
+create index if not exists codigos_agente_restaurante_idx
+  on private.codigos_agente_impresion(restaurante_id, creado_at desc);
+
+create table if not exists private.asignaciones_impresora (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  destino_id uuid not null,
+  agente_id uuid not null,
+  cola_windows text not null check (length(btrim(cola_windows)) between 1 and 160),
+  activa boolean not null default true,
+  max_intentos smallint not null default 3 check (max_intentos between 1 and 10),
+  reintento_base_seg smallint not null default 15 check (reintento_base_seg between 5 and 300),
+  creado_at timestamptz not null default now(),
+  actualizado_at timestamptz not null default now(),
+  constraint asignacion_destino_restaurante unique (restaurante_id, destino_id),
+  constraint asignacion_id_restaurante unique (id, restaurante_id),
+  constraint asignacion_destino_fk foreign key (destino_id, restaurante_id)
+    references public.destinos_estacion(id, restaurante_id) on delete restrict,
+  constraint asignacion_agente_fk foreign key (agente_id, restaurante_id)
+    references private.agentes_impresion(id, restaurante_id) on delete restrict
+);
+
+create unique index if not exists entregas_comanda_id_restaurante_fase6
+  on public.entregas_comanda(id, restaurante_id);
+
+create table if not exists private.trabajos_impresion (
+  id uuid primary key default gen_random_uuid(),
+  restaurante_id uuid not null references public.restaurantes(id) on delete cascade,
+  tipo text not null default 'comanda' check (tipo in ('comanda','prueba')),
+  entrega_id uuid,
+  pedido_id uuid,
+  destino_id uuid not null,
+  agente_id uuid not null,
+  estacion_codigo text not null check (estacion_codigo in ('cocina','bar')),
+  cola_windows text not null check (length(btrim(cola_windows)) between 1 and 160),
+  papel_mm smallint not null check (papel_mm in (58,80)),
+  copias smallint not null check (copias between 1 and 5),
+  configuracion_version integer not null check (configuracion_version >= 1),
+  estado text not null default 'pendiente'
+    check (estado in ('pendiente','reclamado','enviado','fallido','cancelado')),
+  intentos smallint not null default 0 check (intentos >= 0),
+  max_intentos smallint not null check (max_intentos between 1 and 10),
+  reintento_base_seg smallint not null check (reintento_base_seg between 5 and 300),
+  proximo_intento_at timestamptz,
+  lease_hasta timestamptz,
+  reclamo_id uuid,
+  envio_iniciado_at timestamptz,
+  enviado_at timestamptz,
+  error_ultimo text,
+  error_final text,
+  creado_at timestamptz not null default now(),
+  actualizado_at timestamptz not null default now(),
+  constraint trabajo_entrega_unique unique (entrega_id),
+  constraint trabajo_agente_fk foreign key (agente_id, restaurante_id)
+    references private.agentes_impresion(id, restaurante_id) on delete restrict,
+  constraint trabajo_destino_fk foreign key (destino_id, restaurante_id)
+    references public.destinos_estacion(id, restaurante_id) on delete restrict,
+  constraint trabajo_entrega_fk foreign key (entrega_id, restaurante_id)
+    references public.entregas_comanda(id, restaurante_id) on delete restrict,
+  constraint trabajo_pedido_fk foreign key (pedido_id, restaurante_id)
+    references public.pedidos(id, restaurante_id) on delete restrict,
+  constraint trabajo_tipo_check check (
+    (tipo = 'prueba' and entrega_id is null and pedido_id is null)
+    or (tipo = 'comanda' and entrega_id is not null and pedido_id is not null)
+  )
+);
+create index if not exists trabajos_impresion_reclamo_idx
+  on private.trabajos_impresion(agente_id, estado, proximo_intento_at, creado_at)
+  where estado in ('pendiente','fallido','reclamado');
+
+alter table private.agentes_impresion enable row level security;
+alter table private.codigos_agente_impresion enable row level security;
+alter table private.asignaciones_impresora enable row level security;
+alter table private.trabajos_impresion enable row level security;
+revoke all on table private.agentes_impresion, private.codigos_agente_impresion,
+  private.asignaciones_impresora, private.trabajos_impresion from public, anon, authenticated;
+
+-- No se conceden políticas directas: toda lectura o escritura pasa por RPC
+-- con comprobación de rol, restaurante y/o verificador de token.
+create or replace function private.validar_admin_impresion(p_restaurante_id uuid)
+returns uuid language plpgsql security definer set search_path = '' as $$
+declare v_actor uuid := auth.uid();
+begin
+  if v_actor is null or not exists (
+    select 1 from public.usuarios u where u.id = v_actor
+      and u.restaurante_id = p_restaurante_id and u.rol::text = 'admin_restaurante'
+      and coalesce(u.activo, true)
+  ) then raise exception 'Solo el administrador del restaurante puede gestionar agentes de impresión.' using errcode='42501'; end if;
+  return v_actor;
+end; $$;
+
+-- El código existe solo diez minutos; el agente crea su token y la base conserva
+-- únicamente el hash. FOR UPDATE hace imposible consumirlo dos veces.
+create or replace function public.agente_impresion_vincular(p_codigo text,p_token text,p_nombre text)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_codigo private.codigos_agente_impresion%rowtype; v_agente_id uuid;
+begin
+  if coalesce(p_codigo,'') !~ '^[0-9a-f]{32}$' or coalesce(p_token,'') !~ '^[0-9a-f]{64}$'
+    or length(btrim(coalesce(p_nombre,''))) not between 2 and 80 then
+    raise exception 'Código, token o nombre inválido.' using errcode='22023'; end if;
+  select c.* into v_codigo from private.codigos_agente_impresion c
+    where c.codigo_hash=encode(extensions.digest(p_codigo,'sha256'),'hex') for update;
+  if not found or v_codigo.usado_at is not null or v_codigo.expira_at <= now() then
+    raise exception 'El código venció o ya fue utilizado. Solicita uno nuevo.' using errcode='42501'; end if;
+  insert into private.agentes_impresion(restaurante_id,nombre,token_hash)
+    values(v_codigo.restaurante_id,btrim(p_nombre),encode(extensions.digest(p_token,'sha256'),'hex'))
+    returning id into v_agente_id;
+  update private.codigos_agente_impresion set usado_at=now() where id=v_codigo.id;
+  insert into public.audit_logs(actor_id,actor_rol,restaurante_id,entidad,entidad_id,accion,descripcion,detalle)
+    values(v_codigo.creado_por,'admin_restaurante',v_codigo.restaurante_id,'agente_impresion',v_agente_id,
+      'agente_impresion_vincular','Agente local de impresión vinculado.',jsonb_build_object('agente_id',v_agente_id));
+  return jsonb_build_object('agente_id',v_agente_id,'restaurante_id',v_codigo.restaurante_id);
+end; $$;
+
+create or replace function private.agente_impresion_activo(p_token text)
+returns private.agentes_impresion language plpgsql security definer set search_path = '' as $$
+declare v_agente private.agentes_impresion%rowtype;
+begin
+  if coalesce(p_token,'') !~ '^[0-9a-f]{64}$' then
+    raise exception 'Agente no autorizado.' using errcode='42501'; end if;
+  select a.* into v_agente from private.agentes_impresion a
+    where a.token_hash=encode(extensions.digest(p_token,'sha256'),'hex') and a.estado='activo';
+  if not found then raise exception 'Agente no autorizado o revocado.' using errcode='42501'; end if;
+  return v_agente;
+end; $$;
+revoke all on function private.agente_impresion_activo(text) from public, anon, authenticated;
+
+create or replace function public.agente_impresion_heartbeat(p_token text,p_impresoras jsonb default '[]'::jsonb)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_agente private.agentes_impresion%rowtype;
+begin
+  v_agente := private.agente_impresion_activo(p_token);
+  if jsonb_typeof(p_impresoras) <> 'array' or jsonb_array_length(p_impresoras)>40
+    or length(p_impresoras::text)>8000 or exists(
+      select 1 from jsonb_array_elements(p_impresoras) x
+        where jsonb_typeof(x) <> 'string' or length(trim(both '"' from x::text)) > 160
+    ) then raise exception 'Lista de impresoras inválida.' using errcode='22023'; end if;
+  update private.agentes_impresion set ultimo_heartbeat_at=now(),
+    impresoras_detectadas=p_impresoras
+    where id=v_agente.id and restaurante_id=v_agente.restaurante_id
+      and (ultimo_heartbeat_at is null or ultimo_heartbeat_at <= now()-interval '15 seconds');
+  return jsonb_build_object('agente_id',v_agente.id,'restaurante_id',v_agente.restaurante_id,
+    'actualizado',found,'espera_segundos',case when found then 30 else 15 end);
+end; $$;
+
+-- Creación idempotente al insertar la entrega histórica. Las asignaciones
+-- posteriores no imprimen pedidos antiguos por sorpresa.
+create or replace function private.encolar_entrega_impresora()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare v_asig private.asignaciones_impresora%rowtype;
+begin
+  if new.tipo_destino <> 'impresora' or new.grupo <> 'principal'
+    or new.estacion_codigo not in ('cocina','bar') then return new; end if;
+  select x.* into v_asig from private.asignaciones_impresora x
+    join private.agentes_impresion a on a.id=x.agente_id and a.restaurante_id=x.restaurante_id
+    where x.restaurante_id=new.restaurante_id and x.destino_id=new.destino_estacion_id
+      and x.activa and a.estado='activo';
+  if not found then return new; end if;
+  insert into private.trabajos_impresion(restaurante_id,tipo,entrega_id,pedido_id,destino_id,
+    agente_id,estacion_codigo,cola_windows,papel_mm,copias,configuracion_version,
+    max_intentos,reintento_base_seg)
+    values(new.restaurante_id,'comanda',new.id,new.pedido_id,new.destino_estacion_id,
+      v_asig.agente_id,new.estacion_codigo,v_asig.cola_windows,
+      coalesce((new.configuracion_destino->>'papel_mm')::smallint,80),
+      least(5,greatest(1,coalesce((new.configuracion_destino->>'copias')::smallint,1))),
+      new.configuracion_version,v_asig.max_intentos,v_asig.reintento_base_seg)
+    on conflict (entrega_id) do nothing;
+  return new;
+end; $$;
+revoke all on function private.encolar_entrega_impresora() from public, anon, authenticated;
+drop trigger if exists entregas_comanda_encolar_agente on public.entregas_comanda;
+create trigger entregas_comanda_encolar_agente after insert on public.entregas_comanda
+  for each row execute function private.encolar_entrega_impresora();
+
+-- La solicitud manual cancela un trabajo aún no reclamado. Si el agente ya lo
+-- reclamó, se informa al operador y no se generan dos impresiones simultáneas.
+create or replace function private.sincronizar_entrega_impresora()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare v_estado text; v_lease timestamptz; v_envio timestamptz;
+begin
+  if new.estado='cancelada' and old.estado <> 'cancelada' then
+    update private.trabajos_impresion set estado='cancelado',lease_hasta=null,
+      error_final=coalesce(error_final,'La entrega fue cancelada.'),actualizado_at=now()
+      where entrega_id=new.id and estado in ('pendiente','fallido','reclamado');
+  elsif new.solicitud_impresion_id is not null
+    and new.solicitud_impresion_id is distinct from old.solicitud_impresion_id then
+    select estado,lease_hasta,envio_iniciado_at into v_estado,v_lease,v_envio from private.trabajos_impresion
+      where entrega_id=new.id for update;
+    if v_estado='reclamado' and (v_lease >= now() or v_envio is not null) then
+      raise exception 'El agente está procesando esta comanda. Actualiza la cola antes de imprimir manualmente.' using errcode='40001'; end if;
+    if v_estado in ('pendiente','fallido','reclamado') then
+      update private.trabajos_impresion set estado='cancelado',lease_hasta=null,
+        error_final=coalesce(error_final,'Salida manual solicitada.'),actualizado_at=now()
+        where entrega_id=new.id and (estado='pendiente' or proximo_intento_at is not null
+          or (estado='reclamado' and lease_hasta<now() and envio_iniciado_at is null));
+    end if;
+  end if;
+  return new;
+end; $$;
+revoke all on function private.sincronizar_entrega_impresora() from public, anon, authenticated;
+drop trigger if exists entregas_comanda_sincronizar_agente on public.entregas_comanda;
+create trigger entregas_comanda_sincronizar_agente before update of estado,solicitud_impresion_id
+  on public.entregas_comanda for each row execute function private.sincronizar_entrega_impresora();
+revoke all on function private.validar_admin_impresion(uuid) from public, anon, authenticated;
+
+create or replace function public.admin_impresion_crear_codigo(p_restaurante_id uuid)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_actor uuid; v_codigo text; v_expira timestamptz := now() + interval '10 minutes';
+begin
+  v_actor := private.validar_admin_impresion(p_restaurante_id);
+  if exists (select 1 from private.codigos_agente_impresion c
+      where c.creado_por = v_actor and c.creado_at > now() - interval '60 seconds')
+    or (select count(*) from private.codigos_agente_impresion c
+      where c.creado_por = v_actor and c.creado_at > now() - interval '1 hour') >= 5 then
+    raise exception 'Espera antes de crear otro código de vinculación.' using errcode='22023';
+  end if;
+  v_codigo := encode(extensions.gen_random_bytes(16), 'hex');
+  insert into private.codigos_agente_impresion(restaurante_id,codigo_hash,creado_por,expira_at)
+    values(p_restaurante_id,encode(extensions.digest(v_codigo,'sha256'),'hex'),v_actor,v_expira);
+  return jsonb_build_object('codigo',v_codigo,'expira_at',v_expira);
+end; $$;
+
+create or replace function public.admin_impresion_panel(p_restaurante_id uuid)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.validar_admin_impresion(p_restaurante_id);
+  return jsonb_build_object(
+    'agentes', coalesce((select jsonb_agg(jsonb_build_object(
+      'id',a.id,'nombre',a.nombre,'estado',a.estado,
+      'ultimo_heartbeat_at',a.ultimo_heartbeat_at,
+      'impresoras_detectadas',a.impresoras_detectadas,
+      'conectado',a.estado='activo' and a.ultimo_heartbeat_at > now()-interval '90 seconds'
+    ) order by a.creado_at desc) from private.agentes_impresion a
+      where a.restaurante_id=p_restaurante_id),'[]'::jsonb),
+    'asignaciones', coalesce((select jsonb_agg(jsonb_build_object(
+      'destino_id',x.destino_id,'agente_id',x.agente_id,'cola_windows',x.cola_windows,
+      'activa',x.activa,'max_intentos',x.max_intentos,'reintento_base_seg',x.reintento_base_seg
+    )) from private.asignaciones_impresora x
+      where x.restaurante_id=p_restaurante_id),'[]'::jsonb),
+    'trabajos', coalesce((select jsonb_agg(jsonb_build_object(
+      'id',t.id,'tipo',t.tipo,'estacion',t.estacion_codigo,'estado',t.estado,
+      'cola_windows',t.cola_windows,'intentos',t.intentos,'max_intentos',t.max_intentos,
+      'creado_at',t.creado_at,'enviado_at',t.enviado_at,'error_final',t.error_final
+    ) order by t.creado_at desc) from (select * from private.trabajos_impresion
+      where restaurante_id=p_restaurante_id order by creado_at desc limit 30) t),'[]'::jsonb),
+    'respaldo_automatico_disponible', false
+  );
+end; $$;
+
+create or replace function public.admin_impresion_revocar(p_restaurante_id uuid,p_agente_id uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+declare v_actor uuid;
+begin
+  v_actor := private.validar_admin_impresion(p_restaurante_id);
+  update private.agentes_impresion set estado='revocado',revocado_at=now()
+    where id=p_agente_id and restaurante_id=p_restaurante_id and estado='activo';
+  if not found then raise exception 'El agente no existe o ya fue revocado.'; end if;
+  update private.asignaciones_impresora set activa=false,actualizado_at=now()
+    where agente_id=p_agente_id and restaurante_id=p_restaurante_id;
+  update private.trabajos_impresion set estado='cancelado',lease_hasta=null,
+    error_final=coalesce(error_final,'Agente revocado; usa la salida manual.'),actualizado_at=now()
+    where agente_id=p_agente_id and restaurante_id=p_restaurante_id
+      and (estado in ('pendiente','reclamado')
+        or (estado='fallido' and proximo_intento_at is not null));
+  insert into public.audit_logs(actor_id,actor_rol,restaurante_id,entidad,entidad_id,accion,descripcion,detalle)
+    values(v_actor,'admin_restaurante',p_restaurante_id,'agente_impresion',p_agente_id,
+      'agente_impresion_revocar','Agente de impresión revocado.',jsonb_build_object('agente_id',p_agente_id));
+end; $$;
+
+create or replace function public.admin_impresion_asignar(
+  p_restaurante_id uuid,p_destino_id uuid,p_agente_id uuid,p_cola_windows text,
+  p_activa boolean default true,p_max_intentos integer default 3,p_reintento_base_seg integer default 15
+) returns void language plpgsql security definer set search_path = '' as $$
+declare v_actor uuid; v_estacion text; v_grupo text; v_cola text := btrim(coalesce(p_cola_windows,''));
+begin
+  v_actor := private.validar_admin_impresion(p_restaurante_id);
+  select e.codigo,d.grupo into v_estacion,v_grupo from public.destinos_estacion d
+    join public.estaciones_restaurante e on e.id=d.estacion_id and e.restaurante_id=d.restaurante_id
+    where d.id=p_destino_id and d.restaurante_id=p_restaurante_id and d.tipo='impresora';
+  if v_estacion not in ('cocina','bar') or v_estacion is null then
+    raise exception 'Solo se pueden asignar impresoras de Cocina o Barra.' using errcode='22023'; end if;
+  if v_grupo='respaldo' and p_activa then
+    raise exception 'La impresión automática de respaldo aún no está habilitada.' using errcode='22023'; end if;
+  if not exists(select 1 from private.agentes_impresion a
+      where a.id=p_agente_id and a.restaurante_id=p_restaurante_id and a.estado='activo') then
+    raise exception 'El agente no está activo en este restaurante.' using errcode='42501'; end if;
+  if length(v_cola) not between 1 and 160 or p_max_intentos not between 1 and 10
+    or p_reintento_base_seg not between 5 and 300 then
+    raise exception 'Revisa el nombre de impresora y los límites de reintento.' using errcode='22023'; end if;
+  insert into private.asignaciones_impresora(restaurante_id,destino_id,agente_id,cola_windows,activa,max_intentos,reintento_base_seg)
+    values(p_restaurante_id,p_destino_id,p_agente_id,v_cola,p_activa,p_max_intentos,p_reintento_base_seg)
+    on conflict (restaurante_id,destino_id) do update set agente_id=excluded.agente_id,
+      cola_windows=excluded.cola_windows,activa=excluded.activa,max_intentos=excluded.max_intentos,
+      reintento_base_seg=excluded.reintento_base_seg,actualizado_at=now();
+  insert into public.audit_logs(actor_id,actor_rol,restaurante_id,entidad,entidad_id,accion,descripcion,detalle)
+    values(v_actor,'admin_restaurante',p_restaurante_id,'destino_impresion',p_destino_id,
+      'impresora_agente_asignar','Impresora Windows asignada a destino.',
+      jsonb_build_object('agente_id',p_agente_id,'destino_id',p_destino_id,'estacion',v_estacion,
+        'cola_windows',v_cola,'activa',p_activa));
+end; $$;
+
+create or replace function public.admin_impresion_prueba(p_restaurante_id uuid,p_destino_id uuid)
+returns uuid language plpgsql security definer set search_path = '' as $$
+declare v_actor uuid; v_asig private.asignaciones_impresora%rowtype; v_destino public.destinos_estacion%rowtype;
+  v_estacion text; v_id uuid;
+begin
+  v_actor := private.validar_admin_impresion(p_restaurante_id);
+  select x.* into v_asig from private.asignaciones_impresora x
+    join private.agentes_impresion a on a.id=x.agente_id and a.restaurante_id=x.restaurante_id
+    where x.restaurante_id=p_restaurante_id and x.destino_id=p_destino_id
+      and x.activa and a.estado='activo';
+  if not found then raise exception 'Asigna un agente activo a esta impresora antes de probar.'; end if;
+  select d.* into v_destino from public.destinos_estacion d
+    join public.estaciones_restaurante e on e.id=d.estacion_id and e.restaurante_id=d.restaurante_id
+    where d.id=p_destino_id and d.restaurante_id=p_restaurante_id and d.tipo='impresora' and d.grupo='principal'
+      and e.codigo in ('cocina','bar');
+  select e.codigo into v_estacion from public.estaciones_restaurante e
+    where e.id=v_destino.estacion_id and e.restaurante_id=p_restaurante_id;
+  if not found or v_estacion not in ('cocina','bar') then raise exception 'La prueba requiere una impresora principal de Cocina o Barra.'; end if;
+  insert into private.trabajos_impresion(restaurante_id,tipo,destino_id,agente_id,estacion_codigo,
+    cola_windows,papel_mm,copias,configuracion_version,max_intentos,reintento_base_seg)
+    values(p_restaurante_id,'prueba',p_destino_id,v_asig.agente_id,v_estacion,v_asig.cola_windows,
+      v_destino.papel_mm,least(5,greatest(1,coalesce((v_destino.configuracion->>'copias')::integer,1))),
+      (select version from public.configuracion_operativa where restaurante_id=p_restaurante_id),
+      v_asig.max_intentos,v_asig.reintento_base_seg) returning id into v_id;
+  insert into public.audit_logs(actor_id,actor_rol,restaurante_id,entidad,entidad_id,accion,descripcion,detalle)
+    values(v_actor,'admin_restaurante',p_restaurante_id,'trabajo_impresion',v_id,
+      'impresion_prueba_solicitar','Prueba de impresión solicitada por el administrador.',
+      jsonb_build_object('destino_id',p_destino_id,'estacion',v_estacion,'cola_windows',v_asig.cola_windows));
+  return v_id;
+end; $$;
+
+-- Cada reclamo bloquea una sola fila. Un lease vencido se recupera solamente
+-- si el agente aún no inició el envío al spooler de Windows.
+create or replace function public.agente_impresion_reclamar(p_token text)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_agente private.agentes_impresion%rowtype; v_job private.trabajos_impresion%rowtype;
+  v_reclamo uuid := gen_random_uuid(); v_restaurante text; v_mesa text; v_mesero text;
+  v_items jsonb;
+begin
+  v_agente := private.agente_impresion_activo(p_token);
+  update private.trabajos_impresion set estado='fallido',proximo_intento_at=null,
+    error_final='Resultado incierto: el agente inició el envío y perdió la conexión. Revisar antes de reimprimir.',
+    actualizado_at=now()
+    where agente_id=v_agente.id and estado='reclamado' and lease_hasta<now()
+      and envio_iniciado_at is not null;
+  update private.trabajos_impresion set estado='fallido',proximo_intento_at=null,
+    error_final='Se agotaron los intentos antes de enviar a la impresora.',actualizado_at=now()
+    where agente_id=v_agente.id and estado='reclamado' and lease_hasta<now()
+      and envio_iniciado_at is null and intentos>=max_intentos;
+
+  select j.* into v_job from private.trabajos_impresion j
+    where j.agente_id=v_agente.id and j.restaurante_id=v_agente.restaurante_id
+      and j.intentos < j.max_intentos
+      and (j.estado='pendiente'
+        or (j.estado='fallido' and j.proximo_intento_at is not null and j.proximo_intento_at<=now())
+        or (j.estado='reclamado' and j.envio_iniciado_at is null and j.lease_hasta<now()))
+      and (j.tipo='prueba' or exists(
+        select 1 from public.entregas_comanda d where d.id=j.entrega_id
+          and d.restaurante_id=j.restaurante_id and d.estado in ('pendiente','fallida')
+      ))
+    order by j.creado_at,j.id limit 1 for update of j skip locked;
+  if not found then return null; end if;
+  update private.trabajos_impresion set estado='reclamado',intentos=intentos+1,
+    reclamo_id=v_reclamo,lease_hasta=now()+interval '90 seconds',envio_iniciado_at=null,
+    proximo_intento_at=null,actualizado_at=now() where id=v_job.id;
+  select r.nombre into v_restaurante from public.restaurantes r where r.id=v_job.restaurante_id;
+  if v_job.tipo='comanda' then
+    select m.nombre,u.nombre into v_mesa,v_mesero from public.pedidos p
+      join public.mesas m on m.id=p.mesa_id and m.restaurante_id=p.restaurante_id
+      left join public.usuarios u on u.id=p.mesero_id
+      where p.id=v_job.pedido_id and p.restaurante_id=v_job.restaurante_id;
+    select coalesce(jsonb_agg(jsonb_build_object('nombre',pi.nombre_producto,
+      'cantidad',pi.cantidad,'nota',pi.nota) order by pi.created_at,pi.id),'[]'::jsonb)
+      into v_items from public.pedido_items pi
+      where pi.pedido_id=v_job.pedido_id and pi.estacion=v_job.estacion_codigo and pi.anulado is not true;
+    if v_items='[]'::jsonb then
+      update private.trabajos_impresion set estado='cancelado',error_final='Sin productos vigentes.',
+        lease_hasta=null,actualizado_at=now() where id=v_job.id;
+      return null;
+    end if;
+  else
+    v_mesa := 'PRUEBA'; v_mesero := 'Administrador';
+    v_items := jsonb_build_array(jsonb_build_object('nombre','Prueba de impresión Mesora',
+      'cantidad',1,'nota','Verifica el papel y el corte.'));
+  end if;
+  return jsonb_build_object('id',v_job.id,'reclamo_id',v_reclamo,'tipo',v_job.tipo,
+    'restaurante',v_restaurante,'restaurante_id',v_job.restaurante_id,
+    'pedido_id',v_job.pedido_id,'mesa',v_mesa,'mesero',v_mesero,
+    'estacion',v_job.estacion_codigo,'cola_windows',v_job.cola_windows,
+    'papel_mm',v_job.papel_mm,'copias',v_job.copias,
+    'configuracion_version',v_job.configuracion_version,
+    'numero_intento',v_job.intentos+1,'creado_at',v_job.creado_at,'items',v_items);
+end; $$;
+
+create or replace function public.agente_impresion_iniciar_envio(p_token text,p_trabajo_id uuid,p_reclamo_id uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+declare v_agente private.agentes_impresion%rowtype; v_job private.trabajos_impresion%rowtype;
+begin
+  v_agente := private.agente_impresion_activo(p_token);
+  select j.* into v_job from private.trabajos_impresion j
+    where j.id=p_trabajo_id and j.agente_id=v_agente.id and j.restaurante_id=v_agente.restaurante_id for update;
+  if not found or v_job.estado<>'reclamado' or v_job.reclamo_id is distinct from p_reclamo_id
+    or v_job.lease_hasta<=now() then raise exception 'El reclamo expiró o pertenece a otro agente.' using errcode='42501'; end if;
+  if v_job.tipo='comanda' and not exists(select 1 from public.entregas_comanda d
+    where d.id=v_job.entrega_id and d.restaurante_id=v_job.restaurante_id
+      and d.estado in ('pendiente','fallida')) then
+    raise exception 'La comanda ya no requiere impresión automática.' using errcode='22023'; end if;
+  update private.trabajos_impresion set envio_iniciado_at=coalesce(envio_iniciado_at,now()),
+    lease_hasta=now()+interval '5 minutes',actualizado_at=now() where id=v_job.id;
+end; $$;
+
+create or replace function public.agente_impresion_confirmar(p_token text,p_trabajo_id uuid,p_reclamo_id uuid)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_agente private.agentes_impresion%rowtype; v_job private.trabajos_impresion%rowtype;
+  v_restaurante text; v_mesa text;
+begin
+  v_agente := private.agente_impresion_activo(p_token);
+  select j.* into v_job from private.trabajos_impresion j
+    where j.id=p_trabajo_id and j.agente_id=v_agente.id and j.restaurante_id=v_agente.restaurante_id for update;
+  if not found or v_job.reclamo_id is distinct from p_reclamo_id then
+    raise exception 'El reclamo pertenece a otro agente.' using errcode='42501'; end if;
+  if v_job.estado='enviado' then return jsonb_build_object('estado','enviado','idempotente',true); end if;
+  if v_job.estado not in ('reclamado','fallido') or v_job.envio_iniciado_at is null then
+    raise exception 'El trabajo no inició un envío válido.' using errcode='22023'; end if;
+  if v_job.estado='fallido' and v_job.proximo_intento_at is not null then
+    raise exception 'Este reclamo ya terminó y está programado para reintento.' using errcode='22023'; end if;
+  if v_job.tipo='comanda' then
+    update public.entregas_comanda set estado='enviada',updated_at=now()
+      where id=v_job.entrega_id and restaurante_id=v_job.restaurante_id
+        and estado in ('pendiente','fallida') and solicitud_impresion_id is null;
+    if not found then raise exception 'La salida fue cancelada o se imprimió manualmente.' using errcode='40001'; end if;
+  end if;
+  update private.trabajos_impresion set estado='enviado',enviado_at=now(),lease_hasta=null,
+    proximo_intento_at=null,error_final=null,actualizado_at=now() where id=v_job.id;
+  select nombre into v_restaurante from public.restaurantes where id=v_job.restaurante_id;
+  if v_job.pedido_id is not null then
+    select m.nombre into v_mesa from public.mesas m join public.pedidos p
+      on p.mesa_id=m.id and p.restaurante_id=m.restaurante_id where p.id=v_job.pedido_id;
+  end if;
+  insert into public.audit_logs(actor_id,actor_rol,actor_nombre,restaurante_id,restaurante_nombre,
+    entidad,entidad_id,accion,descripcion,detalle)
+    values(null,'agente_impresion',v_agente.nombre,v_job.restaurante_id,v_restaurante,
+      case when v_job.tipo='prueba' then 'trabajo_impresion' else 'pedido' end,
+      coalesce(v_job.pedido_id,v_job.id),'comanda_imprimir',
+      case when v_job.tipo='prueba' then 'Prueba enviada a cola Windows.'
+        else 'Comanda enviada a cola Windows en '||initcap(v_job.estacion_codigo)||'.' end,
+      jsonb_build_object('solicitud_id',v_job.id,'entrega_id',v_job.entrega_id,
+        'agente_id',v_agente.id,'impresora',v_job.cola_windows,'estacion',v_job.estacion_codigo,
+        'pedido_id',v_job.pedido_id,'mesa_nombre',v_mesa,'intento',v_job.intentos,
+        'enviado_at',now(),'resultado','enviado_a_cola',
+        'impresion_fisica_confirmada',false));
+  return jsonb_build_object('estado','enviado','impresion_fisica_confirmada',false);
+end; $$;
+
+create or replace function public.agente_impresion_fallar(
+  p_token text,p_trabajo_id uuid,p_reclamo_id uuid,p_error text,p_reintento_seguro boolean
+) returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_agente private.agentes_impresion%rowtype; v_job private.trabajos_impresion%rowtype;
+  v_seguro boolean; v_siguiente timestamptz; v_error text;
+begin
+  v_agente := private.agente_impresion_activo(p_token);
+  select j.* into v_job from private.trabajos_impresion j
+    where j.id=p_trabajo_id and j.agente_id=v_agente.id and j.restaurante_id=v_agente.restaurante_id for update;
+  if not found or v_job.estado<>'reclamado' or v_job.reclamo_id is distinct from p_reclamo_id then
+    raise exception 'El reclamo ya terminó o pertenece a otro agente.' using errcode='42501'; end if;
+  v_seguro := coalesce(p_reintento_seguro,false) and v_job.envio_iniciado_at is null
+    and v_job.intentos < v_job.max_intentos;
+  v_error := left(coalesce(nullif(btrim(p_error),''),'No se pudo enviar a la cola Windows.'),300);
+  if v_seguro then
+    v_siguiente := now()+make_interval(secs => least(3600,
+      (v_job.reintento_base_seg * power(2,greatest(0,v_job.intentos-1)))::integer));
+  end if;
+  update private.trabajos_impresion set estado='fallido',lease_hasta=null,
+    proximo_intento_at=v_siguiente,error_ultimo=v_error,
+    error_final=case when v_siguiente is null then
+      case when v_job.envio_iniciado_at is not null then
+        'Resultado incierto después de iniciar el envío. '||v_error else v_error end
+      else null end,actualizado_at=now() where id=v_job.id;
+  if v_job.tipo='comanda' then
+    update public.entregas_comanda set estado='fallida',error_publico=v_error,updated_at=now()
+      where id=v_job.entrega_id and restaurante_id=v_job.restaurante_id and estado='pendiente';
+  end if;
+  return jsonb_build_object('estado','fallido','reintento_at',v_siguiente,
+    'requiere_revision',v_siguiente is null);
+end; $$;
+
+revoke all on function public.admin_impresion_crear_codigo(uuid) from public, anon;
+revoke all on function public.admin_impresion_panel(uuid) from public, anon;
+revoke all on function public.admin_impresion_revocar(uuid,uuid) from public, anon;
+revoke all on function public.admin_impresion_asignar(uuid,uuid,uuid,text,boolean,integer,integer) from public, anon;
+revoke all on function public.admin_impresion_prueba(uuid,uuid) from public, anon;
+grant execute on function public.admin_impresion_crear_codigo(uuid),public.admin_impresion_panel(uuid),
+  public.admin_impresion_revocar(uuid,uuid),
+  public.admin_impresion_asignar(uuid,uuid,uuid,text,boolean,integer,integer),
+  public.admin_impresion_prueba(uuid,uuid) to authenticated;
+
+revoke all on function public.agente_impresion_vincular(text,text,text),
+  public.agente_impresion_heartbeat(text,jsonb),public.agente_impresion_reclamar(text),
+  public.agente_impresion_iniciar_envio(text,uuid,uuid),
+  public.agente_impresion_confirmar(text,uuid,uuid),
+  public.agente_impresion_fallar(text,uuid,uuid,text,boolean) from public, authenticated;
+grant execute on function public.agente_impresion_vincular(text,text,text),
+  public.agente_impresion_heartbeat(text,jsonb),public.agente_impresion_reclamar(text),
+  public.agente_impresion_iniciar_envio(text,uuid,uuid),
+  public.agente_impresion_confirmar(text,uuid,uuid),
+  public.agente_impresion_fallar(text,uuid,uuid,text,boolean) to anon;
+
+commit;
+
+
+-- #############################################################################
+-- # 53/53 · ../migrations/20261109075129_validar_modalidad_cobro_restaurante.sql
+-- #############################################################################
+
+-- -- La preferencia de Fase 3 no era una autorización efectiva. NULL conserva
+-- exactamente la regla anterior: mesero activo y admin_restaurante activo.
+alter table public.configuracion_operativa
+  add column if not exists modalidad_cobro_aplicada text
+    check (modalidad_cobro_aplicada in (
+      'solo_cajero', 'cobro_por_mesero', 'caja_central_meseros_autorizados'
+    ));
+
+comment on column public.configuracion_operativa.modalidad_cobro_aplicada is
+  'NULL mantiene el cobro heredado; una modalidad aplicada exige autorización individual y se valida en cerrar_cuenta.';
+
+-- La consulta propia es segura para mostrar u ocultar el acceso en la interfaz.
+-- La RPC de cierre vuelve a comprobarla dentro de la misma transacción.
+create or replace function public.puede_cobrar_restaurante(p_restaurante_id uuid)
+returns boolean
+language plpgsql stable security definer set search_path = ''
+as $$
+declare
+  v_rol text;
+  v_modalidad text;
+begin
+  if auth.uid() is null or p_restaurante_id is null then return false; end if;
+  select u.rol::text into v_rol
+    from public.usuarios u
+   where u.id = auth.uid() and u.restaurante_id = p_restaurante_id and u.activo is true;
+  if v_rol is null then return false; end if;
+  if v_rol = 'admin_restaurante' then return true; end if;
+
+  select c.modalidad_cobro_aplicada into v_modalidad
+    from public.configuracion_operativa c where c.restaurante_id = p_restaurante_id;
+  if v_modalidad is null then return v_rol = 'mesero'; end if;
+  if (v_modalidad = 'solo_cajero' and v_rol <> 'cajero')
+     or (v_modalidad = 'cobro_por_mesero' and v_rol <> 'mesero')
+     or (v_modalidad = 'caja_central_meseros_autorizados' and v_rol not in ('cajero', 'mesero')) then
+    return false;
+  end if;
+  return exists (
+    select 1 from public.autorizaciones_cobro a
+     where a.restaurante_id = p_restaurante_id and a.usuario_id = auth.uid() and a.activo
+  );
+end;
+$$;
+
+revoke all on function public.puede_cobrar_restaurante(uuid) from public, anon;
+grant execute on function public.puede_cobrar_restaurante(uuid) to authenticated;
+
+-- El administrador aplica una política completa en una sola llamada. Los IDs
+-- se validan antes de escribir; no se acepta cocina, otro restaurante o inactivos.
+create or replace function public.admin_obtener_politica_cobro(p_restaurante_id uuid)
+returns jsonb
+language plpgsql stable security invoker set search_path = ''
+as $$
+begin
+  if auth.uid() is null or not public.puedo_escribir_en(p_restaurante_id, array['admin_restaurante']) then
+    raise exception 'Solo el administrador activo puede consultar estos permisos.' using errcode = '42501';
+  end if;
+  return jsonb_build_object(
+    'restaurante_id', p_restaurante_id,
+    'modalidad_cobro', coalesce((select c.modalidad_cobro from public.configuracion_operativa c
+      where c.restaurante_id = p_restaurante_id), 'cobro_por_mesero'),
+    'modalidad_aplicada', (select c.modalidad_cobro_aplicada from public.configuracion_operativa c
+      where c.restaurante_id = p_restaurante_id),
+    'usuarios_autorizados', coalesce((select jsonb_agg(a.usuario_id order by a.usuario_id)
+      from public.autorizaciones_cobro a
+      where a.restaurante_id = p_restaurante_id and a.activo), '[]'::jsonb)
+  );
+end;
+$$;
+
+create or replace function public.admin_guardar_politica_cobro(
+  p_restaurante_id uuid, p_modalidad text, p_usuarios uuid[]
+)
+returns jsonb
+language plpgsql security invoker set search_path = ''
+as $$
+declare
+  v_total integer;
+  v_validos integer;
+  v_cajeros integer;
+  v_meseros integer;
+begin
+  if auth.uid() is null or not public.puedo_escribir_en(p_restaurante_id, array['admin_restaurante']) then
+    raise exception 'Solo el administrador activo puede cambiar quién cobra.' using errcode = '42501';
+  end if;
+  if p_modalidad not in ('solo_cajero', 'cobro_por_mesero', 'caja_central_meseros_autorizados')
+     or p_modalidad is null then
+    raise exception 'Elige una modalidad de cobro válida.' using errcode = '22023';
+  end if;
+  v_total := coalesce(array_length(p_usuarios, 1), 0);
+  if v_total < 1 or v_total > 100 or exists (select 1 from unnest(p_usuarios) id where id is null)
+     or (select count(distinct id) from unnest(p_usuarios) id) <> v_total then
+    raise exception 'Selecciona entre 1 y 100 usuarios distintos para cobrar.' using errcode = '22023';
+  end if;
+  select count(*)::integer,
+         count(*) filter (where u.rol = 'cajero')::integer,
+         count(*) filter (where u.rol = 'mesero')::integer
+    into v_validos, v_cajeros, v_meseros
+    from public.usuarios u
+   where u.id = any(p_usuarios) and u.restaurante_id = p_restaurante_id
+     and u.activo is true and u.rol in ('cajero', 'mesero');
+  if v_validos <> v_total
+     or (p_modalidad = 'solo_cajero' and (v_cajeros <> v_total))
+     or (p_modalidad = 'cobro_por_mesero' and (v_meseros <> v_total))
+     or (p_modalidad = 'caja_central_meseros_autorizados' and (v_cajeros < 1 or v_meseros < 1)) then
+    raise exception 'Selecciona usuarios activos del restaurante y del rol indicado.' using errcode = '22023';
+  end if;
+
+  -- Bloquear la configuración serializa dos guardados concurrentes del admin.
+  perform 1 from public.configuracion_operativa c
+   where c.restaurante_id = p_restaurante_id for update;
+  if not found then
+    raise exception 'No se encontró la configuración del restaurante.' using errcode = '23503';
+  end if;
+  update public.autorizaciones_cobro a
+     set activo = false, actualizado_por = auth.uid(), updated_at = now()
+   where a.restaurante_id = p_restaurante_id and a.activo and a.usuario_id <> all(p_usuarios);
+  insert into public.autorizaciones_cobro(restaurante_id, usuario_id, activo, creado_por, actualizado_por)
+  select p_restaurante_id, id, true, auth.uid(), auth.uid() from unnest(p_usuarios) id
+  on conflict (restaurante_id, usuario_id) do update
+    set activo = true, actualizado_por = auth.uid(), updated_at = now()
+    where public.autorizaciones_cobro.activo is false;
+  update public.configuracion_operativa c
+     set modalidad_cobro = p_modalidad, modalidad_cobro_aplicada = p_modalidad
+   where c.restaurante_id = p_restaurante_id;
+  return public.admin_obtener_politica_cobro(p_restaurante_id);
+end;
+$$;
+
+revoke all on function public.admin_obtener_politica_cobro(uuid) from public, anon;
+revoke all on function public.admin_guardar_politica_cobro(uuid, text, uuid[]) from public, anon;
+grant execute on function public.admin_obtener_politica_cobro(uuid) to authenticated;
+grant execute on function public.admin_guardar_politica_cobro(uuid, text, uuid[]) to authenticated;
+
+-- El audit log es append-only para clientes. El trigger registra activación,
+-- cambios de autorizados y cada cobro de contingencia del administrador.
+create or replace function public.mesora_auditar_cobro_configurable()
+returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  v_restaurante_id uuid;
+  v_actor record;
+  v_actor_rol text;
+  v_restaurante_nombre text;
+  v_entidad text;
+  v_entidad_id uuid;
+  v_accion text;
+  v_descripcion text;
+  v_detalle jsonb;
+begin
+  if tg_table_name = 'configuracion_operativa' then
+    if old.modalidad_cobro_aplicada is not distinct from new.modalidad_cobro_aplicada then return new; end if;
+    v_restaurante_id := new.restaurante_id;
+    v_entidad := 'configuracion';
+    v_entidad_id := new.restaurante_id;
+    v_accion := 'modalidad_cobro_aplicar';
+    v_descripcion := 'Actualizó la modalidad de cobro efectiva';
+    v_detalle := jsonb_build_object('anterior', old.modalidad_cobro_aplicada, 'nueva', new.modalidad_cobro_aplicada);
+  elsif tg_table_name = 'autorizaciones_cobro' then
+    if tg_op = 'UPDATE' and old.activo is not distinct from new.activo then return new; end if;
+    v_restaurante_id := new.restaurante_id;
+    v_entidad := 'configuracion';
+    v_entidad_id := new.restaurante_id;
+    v_accion := 'autorizacion_cobro_actualizar';
+    v_descripcion := 'Actualizó un permiso individual de cobro';
+    v_detalle := jsonb_build_object('usuario_id', new.usuario_id,
+      'activo_anterior', case when tg_op = 'INSERT' then null else old.activo end,
+      'activo_nuevo', new.activo);
+  elsif tg_table_name = 'cuentas' then
+    select u.rol::text into v_actor_rol from public.usuarios u
+      where u.id = auth.uid() and u.restaurante_id = new.restaurante_id;
+    if v_actor_rol is distinct from 'admin_restaurante' then return new; end if;
+    v_restaurante_id := new.restaurante_id;
+    v_entidad := 'cuenta';
+    v_entidad_id := new.id;
+    v_accion := 'cobro_contingencia_admin';
+    v_descripcion := 'El administrador cobró una cuenta por contingencia';
+    v_detalle := jsonb_build_object('cuenta_id', new.id, 'mesa_id', new.mesa_id,
+      'total', new.total, 'numero', new.numero);
+  else
+    return new;
+  end if;
+  select u.rol::text as rol, u.nombre into v_actor from public.usuarios u where u.id = auth.uid();
+  select r.nombre into v_restaurante_nombre from public.restaurantes r where r.id = v_restaurante_id;
+  insert into public.audit_logs(actor_id, actor_rol, actor_nombre, restaurante_id,
+    restaurante_nombre, entidad, entidad_id, accion, descripcion, detalle)
+  values (auth.uid(), v_actor.rol, v_actor.nombre, v_restaurante_id,
+    v_restaurante_nombre, v_entidad, v_entidad_id,
+    v_accion, v_descripcion, v_detalle);
+  return new;
+end;
+$$;
+
+revoke all on function public.mesora_auditar_cobro_configurable() from public, anon, authenticated;
+drop trigger if exists configuracion_modalidad_cobro_auditoria on public.configuracion_operativa;
+create trigger configuracion_modalidad_cobro_auditoria after update on public.configuracion_operativa
+for each row execute function public.mesora_auditar_cobro_configurable();
+drop trigger if exists autorizaciones_cobro_auditoria on public.autorizaciones_cobro;
+create trigger autorizaciones_cobro_auditoria after insert or update on public.autorizaciones_cobro
+for each row execute function public.mesora_auditar_cobro_configurable();
+drop trigger if exists cuentas_contingencia_admin_auditoria on public.cuentas;
+create trigger cuentas_contingencia_admin_auditoria after insert on public.cuentas
+for each row execute function public.mesora_auditar_cobro_configurable();
+
+-- Las definiciones finales de cerrar_cuenta y capturar_snapshot_boleta se
+-- agregan abajo. No alteran pagos divididos, correlativos ni cuentas históricas.
+
+
+create or replace function public.cerrar_cuenta(
+  p_restaurante_id uuid,
+  p_mesa_id uuid,
+  p_pedidos uuid[],
+  p_pagos jsonb,
+  p_propina numeric default 0
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_total numeric := 0;
+  v_cuenta_id uuid;
+  v_pedido_id uuid;
+  v_subtotal numeric;
+  v_a_pagar numeric;
+  v_recibido numeric := 0;
+  v_efectivo numeric := 0;
+  v_no_efectivo numeric := 0;
+  v_vuelto numeric;
+  v_teclado numeric;
+  v_parte jsonb;
+  v_metodo text;
+  v_monto numeric;
+  v_correlativo integer;
+  v_numero text;
+begin
+  -- Control de acceso en el servidor (suscripción + usuario activo). Ver
+  -- 00_seguridad_rpcs.sql: sin esto, `rpc('cerrar_cuenta')` desde la consola
+  -- cobraría aunque el restaurante esté vencido o el mesero esté desactivado.
+  perform public.validar_acceso_restaurante(p_restaurante_id);
+
+  -- SERIALIZACIÓN DEL COBRO.
+  -- El chequeo "¿ya está pagado?" y el marcado de los pedidos como 'entregado'
+  -- tienen que ser un solo paso atómico, o dos cajas cobrando la misma mesa al
+  -- mismo tiempo crean DOS cuentas con el mismo total (el cliente paga una vez,
+  -- el restaurante acredita dos).
+  --
+  -- El candado es la FILA DE LA MESA, no los pedidos, y se toma aquí a
+  -- propósito: antes del chequeo de "ya cobrado" y antes de mirar los pedidos.
+  -- Cualquier otra forma de cerrar esta mesa (otra terminal, otro dispositivo)
+  -- tiene que pasar por el mismo `for update`, así que el segundo cobra espera
+  -- en la fila y, cuando despierta, ve los pedidos ya en 'entregado' y sale por
+  -- la rama de "ya fue cobrado" en lugar de duplicar el cobro.
+  --
+  -- Se bloquea la mesa y no los pedidos porque la mesa es el recurso que se
+  -- serializa: siempre existe (es el ancla de la cuenta), mientras que el set
+  -- de pedidos a cobrar varía según qué comanda se haya enviado y bloquearlos
+  -- exigiría ordenar los ids para no provocar deadlocks entre dos cierres.
+  -- La pertenencia de los pedidos a esta mesa se revalida más abajo, ya con el
+  -- candado tomado.
+  perform 1 from public.mesas
+   where id = p_mesa_id and restaurante_id = p_restaurante_id
+     for update;
+
+  if not found then
+    raise exception 'La mesa no pertenece al restaurante';
+  end if;
+
+  -- La política se comprueba en el servidor, incluso al invocar la RPC directamente.
+  if not public.puede_cobrar_restaurante(p_restaurante_id) then
+    raise exception 'No estás autorizado para cobrar en este restaurante.' using errcode = '42501';
+  end if;
+
+  -- La pertenencia de la mesa ya quedó comprobada arriba, junto con el candado.
+
+  if p_propina is null or p_propina < 0 then
+    raise exception 'Propina invalida: %', p_propina;
+  end if;
+
+  if p_pagos is null or jsonb_array_length(p_pagos) = 0 then
+    raise exception 'Agrega al menos un metodo de pago';
+  end if;
+
+  if p_pedidos is null or array_length(p_pedidos, 1) is null then
+    raise exception 'No hay pedidos para cerrar';
+  end if;
+
+  -- Un pedido ya cobrado en otra cuenta pagada no se puede volver a cobrar.
+  if exists (
+    select 1
+      from public.cuenta_pedidos cp
+      join public.cuentas c on c.id = cp.cuenta_id
+     where cp.pedido_id = any(p_pedidos)
+       and c.estado = 'pagada'
+  ) then
+    raise exception 'Alguno de los pedidos ya fue cobrado en otra cuenta';
+  end if;
+
+  -- Total de los pedidos seleccionados (pertenecientes a mesa + restaurante).
+  -- Los ítems anulados por el mesero no se cobran (ver migracion_items_anulables.sql).
+  select coalesce(sum(pi.cantidad * pi.precio_unitario), 0)
+    into v_total
+    from public.pedido_items pi
+    join public.pedidos pd on pd.id = pi.pedido_id
+   where pd.restaurante_id = p_restaurante_id
+     and pd.mesa_id = p_mesa_id
+     and pd.id = any(p_pedidos)
+     and pd.estado <> 'anulado'
+     and pi.anulado = false;
+
+  -- Una comanda sin ítems vigentes no se cobra: evita cuentas en cero.
+  if v_total <= 0 then
+    raise exception 'No hay pedidos por cobrar en esta mesa';
+  end if;
+
+  v_a_pagar := round(v_total + p_propina, 2);
+
+  -- Validar los montos explícitos antes de completar los "exactos".
+  for v_parte in select * from jsonb_array_elements(p_pagos)
+  loop
+    v_metodo := v_parte ->> 'metodo_pago';
+    -- Misma whitelist que METODOS_PAGO en src/types/database.ts
+    if v_metodo is null or v_metodo not in ('efectivo', 'tarjeta', 'yape_plin', 'otro') then
+      raise exception 'Metodo de pago no valido: %', v_metodo;
+    end if;
+    v_monto := coalesce((v_parte ->> 'monto')::numeric, 0);
+    if v_monto < 0 then
+      raise exception 'Monto de pago invalido: %', v_monto;
+    end if;
+  end loop;
+
+  -- Solo una parte puede quedar "exacta", y tiene que quedar algo por repartir.
+  if (
+    select count(*) from jsonb_array_elements(p_pagos) as parte
+     where coalesce((parte ->> 'monto')::numeric, 0) <= 0
+  ) > 1 then
+    raise exception 'Solo una parte puede quedar exacta. Reparte el total entre los metodos';
+  end if;
+
+  -- El "exacto" se completa con el resto que falta (nunca con el total entero:
+  -- si no, un pago dividido cobraría el doble).
+  select coalesce(sum(coalesce((parte ->> 'monto')::numeric, 0)), 0)
+    into v_teclado
+    from jsonb_array_elements(p_pagos) as parte
+   where coalesce((parte ->> 'monto')::numeric, 0) > 0;
+
+  -- Sumar cada parte con su importe final.
+  for v_parte in select * from jsonb_array_elements(p_pagos)
+  loop
+    v_metodo := v_parte ->> 'metodo_pago';
+    v_monto := coalesce((v_parte ->> 'monto')::numeric, 0);
+    if v_monto <= 0 then
+      v_monto := round(v_a_pagar - v_teclado, 2);
+      if v_monto <= 0 then
+        raise exception 'Los montos ya cubren el total. Quita esa parte o ajustala';
+      end if;
+    end if;
+
+    v_recibido := v_recibido + v_monto;
+    if v_metodo = 'efectivo' then
+      v_efectivo := v_efectivo + v_monto;
+    else
+      v_no_efectivo := v_no_efectivo + v_monto;
+    end if;
+  end loop;
+
+  if v_recibido < v_a_pagar - 0.01 then
+    raise exception 'El monto recibido no cubre el total de la cuenta';
+  end if;
+
+  -- El vuelto solo sale del efectivo: si lo no-efectivo supera lo que se debe,
+  -- estaríamos "devolviendo" contra una tarjeta.
+  if v_no_efectivo > v_a_pagar + 0.01 then
+    raise exception 'El pago con tarjeta o Yape no puede superar el total: el vuelto solo se entrega en efectivo';
+  end if;
+
+  v_vuelto := round(v_recibido - v_a_pagar, 2);
+
+  -- Correlativo de boleta del restaurante. El upsert se lleva la fila en
+  -- exclusiva, así que dos cierres simultáneos no obtienen el mismo número.
+  insert into public.correlativos (restaurante_id, tipo, ultimo)
+  values (p_restaurante_id, 'boleta', 1)
+  on conflict (restaurante_id, tipo)
+  do update set ultimo = public.correlativos.ultimo + 1
+  returning ultimo into v_correlativo;
+
+  v_numero := 'B001-' || lpad(v_correlativo::text, 6, '0');
+
+  insert into public.cuentas (
+    restaurante_id, mesa_id, total, metodo_pago, estado, pagado_at, propina, vuelto, numero
+  )
+  values (
+    p_restaurante_id, p_mesa_id, v_total,
+    (p_pagos -> 0 ->> 'metodo_pago'),
+    'pagada', now(), round(p_propina, 2), v_vuelto, v_numero
+  )
+  returning id into v_cuenta_id;
+
+  -- Detalle del pago: una fila por parte, con el importe real (nunca 0).
+  -- La parte "exacta" guarda el resto que faltaba, el mismo importe que se usó
+  -- para calcular el vuelto: si guardara el total entero, el arqueo de caja
+  -- sumaría de más.
+  insert into public.cuenta_pagos (cuenta_id, restaurante_id, metodo_pago, monto, referencia)
+  select v_cuenta_id,
+         p_restaurante_id,
+         (parte ->> 'metodo_pago'),
+         case
+           when coalesce((parte ->> 'monto')::numeric, 0) <= 0
+             then round(v_a_pagar - v_teclado, 2)
+           else (parte ->> 'monto')::numeric
+         end,
+         nullif(btrim(coalesce(parte ->> 'referencia', '')), '')
+    from jsonb_array_elements(p_pagos) as parte;
+
+  foreach v_pedido_id in array p_pedidos
+  loop
+    -- Subtotal de SU comanda, sin los ítems anulados.
+    select coalesce(sum(cantidad * precio_unitario), 0)
+      into v_subtotal
+      from public.pedido_items
+     where pedido_id = v_pedido_id
+       and anulado = false;
+
+    insert into public.cuenta_pedidos (cuenta_id, pedido_id, subtotal)
+    values (v_cuenta_id, v_pedido_id, v_subtotal);
+
+    update public.pedidos
+       set estado = 'entregado', updated_at = now()
+     where id = v_pedido_id
+       and restaurante_id = p_restaurante_id
+       and estado <> 'anulado';
+  end loop;
+
+  update public.mesas set estado = 'libre' where id = p_mesa_id;
+
+  return v_cuenta_id;
+end;
+$$;
+
+create or replace function public.capturar_snapshot_boleta()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_restaurante record;
+  v_mesa_nombre text;
+  v_mesero_nombre text;
+  v_mesero_id uuid;
+  v_actor_rol text;
+begin
+  select r.nombre, r.direccion, r.ruc, r.telefono
+    into v_restaurante
+    from public.restaurantes r
+   where r.id = new.restaurante_id;
+
+  select m.nombre into v_mesa_nombre
+    from public.mesas m
+   where m.id = new.mesa_id and m.restaurante_id = new.restaurante_id;
+
+  select u.rol::text into v_actor_rol from public.usuarios u
+   where u.id = auth.uid() and u.restaurante_id = new.restaurante_id;
+  if v_actor_rol = 'mesero' then
+    v_mesero_id := auth.uid();
+  else
+    select m.mesero_responsable_id into v_mesero_id from public.mesas m
+     where m.id = new.mesa_id and m.restaurante_id = new.restaurante_id;
+    if v_mesero_id is null then
+      select p.mesero_id into v_mesero_id from public.pedidos p
+       where p.restaurante_id = new.restaurante_id and p.mesa_id = new.mesa_id
+         and p.estado <> 'anulado'
+       order by p.created_at desc, p.id desc limit 1;
+    end if;
+  end if;
+  select u.nombre into v_mesero_nombre from public.usuarios u
+   where u.id = v_mesero_id and u.restaurante_id = new.restaurante_id;
+  new.mesero_id_snapshot := v_mesero_id;
+  new.mesero_nombre_snapshot := coalesce(new.mesero_nombre_snapshot, v_mesero_nombre);
+  new.mesa_nombre_snapshot := coalesce(new.mesa_nombre_snapshot, v_mesa_nombre);
+  new.restaurante_nombre_snapshot := coalesce(new.restaurante_nombre_snapshot, v_restaurante.nombre);
+  new.restaurante_direccion_snapshot := coalesce(new.restaurante_direccion_snapshot, v_restaurante.direccion);
+  new.restaurante_ruc_snapshot := coalesce(new.restaurante_ruc_snapshot, v_restaurante.ruc);
+  new.restaurante_telefono_snapshot := coalesce(new.restaurante_telefono_snapshot, v_restaurante.telefono);
+  return new;
+end;
+$$;

@@ -9,9 +9,8 @@ import CobrosTab from '../admin/CobrosTab'
  * pestañas "Caja" y "Cobros" del panel del Admin, sin el resto: el cajero no ve
  * menú, mesas, personal ni reportes.
  *
- * Por qué el cajero puede anular cobros y el mesero no: el cajero es quien tiene
- * la gaveta y quien ve al cliente, así que es el que devuelve el dinero (y puede
- * pedir el PIN de autorización). El mesero no cobra, entonces no anula.
+ * Los cobros de nuevas cuentas dependen de la política del restaurante;
+ * la anulación de cobros conserva sus permisos y su PIN propios.
  */
 export default function Cajero() {
   const [vista, setVista] = useState<'caja' | 'cobros'>('caja')
@@ -20,7 +19,7 @@ export default function Cajero() {
     <div>
       <PageHeader
         titulo="Caja"
-        descripcion="Abre la gaveta al iniciar el turno y ciérrala con el arqueo al terminar."
+        descripcion="Gestiona el turno y, si estás autorizado, cobra mesas. Al terminar, cierra la caja con el arqueo."
       />
 
       <nav className="no-print mb-8 flex flex-wrap gap-2" aria-label="Secciones de caja">
