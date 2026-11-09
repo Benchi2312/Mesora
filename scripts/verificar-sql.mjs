@@ -111,6 +111,21 @@ try {
   await pg.exec(migracionOperacion)
   await pg.exec(qaDespuesMigracion)
   console.log('SQL QA: estaciones históricas, auditoría idempotente y motivo de reimpresión aprobados')
+  const qaConfiguracionOperativaAdmin = readFileSync(new URL('../supabase/qa/configuracion_operativa_admin_rollback.sql', import.meta.url), 'utf8')
+  const migracionConfiguracionOperativaAdmin = readFileSync(new URL('../supabase/migrations/20261109012624_fase3_configuracion_operativa_admin.sql', import.meta.url), 'utf8')
+  assert.ok(qaConfiguracionOperativaAdmin.includes('/* APLICAR_MIGRACION_CONFIG_OPERATIVA_ADMIN */'), 'Falta el punto de inyección de Fase 3 Operativa Admin')
+  const sqlConfiguracionOperativaAdmin = qaConfiguracionOperativaAdmin.replace(
+    '/* APLICAR_MIGRACION_CONFIG_OPERATIVA_ADMIN */',
+    () => migracionConfiguracionOperativaAdmin,
+  )
+  try {
+    await pg.exec(sqlConfiguracionOperativaAdmin)
+  } catch (error) {
+    const posicion = Number(error.position ?? 0)
+    if (posicion) console.error('SQL QA configurador cerca de:', sqlConfiguracionOperativaAdmin.slice(Math.max(0, posicion - 120), posicion + 160))
+    throw error
+  }
+  console.log('SQL QA: configurador de Admin, modalidad, estaciones, destinos, categorías, auditoría y RLS aprobados')
   await pg.exec(`
     begin;
     do $$
@@ -247,7 +262,8 @@ try {
     console.log('SQL QA: migración instalada en base existente, dos veces; datos y estación explícita conservados')
   } finally { await pgUpgrade.close() }
 } catch (e) {
-  console.error(e.message)
+  console.error(e.message, e.position ? `SQL position ${e.position}` : '', e.detail ?? '', e.hint ?? '', e.where ?? '')
+  if (e.internalQuery) console.error('Internal query:', e.internalQuery)
   process.exitCode = 1
 } finally {
   await pg.close()

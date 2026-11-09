@@ -42,7 +42,7 @@ const PANTALLAS = [
   {
     ruta: '/demo/admin',
     nombre: 'admin',
-    tabs: ['Dashboard', 'Ventas', 'Caja', 'Cobros', 'Mesas y zonas', 'Menú', 'Personal', 'Datos del local', 'Auditoría', 'Soporte'],
+    tabs: ['Dashboard', 'Ventas', 'Caja', 'Cobros', 'Mesas y zonas', 'Menú', 'Personal', 'Datos del local', 'Configuración operativa', 'Auditoría', 'Soporte'],
   },
   { ruta: '/demo/mesero', nombre: 'mesero' },
   { ruta: '/demo/cocina', nombre: 'cocina' },

@@ -226,6 +226,8 @@ export type AutorizacionCobro = {
   updated_at: string
 }
 
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
+
 export type Producto = {
   id: string
   restaurante_id: string
@@ -494,6 +496,14 @@ export interface Database {
     }
     Views: Record<string, never>
     Functions: {
+      admin_obtener_configuracion_operativa: {
+        Args: { p_restaurante_id: string }
+        Returns: Json
+      }
+      admin_guardar_configuracion_operativa: {
+        Args: { p_restaurante_id: string; p_configuracion: Json }
+        Returns: Json
+      }
       registrar_error_cliente: {
         Args: { p_tipo: string; p_ruta: string; p_contexto: string }
         Returns: undefined

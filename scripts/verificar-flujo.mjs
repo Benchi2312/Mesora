@@ -3599,6 +3599,117 @@ check('31d · los destinos inactivos no participan del enrutamiento',
   operacionDomain.modoDestinoEstacion([{ tipo: 'impresora', grupo: 'principal', activo: false }]) === 'ninguno' &&
   operacionDomain.estadoDeDestino(false) === 'inactivo')
 
+titulo('32 · Configurador operativo de Admin: permisos, guardado y tenant')
+const ahoraOperacionAdmin = new Date().toISOString()
+const RID_OP_ADMIN_A = 'qa-operacion-admin-a'
+const RID_OP_ADMIN_B = 'qa-operacion-admin-b'
+const ADMIN_OP_A = 'qa-operacion-admin-actor-a'
+const ADMIN_OP_B = 'qa-operacion-admin-actor-b'
+const MESERO_OP_A = 'qa-operacion-admin-mesero-a'
+const CATEGORIA_OP_A = 'qa-operacion-admin-categoria-a'
+const CATEGORIA_OP_B = 'qa-operacion-admin-categoria-b'
+localSeed.restaurantes.push(
+  { ...mockRestaurante, id: RID_OP_ADMIN_A, nombre: 'Configuración QA A', suscripcion_activa: true, fecha_vencimiento: null },
+  { ...mockRestaurante, id: RID_OP_ADMIN_B, nombre: 'Configuración QA B', suscripcion_activa: true, fecha_vencimiento: null },
+)
+localSeed.usuarios.push(
+  { id: ADMIN_OP_A, restaurante_id: RID_OP_ADMIN_A, rol: 'admin_restaurante', nombre: 'Admin Config A', activo: true, created_at: ahoraOperacionAdmin },
+  { id: ADMIN_OP_B, restaurante_id: RID_OP_ADMIN_B, rol: 'admin_restaurante', nombre: 'Admin Config B', activo: true, created_at: ahoraOperacionAdmin },
+  { id: MESERO_OP_A, restaurante_id: RID_OP_ADMIN_A, rol: 'mesero', nombre: 'Mesero Config A', activo: true, created_at: ahoraOperacionAdmin },
+)
+localSeed.categorias.push(
+  { id: CATEGORIA_OP_A, restaurante_id: RID_OP_ADMIN_A, nombre: 'Platos QA', estacion_id: null, created_at: ahoraOperacionAdmin },
+  { id: CATEGORIA_OP_B, restaurante_id: RID_OP_ADMIN_B, nombre: 'Categoría ajena QA', estacion_id: null, created_at: ahoraOperacionAdmin },
+)
+localSeed.productos.push({
+  id: 'qa-operacion-admin-producto-a', restaurante_id: RID_OP_ADMIN_A, categoria_id: CATEGORIA_OP_A,
+  nombre: 'Producto de estación explícita', descripcion: null, precio: 9, disponible: true,
+  es_bebida: true, estacion: 'bar', created_at: ahoraOperacionAdmin,
+}, {
+  id: 'qa-operacion-admin-producto-b', restaurante_id: RID_OP_ADMIN_A, categoria_id: CATEGORIA_OP_A,
+  nombre: 'Producto que hereda la categoría', descripcion: null, precio: 12, disponible: true,
+  es_bebida: false, estacion: null, created_at: ahoraOperacionAdmin,
+})
+const operadorPrevioOperacionAdmin = apiMode.operadorId
+const pedidosAntesOperacionAdmin = localSeed.pedidos.length
+const cuentasAntesOperacionAdmin = localSeed.cuentas.length
+apiMode.operadorId = ADMIN_OP_A
+const configuracionOperativaDefault = await api.getConfiguracionOperativa(RID_OP_ADMIN_A)
+check('32a · carga defaults de Cocina, Barra, Otros, KDS y cobro actual',
+  !configuracionOperativaDefault.error && configuracionOperativaDefault.data?.modalidad_cobro === 'cobro_por_mesero' &&
+  configuracionOperativaDefault.data?.estaciones.map((e) => e.nombre).join(',') === 'Cocina,Barra,Otros' &&
+  configuracionOperativaDefault.data?.estaciones.every((e) => e.activo && e.destinos.some((d) => d.tipo === 'kds' && d.activo)) &&
+  configuracionOperativaDefault.data?.estaciones.every((e) => !e.destinos.some((d) => d.tipo === 'impresora')))
+check('32b · la estación explícita del producto tiene prioridad y detecta categoría mixta',
+  operacionDomain.estacionEfectivaProducto(configuracionOperativaDefault.data.productos[0], configuracionOperativaDefault.data.categorias[0]) === 'bar' &&
+  operacionDomain.categoriaEsMixta(configuracionOperativaDefault.data.categorias[0], configuracionOperativaDefault.data.productos))
+const cambiosOperativosA = {
+  modalidad_cobro: 'solo_cajero',
+  estaciones: configuracionOperativaDefault.data.estaciones.map((estacion) => ({
+    ...estacion,
+    activo: estacion.codigo === 'bar' ? false : estacion.activo,
+    destinos: estacion.codigo === 'cocina'
+      ? [...estacion.destinos, { id: null, tipo: 'impresora', grupo: 'respaldo', nombre: 'Impresora QA', papel_mm: 58, configuracion: { copias: 2 }, activo: true }]
+      : estacion.destinos,
+  })),
+  categorias: configuracionOperativaDefault.data.categorias.map((categoria) => ({ ...categoria, estacion_codigo: 'cocina' })),
+}
+const guardadoOperativoA = await api.guardarConfiguracionOperativa(RID_OP_ADMIN_A, cambiosOperativosA)
+check('32c · guarda modalidad, estación, categoría y destino con papel/copias',
+  !guardadoOperativoA.error && guardadoOperativoA.data?.modalidad_cobro === 'solo_cajero' &&
+  guardadoOperativoA.data?.estaciones.find((e) => e.codigo === 'bar')?.activo === false &&
+  guardadoOperativoA.data?.categorias[0]?.estacion_codigo === 'cocina' &&
+  guardadoOperativoA.data?.estaciones.find((e) => e.codigo === 'cocina')?.destinos.some((d) => d.tipo === 'impresora' && d.grupo === 'respaldo' && d.papel_mm === 58 && d.configuracion.copias === 2))
+const recargadoOperativoA = await api.getConfiguracionOperativa(RID_OP_ADMIN_A)
+check('32d · vuelve a cargar lo guardado y mantiene el aislamiento de categorías',
+  !recargadoOperativoA.error && recargadoOperativoA.data?.categorias.length === 1 && recargadoOperativoA.data.categorias[0].estacion_codigo === 'cocina')
+const edicionOperativaA = {
+  modalidad_cobro: 'caja_central_meseros_autorizados',
+  estaciones: recargadoOperativoA.data.estaciones.map((estacion) => ({ ...estacion, activo: estacion.codigo === 'bar' ? true : estacion.activo })),
+  categorias: recargadoOperativoA.data.categorias.map((categoria) => ({ ...categoria, estacion_codigo: 'bar' })),
+}
+const guardadoEdicionOperativaA = await api.guardarConfiguracionOperativa(RID_OP_ADMIN_A, edicionOperativaA)
+check('32e · permite editar modalidad, reactivar estación y reasignar categoría',
+  !guardadoEdicionOperativaA.error && guardadoEdicionOperativaA.data?.modalidad_cobro === 'caja_central_meseros_autorizados' &&
+  guardadoEdicionOperativaA.data.estaciones.find((e) => e.codigo === 'bar')?.activo === true &&
+  guardadoEdicionOperativaA.data.categorias[0]?.estacion_codigo === 'bar')
+const lecturaOtroTenant = await api.getConfiguracionOperativa(RID_OP_ADMIN_B)
+const escrituraOtroTenant = await api.guardarConfiguracionOperativa(RID_OP_ADMIN_B, cambiosOperativosA)
+check('32f · un administrador no puede leer ni escribir la configuración de otro restaurante',
+  !!lecturaOtroTenant.error && !!escrituraOtroTenant.error)
+const asignacionCategoriaAjena = await api.guardarConfiguracionOperativa(RID_OP_ADMIN_A, {
+  ...edicionOperativaA,
+  categorias: [{ ...edicionOperativaA.categorias[0], id: CATEGORIA_OP_B }],
+})
+check('32g · rechaza asignar a la configuración una categoría de otro restaurante', !!asignacionCategoriaAjena.error)
+apiMode.operadorId = MESERO_OP_A
+const guardarComoMesero = await api.guardarConfiguracionOperativa(RID_OP_ADMIN_A, cambiosOperativosA)
+check('32h · rechaza guardado por mesero aunque pueda consultar su tenant', !!guardarComoMesero.error)
+apiMode.operadorId = ''
+const leerComoAnonimo = await api.getConfiguracionOperativa(RID_OP_ADMIN_A)
+const guardarComoAnonimo = await api.guardarConfiguracionOperativa(RID_OP_ADMIN_A, cambiosOperativosA)
+check('32i · rechaza lectura y escritura sin usuario autenticado', !!leerComoAnonimo.error && !!guardarComoAnonimo.error)
+const auditoriaOperativaA = localSeed.auditLogs.filter((l) => l.restaurante_id === RID_OP_ADMIN_A && l.accion === 'configuracion_operativa_actualizar')
+check('32j · cada guardado queda en auditoría con el administrador y la configuración afectada',
+  auditoriaOperativaA.length === 2 && auditoriaOperativaA.every((l) => [ADMIN_OP_A].includes(l.actor_id) && l.detalle?.modalidad_cobro))
+check('32k · editar el configurador no toca pedidos ni cuentas',
+  localSeed.pedidos.length === pedidosAntesOperacionAdmin && localSeed.cuentas.length === cuentasAntesOperacionAdmin)
+apiMode.operadorId = operadorPrevioOperacionAdmin
+for (const rid of [RID_OP_ADMIN_A, RID_OP_ADMIN_B]) {
+  localSeed.configuracionesOperativas.splice(0, localSeed.configuracionesOperativas.length,
+    ...localSeed.configuracionesOperativas.filter((c) => c.restaurante_id !== rid))
+  localSeed.restaurantes.splice(0, localSeed.restaurantes.length,
+    ...localSeed.restaurantes.filter((r) => r.id !== rid))
+  localSeed.usuarios.splice(0, localSeed.usuarios.length,
+    ...localSeed.usuarios.filter((u) => u.restaurante_id !== rid))
+  localSeed.categorias.splice(0, localSeed.categorias.length,
+    ...localSeed.categorias.filter((c) => c.restaurante_id !== rid))
+  localSeed.productos.splice(0, localSeed.productos.length,
+    ...localSeed.productos.filter((p) => p.restaurante_id !== rid))
+  localSeed.auditLogs.splice(0, localSeed.auditLogs.length,
+    ...localSeed.auditLogs.filter((l) => l.restaurante_id !== rid))
+}
+
 await servidor.close()
 rmSync(ENV_DIR, { recursive: true, force: true })
 

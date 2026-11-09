@@ -42,6 +42,7 @@ const FUENTES_VERSIONADAS = {
   'auditoria_item_descripcion_utf8.sql': '../migrations/20261107063406_auditoria_item_descripcion_utf8.sql',
   'impresion_comandas.sql': '../migrations/20261107201714_bloque3_impresion_comandas.sql',
   'sistema_operativo_configurable.sql': '../migrations/20261108120000_sistema_operativo_configurable.sql',
+  'fase3_configuracion_operativa_admin.sql': '../migrations/20261109012624_fase3_configuracion_operativa_admin.sql',
 }
 
 // -----------------------------------------------------------------------------
@@ -110,6 +111,7 @@ const ORDEN = [
   '../migrations/20261107063406_auditoria_item_descripcion_utf8.sql',
   '../migrations/20261107201714_bloque3_impresion_comandas.sql',
   '../migrations/20261108120000_sistema_operativo_configurable.sql',
+  '../migrations/20261109012624_fase3_configuracion_operativa_admin.sql',
 ]
 
 const fallos = []

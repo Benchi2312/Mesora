@@ -35,6 +35,7 @@ import type {
   Usuario,
   Zona,
 } from '../types/database'
+import type { ConfiguracionOperativaEditor } from '../domain/restaurant/operacion'
 import { CONFIGURACION_POR_DEFECTO } from '../domain/restaurant/configuracion'
 import {
   mockCategorias,
@@ -195,6 +196,8 @@ export interface LocalSeedData {
   tickets: SoporteTicket[]
   /** Configuración general de la plataforma (fila única). */
   configuracion: ConfiguracionGlobal
+  /** Configuración operativa del demo/local, por restaurante. */
+  configuracionesOperativas: ConfiguracionOperativaEditor[]
 }
 
 /**
@@ -258,6 +261,7 @@ export function crearLocalSeed(): LocalSeedData {
       updated_at: new Date().toISOString(),
       updated_by: null,
     },
+    configuracionesOperativas: [],
   }
   normalizarProductosBebida(ds)
   return ds

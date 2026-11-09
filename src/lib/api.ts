@@ -29,6 +29,7 @@ import type {
   ConsultaComercial,
   Cuenta,
   EstacionComanda,
+  Json,
   Mesa,
   MetodoPago,
   Pago,
@@ -49,6 +50,13 @@ import type {
   Zona,
 } from '../types/database'
 import { estacionDeProducto } from '../domain/restaurant/impresionComandas'
+import {
+  crearEditorOperativoPredeterminado,
+  normalizarEditorOperativo,
+  validarCambiosConfiguracionOperativa,
+  type CambiosConfiguracionOperativa,
+  type ConfiguracionOperativaEditor,
+} from '../domain/restaurant/operacion'
 import {
   calcularAlertas,
   type AlertaAdministrativa,
@@ -395,6 +403,10 @@ export interface DataApi {
   getCategorias(rid: string): Promise<Res<CategoriaProducto[]>>
   /** Solo productos disponibles. */
   getProductos(rid: string, opciones?: { incluirAgotados?: boolean }): Promise<Res<Producto[]>>
+  /** Configuración operativa separada del comportamiento efectivo de pedidos/caja. */
+  getConfiguracionOperativa(rid: string): Promise<Res<ConfiguracionOperativaEditor>>
+  /** Guarda todo el formulario en una transacción; el servidor aplica RLS y rol. */
+  guardarConfiguracionOperativa(rid: string, cambios: CambiosConfiguracionOperativa): Promise<Res<ConfiguracionOperativaEditor>>
   getMeseros(rid: string): Promise<Res<MeseroResumen[]>>
   /** Reasigna una mesa ocupada con autorización PIN (si está configurado) y motivo auditable. */
   asignarMesaMesero(rid: string, mesaId: string, meseroId: string, pin: string | null, motivo: string): Promise<Res<null>>
@@ -678,6 +690,14 @@ async function mapaEsBebida(
   return (productoId: string | null) => (productoId ? esBebidaDe.get(productoId) === true : false)
 }
 
+function faltaRpcConfiguracionOperativa(error: { code?: string; message?: string }): boolean {
+  const mensaje = (error.message ?? '').toLowerCase()
+  return error.code === 'PGRST202' || error.code === '42883' ||
+    mensaje.includes('could not find the function') ||
+    mensaje.includes('not found in the schema cache') ||
+    mensaje.includes('function public.admin_obtener_configuracion_operativa')
+}
+
 const realApi: DataApi = {
   async getZonas(rid) {
     const { data, error } = await supabase.from('zonas').select('*').eq('restaurante_id', rid).order('nombre')
@@ -706,6 +726,42 @@ const realApi: DataApi = {
     if (!opciones?.incluirAgotados) consulta = consulta.eq('disponible', true)
     const { data, error } = await consulta.order('nombre')
     return { data, error: error?.message ?? null }
+  },
+  async getConfiguracionOperativa(rid) {
+    const { data, error } = await supabase.rpc('admin_obtener_configuracion_operativa', {
+      p_restaurante_id: rid,
+    })
+    if (error && faltaRpcConfiguracionOperativa(error)) {
+      // Previsualización segura mientras el SQL de fase 3 aún no está instalado.
+      // No se ocultan errores de sesión, RLS o pertenencia al restaurante.
+      const [categorias, productos] = await Promise.all([
+        this.getCategorias(rid),
+        this.getProductos(rid, { incluirAgotados: true }),
+      ])
+      if (categorias.error || productos.error) {
+        return { data: null, error: categorias.error ?? productos.error }
+      }
+      const predeterminada = crearEditorOperativoPredeterminado(rid, categorias.data ?? [], productos.data ?? [])
+      predeterminada.solo_lectura = true
+      predeterminada.limitacion = 'El esquema para guardar esta configuración aún no está instalado. Los valores mostrados son una vista previa.'
+      return { data: predeterminada, error: null }
+    }
+    if (error) return { data: null, error: error.message }
+    const configuracion = normalizarEditorOperativo(rid, data)
+    return configuracion
+      ? { data: configuracion, error: null }
+      : { data: null, error: 'La configuración recibida no tiene un formato válido. Actualiza la página e inténtalo de nuevo.' }
+  },
+  async guardarConfiguracionOperativa(rid, cambios) {
+    const { data, error } = await supabase.rpc('admin_guardar_configuracion_operativa', {
+      p_restaurante_id: rid,
+      p_configuracion: cambios as unknown as Json,
+    })
+    if (error) return { data: null, error: error.message }
+    const configuracion = normalizarEditorOperativo(rid, data)
+    return configuracion
+      ? { data: configuracion, error: null }
+      : { data: null, error: 'El servidor guardó el cambio, pero no pudo confirmar la configuración. Actualiza antes de volver a intentarlo.' }
   },
   async getMeseros(rid) {
     const { data, error } = await supabase.rpc('listar_meseros_activos_restaurante', {
@@ -1693,6 +1749,7 @@ const db: Dataset = {
   historialSuscripciones: [],
   auditLogs: [],
   tickets: [],
+  configuracionesOperativas: [],
   configuracion: {
     ...CONFIGURACION_POR_DEFECTO,
     updated_at: new Date().toISOString(),
@@ -1722,6 +1779,7 @@ const localDb: Dataset = {
   historialSuscripciones: localSeed.historialSuscripciones,
   auditLogs: localSeed.auditLogs,
   tickets: localSeed.tickets,
+  configuracionesOperativas: localSeed.configuracionesOperativas,
   configuracion: localSeed.configuracion,
 }
 
@@ -2173,6 +2231,89 @@ function crearApiDesde(
       data: opciones?.incluirAgotados ? productos : productos.filter((p) => p.disponible),
       error: null,
     }
+  },
+  async getConfiguracionOperativa(rid) {
+    await espera()
+    const actor = apiMode.operadorId
+      ? ds.usuarios.find((u) => u.id === apiMode.operadorId && u.activo !== false)
+      : null
+    if (!actor || actor.restaurante_id !== rid) {
+      return { data: null, error: 'No tienes acceso a la configuración de este restaurante.' }
+    }
+    const acceso = errorDeAcceso(ds, rid, actor.id)
+    if (acceso) return { data: null, error: acceso }
+    const categorias = ds.categorias.filter((c) => c.restaurante_id === rid)
+    const productos = ds.productos.filter((p) => p.restaurante_id === rid)
+    const guardada = ds.configuracionesOperativas.find((c) => c.restaurante_id === rid)
+    if (!guardada) return { data: crearEditorOperativoPredeterminado(rid, categorias, productos), error: null }
+    const asignadas = new Map(guardada.categorias.map((c) => [c.id, c.estacion_codigo]))
+    return {
+      data: {
+        ...guardada,
+        categorias: categorias.map((c) => ({ id: c.id, nombre: c.nombre, estacion_codigo: asignadas.get(c.id) ?? null })),
+        productos: productos.map(({ id, nombre, categoria_id, estacion, es_bebida }) => ({ id, nombre, categoria_id, estacion, es_bebida })),
+      },
+      error: null,
+    }
+  },
+  async guardarConfiguracionOperativa(rid, cambios) {
+    await espera()
+    const actor = apiMode.operadorId
+      ? ds.usuarios.find((u) => u.id === apiMode.operadorId && u.activo !== false)
+      : null
+    if (!actor || actor.rol !== 'admin_restaurante' || actor.restaurante_id !== rid) {
+      return { data: null, error: 'Solo el administrador activo de este restaurante puede guardar esta configuración.' }
+    }
+    const acceso = errorDeAcceso(ds, rid, actor.id)
+    if (acceso) return { data: null, error: acceso }
+    const errorValidacion = validarCambiosConfiguracionOperativa(rid, cambios)
+    if (errorValidacion) return { data: null, error: errorValidacion }
+    const categoriasActuales = ds.categorias.filter((c) => c.restaurante_id === rid)
+    const idsActuales = new Set(categoriasActuales.map((c) => c.id))
+    if (cambios.categorias.length !== idsActuales.size || cambios.categorias.some((c) => !idsActuales.has(c.id))) {
+      return { data: null, error: 'Una categoría ya no pertenece a este restaurante. Actualiza la pantalla e inténtalo de nuevo.' }
+    }
+    const guardada = ds.configuracionesOperativas.find((c) => c.restaurante_id === rid)
+    const destinosPermitidos = new Map<string, string>()
+    for (const estacion of guardada?.estaciones ?? []) {
+      for (const destino of estacion.destinos) if (destino.id) destinosPermitidos.set(destino.id, estacion.codigo)
+    }
+    for (const estacion of cambios.estaciones) {
+      if (estacion.destinos.some((destino) => destino.id && destinosPermitidos.get(destino.id) !== estacion.codigo)) {
+        return { data: null, error: 'Uno de los destinos no pertenece a este restaurante. Actualiza la pantalla e inténtalo de nuevo.' }
+      }
+    }
+
+    const estaciones = cambios.estaciones.map((estacion) => ({
+      ...estacion,
+      id: estacion.id ?? crypto.randomUUID(),
+      destinos: estacion.destinos.map((destino) => ({ ...destino, id: destino.id ?? crypto.randomUUID() })),
+    }))
+    const configuracion: ConfiguracionOperativaEditor = {
+      restaurante_id: rid,
+      modalidad_cobro: cambios.modalidad_cobro,
+      version: (guardada?.version ?? 0) + 1,
+      estaciones,
+      categorias: cambios.categorias.map((c) => ({ ...c })),
+      productos: ds.productos.filter((p) => p.restaurante_id === rid)
+        .map(({ id, nombre, categoria_id, estacion, es_bebida }) => ({ id, nombre, categoria_id, estacion, es_bebida })),
+    }
+    const indice = ds.configuracionesOperativas.findIndex((c) => c.restaurante_id === rid)
+    if (indice < 0) ds.configuracionesOperativas.push(configuracion)
+    else ds.configuracionesOperativas[indice] = configuracion
+    registrarAuditoria('configuracion_operativa_actualizar', {
+      restauranteId: rid,
+      entidad: 'configuracion',
+      entidadId: rid,
+      descripcion: 'Actualizó la configuración operativa del restaurante',
+      detalle: {
+        modalidad_cobro: configuracion.modalidad_cobro,
+        estaciones_activas: estaciones.filter((e) => e.activo).map((e) => e.codigo),
+        categorias: configuracion.categorias.map((c) => ({ id: c.id, estacion_codigo: c.estacion_codigo })),
+      },
+    })
+    persiste()
+    return { data: configuracion, error: null }
   },
   async getMeseros(rid) {
     await espera()
@@ -3953,6 +4094,7 @@ export function reiniciarDemoDatos(): void {
   db.historialSuscripciones = []
   db.auditLogs = []
   db.tickets = []
+  db.configuracionesOperativas = []
   db.configuracion = {
     ...CONFIGURACION_POR_DEFECTO,
     updated_at: new Date().toISOString(),
