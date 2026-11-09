@@ -78,8 +78,10 @@ begin
      or (select count(*) from public.pedido_items where pedido_id = v_pedido_id and estacion = 'cocina') <> 1 then
     raise exception 'Prioridad estación explícita/categoría/bebida incorrecta';
   end if;
-  if (select count(*) from public.estado_comanda_estacion where restaurante_id = r and pedido_id = v_pedido_id) <> 2 then
-    raise exception 'La comanda mixta no creó un estado independiente por estación';
+  if (select count(*) from public.estado_comanda_estacion where restaurante_id = r and pedido_id = v_pedido_id) <> 1
+     or not exists (select 1 from public.estado_comanda_estacion where restaurante_id = r and pedido_id = v_pedido_id and estacion_id = v_cocina_id)
+     or exists (select 1 from public.estado_comanda_estacion where restaurante_id = r and pedido_id = v_pedido_id and estacion_id = v_bar_id) then
+    raise exception 'Solo la estación con destino KDS debe tener estado de tablero';
   end if;
   if (select count(*) from public.entregas_comanda where restaurante_id = r and pedido_id = v_pedido_id and grupo = 'principal') <> 3
      or exists (select 1 from public.entregas_comanda where restaurante_id = r and pedido_id = v_pedido_id and grupo = 'respaldo') then
@@ -108,23 +110,17 @@ begin
   select estado into estado_record from public.estado_comanda_estacion
    where restaurante_id = r and pedido_id = v_pedido_id and estacion_id = v_cocina_id;
   if estado_record.estado <> 'en_preparacion'
-     or (select estado from public.estado_comanda_estacion where restaurante_id = r and pedido_id = v_pedido_id and estacion_id = v_bar_id) <> 'pendiente'
-     or (select estado from public.pedidos where id = v_pedido_id) <> 'pendiente' then
-    raise exception 'El avance de Cocina modificó el estado de Barra o el resumen agregado';
-  end if;
-  perform public.avanzar_comanda_estacion(r, v_pedido_id, 'bar');
-  perform public.avanzar_comanda_estacion(r, v_pedido_id, 'bar');
-  if (select estado from public.pedidos where id = v_pedido_id) <> 'en_preparacion' then
-    raise exception 'El pedido padre no resumió estados independientes';
+     or exists (select 1 from public.estado_comanda_estacion where restaurante_id = r and pedido_id = v_pedido_id and estacion_id = v_bar_id)
+     or (select estado from public.pedidos where id = v_pedido_id) <> 'en_preparacion' then
+    raise exception 'El avance de Cocina modificó una estación sin KDS o el resumen agregado';
   end if;
   perform public.avanzar_comanda_estacion(r, v_pedido_id, 'cocina');
-  perform public.avanzar_comanda_estacion(r, v_pedido_id, 'bar');
   if (select estado from public.pedidos where id = v_pedido_id) <> 'listo' then
-    raise exception 'El pedido se marcó listo antes de que todas las estaciones terminaran';
+    raise exception 'El avance independiente no se reflejó en la comanda';
   end if;
   perform public.avanzar_comanda_estacion(r, v_pedido_id, 'cocina');
   if (select estado from public.pedidos where id = v_pedido_id) <> 'entregado' then
-    raise exception 'El pedido no se completó cuando ambas estaciones terminaron';
+    raise exception 'El KDS no marcó entregada la comanda';
   end if;
 
   -- La impresión/entrega no cambia pagos ni crea cuentas.
@@ -141,8 +137,8 @@ begin
   execute format('set local role %I', inicial);
   update public.pedido_items set anulado = true
    where pedido_id = v_pedido_cancelacion_id and producto_id = producto_explicito;
-  if (select estado from public.estado_comanda_estacion
-       where restaurante_id = r and pedido_id = v_pedido_cancelacion_id and estacion_id = v_bar_id) <> 'anulado'
+  if exists (select 1 from public.estado_comanda_estacion
+       where restaurante_id = r and pedido_id = v_pedido_cancelacion_id and estacion_id = v_bar_id)
      or (select estado from public.entregas_comanda
        where restaurante_id = r and pedido_id = v_pedido_cancelacion_id and estacion_id = v_bar_id and tipo_destino = 'impresora') <> 'cancelada'
      or (select estado from public.estado_comanda_estacion

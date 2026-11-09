@@ -33,6 +33,7 @@ import type {
   EstacionComanda,
   EstacionRestaurante,
   EstadoComandaPorEstacion,
+  EstadoEntregaComanda,
   EstadoPedido,
   Json,
   Mesa,
@@ -240,7 +241,14 @@ export type EstacionEnrutamiento = Pick<EstacionRestaurante, 'codigo' | 'nombre'
 
 export type RutaComandaEstacion = {
   destinos: TipoDestinoEstacion[]
-  impresoras: { nombre: string; papel_mm: 58 | 80 | null; copias: number }[]
+  impresoras: {
+    entrega_id: string
+    nombre: string
+    papel_mm: 58 | 80 | null
+    copias: number
+    configuracion_version: number
+    estado: EstadoEntregaComanda
+  }[]
   estado: EstadoPedido
   /** Comandas creadas antes de la fase de enrutamiento conservan el tablero anterior. */
   legado?: boolean
@@ -404,6 +412,8 @@ export type PedidoConItems = Pedido & {
   rutasPorEstacion?: RutasComanda
 }
 
+export type EstadoSalidaImpresion = Extract<EstadoEntregaComanda, 'confirmada' | 'fallida'>
+
 const SIGUIENTE_ESTADO: Record<Pedido['estado'], Pedido['estado']> = {
   pendiente: 'en_preparacion',
   en_preparacion: 'listo',
@@ -460,6 +470,22 @@ export interface DataApi {
     solicitudId: string,
     motivo?: string | null,
   ): Promise<Res<ResultadoRegistroImpresion>>
+  /** Registra una salida manual específica, usando la ruta histórica de la comanda. */
+  registrarImpresionSalidaComanda(
+    rid: string,
+    pedidoId: string,
+    estacion: EstacionComanda,
+    entregaId: string,
+    solicitudId: string,
+    motivo?: string | null,
+  ): Promise<Res<ResultadoRegistroImpresion>>
+  /** Guarda la confirmación manual posterior al diálogo de impresión del navegador. */
+  actualizarEstadoSalidaComanda(
+    rid: string,
+    entregaId: string,
+    solicitudId: string,
+    estado: EstadoSalidaImpresion,
+  ): Promise<Res<null>>
   crearPedido(rid: string, mesaId: string, items: ItemComanda[]): Promise<Res<string>>
   /**
    * Corrige cantidad y nota de un ítem de una comanda ABIERTA (no cobrada).
@@ -761,12 +787,12 @@ function rutasLegadasPedido(pedido: Pedido, items: readonly PedidoItem[]): Rutas
 function resolverRutasPedido(
   pedido: Pedido,
   rutas: readonly EstacionEnrutamiento[],
-  entregas: readonly Pick<EntregaComanda, 'pedido_id' | 'estacion_id' | 'estacion_codigo' | 'estacion_nombre' | 'destino_nombre' | 'configuracion_destino' | 'grupo' | 'tipo_destino'>[],
+  entregas: readonly Pick<EntregaComanda, 'id' | 'pedido_id' | 'estacion_id' | 'estacion_codigo' | 'estacion_nombre' | 'destino_nombre' | 'configuracion_destino' | 'configuracion_version' | 'grupo' | 'tipo_destino' | 'estado'>[],
   estados: readonly Pick<EstadoComandaPorEstacion, 'pedido_id' | 'estacion_id' | 'estado'>[],
   items: readonly PedidoItem[],
 ): RutasComanda {
   const delPedido = entregas.filter((entrega) => entrega.pedido_id === pedido.id && entrega.grupo === 'principal')
-  if (delPedido.length === 0) return rutasLegadasPedido(pedido, items)
+  if (delPedido.length === 0) return pedido.ruteo_configurado ? {} : rutasLegadasPedido(pedido, items)
   const porId = new Map(rutas.filter((r) => r.id).map((r) => [r.id!, r.codigo]))
   const resultado: RutasComanda = {}
   for (const entrega of delPedido) {
@@ -782,9 +808,14 @@ function resolverRutasPedido(
       const copiasConfiguradas = Number(config.copias ?? 1)
       const copias = Number.isInteger(copiasConfiguradas) && copiasConfiguradas >= 1 && copiasConfiguradas <= 5 ? copiasConfiguradas : 1
       const nombreImpresora = entrega.destino_nombre ?? `Impresora ${nombre ?? codigo}`
-      if (!ruta.impresoras.some((impresora) => impresora.nombre === nombreImpresora)) {
-        ruta.impresoras.push({ nombre: nombreImpresora, papel_mm: ancho, copias })
-      }
+      if (!ruta.impresoras.some((impresora) => impresora.entrega_id === entrega.id)) ruta.impresoras.push({
+        entrega_id: entrega.id,
+        nombre: nombreImpresora,
+        papel_mm: ancho,
+        copias,
+        configuracion_version: entrega.configuracion_version,
+        estado: entrega.estado,
+      })
     }
     resultado[codigo] = ruta
   }
@@ -935,14 +966,54 @@ const realApi: DataApi = {
     return { data, error: error?.message ?? null }
   },
   async getPedidosActivos(rid) {
-    const { data: pedidosRaw, error: pedErr } = await supabase
+    const fechaSalidasRecientes = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const [pedidosActivosRes, salidasPendientesRes, salidasConfirmadasRes] = await Promise.all([
+      supabase
       .from('pedidos')
       .select('*')
       .eq('restaurante_id', rid)
       .in('estado', ['pendiente', 'en_preparacion', 'listo'])
-      .order('created_at')
-    if (pedErr) return { data: null, error: pedErr.message }
-    const pList = (pedidosRaw ?? []) as Pedido[]
+      .order('created_at'),
+      supabase.from('entregas_comanda')
+        .select('pedido_id')
+        .eq('restaurante_id', rid)
+        .eq('grupo', 'principal')
+        .eq('tipo_destino', 'impresora')
+        .in('estado', ['pendiente', 'enviada', 'fallida']),
+      supabase.from('entregas_comanda')
+        .select('pedido_id')
+        .eq('restaurante_id', rid)
+        .eq('grupo', 'principal')
+        .eq('tipo_destino', 'impresora')
+        .eq('estado', 'confirmada')
+        .gte('updated_at', fechaSalidasRecientes)
+        .order('updated_at', { ascending: false })
+        .limit(100),
+    ])
+    if (pedidosActivosRes.error) return { data: null, error: pedidosActivosRes.error.message }
+    const erroresSalidas = [salidasPendientesRes.error, salidasConfirmadasRes.error].filter(Boolean)
+    const errorSalidas = erroresSalidas.find((error) => !faltaEsquemaEnrutamiento(error))
+    if (errorSalidas) return { data: null, error: errorSalidas.message }
+    const activos = (pedidosActivosRes.data ?? []) as Pedido[]
+    const idsActivos = new Set(activos.map((p) => p.id))
+    const idsConSalida = [...new Set([
+      ...(salidasPendientesRes.data ?? []).map((fila) => fila.pedido_id),
+      ...(salidasConfirmadasRes.data ?? []).map((fila) => fila.pedido_id),
+    ])]
+      .filter((id) => !idsActivos.has(id))
+    let pList = activos
+    if (idsConSalida.length > 0) {
+      const { data: pedidosImpresion, error: errorPedidosImpresion } = await supabase
+        .from('pedidos')
+        .select('*')
+        .eq('restaurante_id', rid)
+        .neq('estado', 'anulado')
+        .in('id', idsConSalida)
+        .order('created_at')
+      if (errorPedidosImpresion) return { data: null, error: errorPedidosImpresion.message }
+      pList = [...activos, ...((pedidosImpresion ?? []) as Pedido[])]
+        .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    }
     if (pList.length === 0) return { data: [], error: null }
     const { data: items, error: itErr } = await supabase
       .from('pedido_items')
@@ -954,7 +1025,7 @@ const realApi: DataApi = {
     if (rutasRes.error) return { data: null, error: rutasRes.error }
     const [entregasRes, estadosRes] = await Promise.all([
       supabase.from('entregas_comanda')
-        .select('pedido_id, estacion_id, estacion_codigo, estacion_nombre, destino_nombre, configuracion_destino, grupo, tipo_destino')
+        .select('id, pedido_id, estacion_id, estacion_codigo, estacion_nombre, destino_nombre, configuracion_destino, configuracion_version, grupo, tipo_destino, estado')
         .eq('restaurante_id', rid)
         .in('pedido_id', pList.map((p) => p.id)),
       supabase.from('estado_comanda_estacion')
@@ -966,7 +1037,7 @@ const realApi: DataApi = {
     const faltaTablaEstado = estadosRes.error && faltaEsquemaEnrutamiento(estadosRes.error)
     if (entregasRes.error && !faltaTablaEntrega) return { data: null, error: entregasRes.error.message }
     if (estadosRes.error && !faltaTablaEstado) return { data: null, error: estadosRes.error.message }
-    const entregas = faltaTablaEntrega ? [] : (entregasRes.data ?? []) as Pick<EntregaComanda, 'pedido_id' | 'estacion_id' | 'estacion_codigo' | 'estacion_nombre' | 'destino_nombre' | 'configuracion_destino' | 'grupo' | 'tipo_destino'>[]
+    const entregas = faltaTablaEntrega ? [] : (entregasRes.data ?? []) as Pick<EntregaComanda, 'id' | 'pedido_id' | 'estacion_id' | 'estacion_codigo' | 'estacion_nombre' | 'destino_nombre' | 'configuracion_destino' | 'configuracion_version' | 'grupo' | 'tipo_destino' | 'estado'>[]
     const estados = faltaTablaEstado ? [] : (estadosRes.data ?? []) as Pick<EstadoComandaPorEstacion, 'pedido_id' | 'estacion_id' | 'estado'>[]
 
     // Cocina solo ve lo que hay que preparar: los ítems anulados desaparecen.
@@ -998,6 +1069,26 @@ const realApi: DataApi = {
       p_motivo: motivo ?? null,
     })
     return { data: data as ResultadoRegistroImpresion | null, error: error?.message ?? null }
+  },
+  async registrarImpresionSalidaComanda(rid, pedidoId, estacion, entregaId, solicitudId, motivo) {
+    const { data, error } = await supabase.rpc('registrar_impresion_salida_comanda', {
+      p_restaurante_id: rid,
+      p_pedido_id: pedidoId,
+      p_estacion: estacion,
+      p_entrega_id: entregaId,
+      p_solicitud_id: solicitudId,
+      p_motivo: motivo ?? null,
+    })
+    return { data: data as ResultadoRegistroImpresion | null, error: error?.message ?? null }
+  },
+  async actualizarEstadoSalidaComanda(rid, entregaId, solicitudId, estado) {
+    const { error } = await supabase.rpc('actualizar_estado_salida_comanda', {
+      p_restaurante_id: rid,
+      p_entrega_id: entregaId,
+      p_solicitud_id: solicitudId,
+      p_estado: estado,
+    })
+    return { data: null, error: error?.message ?? null }
   },
   async crearPedido(rid, mesaId, items) {
     const { data, error } = await supabase.rpc('crear_pedido', {
@@ -2650,8 +2741,14 @@ function crearApiDesde(
   async getPedidosActivos(rid) {
     await espera()
     const rutas = await this.getEstacionesEnrutamiento(rid)
+    const salidasAbiertas = new Set(ds.entregasComanda
+      .filter((e) => e.restaurante_id === rid && e.grupo === 'principal' && e.tipo_destino === 'impresora' && ['pendiente', 'enviada', 'fallida'].includes(e.estado))
+      .map((e) => e.pedido_id))
+    const recientesParaReimpresion = new Set(ds.entregasComanda
+      .filter((e) => e.restaurante_id === rid && e.grupo === 'principal' && e.tipo_destino === 'impresora' && e.estado === 'confirmada' && e.updated_at >= new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .map((e) => e.pedido_id))
     const activos = ds.pedidos
-      .filter((p) => p.restaurante_id === rid && p.estado !== 'entregado' && p.estado !== 'anulado')
+      .filter((p) => p.restaurante_id === rid && p.estado !== 'anulado' && (p.estado !== 'entregado' || salidasAbiertas.has(p.id) || recientesParaReimpresion.has(p.id)))
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
     const conItems = activos
       .map((p) => {
@@ -2736,6 +2833,74 @@ function crearApiDesde(
     persiste()
     return { data: { estado: 'registrada', accion }, error: null }
   },
+  async registrarImpresionSalidaComanda(rid, pedidoId, estacion, entregaId, solicitudId, motivo) {
+    const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
+    if (acceso) return { data: null, error: acceso }
+    await espera(80)
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+    if (!actor || !['admin_restaurante', 'mesero', 'cocina'].includes(actor.rol)) return { data: null, error: 'Tu perfil no tiene permiso para imprimir comandas.' }
+    const entrega = ds.entregasComanda.find((e) => e.id === entregaId && e.restaurante_id === rid && e.pedido_id === pedidoId && e.estacion_codigo === estacion && e.grupo === 'principal' && e.tipo_destino === 'impresora')
+    if (!entrega || entrega.estado === 'cancelada') return { data: null, error: 'La salida de impresión ya no está disponible para esta comanda.' }
+    const pedido = ds.pedidos.find((p) => p.id === pedidoId && p.restaurante_id === rid)
+    if (!pedido || pedido.estado === 'anulado') return { data: null, error: 'La comanda está anulada o no pertenece a este restaurante.' }
+    if (!ds.items.some((it) => it.pedido_id === pedidoId && it.estacion === estacion && it.anulado !== true)) return { data: null, error: 'Esta comanda no tiene productos vigentes para esa estación.' }
+
+    const solicitudExistente = ds.auditLogs.find((log) => log.detalle?.solicitud_id === solicitudId)
+    if (solicitudExistente) {
+      if (solicitudExistente.actor_id === actor.id && solicitudExistente.restaurante_id === rid && solicitudExistente.entidad_id === pedidoId && solicitudExistente.detalle?.entrega_id === entregaId) {
+        return { data: { estado: 'registrada', accion: solicitudExistente.accion as 'comanda_imprimir' | 'comanda_reimprimir' }, error: null }
+      }
+      return { data: null, error: 'La solicitud de impresión ya se usó para otra comanda.' }
+    }
+    const anteriores = ds.auditLogs.filter((log) => log.restaurante_id === rid && log.entidad === 'pedido' && log.entidad_id === pedidoId && ['comanda_imprimir', 'comanda_reimprimir'].includes(log.accion) && log.detalle?.entrega_id === entregaId)
+    const motivoLimpio = motivo?.trim() ?? ''
+    if (anteriores.length > 0 && !motivoLimpio) return { data: { estado: 'requiere_motivo' }, error: null }
+    if (anteriores.length > 0 && (motivoLimpio.length < 5 || motivoLimpio.length > 300)) return { data: null, error: 'Escribe un motivo de reimpresión de entre 5 y 300 caracteres.' }
+
+    const mesa = ds.mesas.find((m) => m.id === pedido.mesa_id && m.restaurante_id === rid)
+    const accion = anteriores.length > 0 ? 'comanda_reimprimir' : 'comanda_imprimir'
+    registrarAuditoria(accion, {
+      restauranteId: rid,
+      entidad: 'pedido',
+      entidadId: pedidoId,
+      descripcion: `${accion === 'comanda_reimprimir' ? 'Comanda reimpresa' : 'Comanda enviada a impresión'} en ${estacion}, mesa ${mesa?.nombre ?? 'sin mesa'}.`,
+      detalle: {
+        solicitud_id: solicitudId,
+        pedido_id: pedidoId,
+        entrega_id: entregaId,
+        mesa_id: pedido.mesa_id,
+        mesa_nombre: mesa?.nombre ?? null,
+        estacion,
+        impresora: entrega.destino_nombre,
+        configuracion_version: entrega.configuracion_version,
+        configuracion_destino: entrega.configuracion_destino,
+        motivo: accion === 'comanda_reimprimir' ? motivoLimpio : null,
+      },
+    })
+    entrega.estado = 'enviada'
+    entrega.solicitud_impresion_id = solicitudId
+    entrega.updated_at = new Date().toISOString()
+    persiste()
+    return { data: { estado: 'registrada', accion }, error: null }
+  },
+  async actualizarEstadoSalidaComanda(rid, entregaId, solicitudId, estado) {
+    const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
+    if (acceso) return { data: null, error: acceso }
+    await espera(80)
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+    if (!actor || !['admin_restaurante', 'mesero', 'cocina'].includes(actor.rol)) return { data: null, error: 'Tu perfil no tiene permiso para actualizar esta salida.' }
+    const entrega = ds.entregasComanda.find((e) => e.id === entregaId && e.restaurante_id === rid && e.grupo === 'principal' && e.tipo_destino === 'impresora')
+    if (!entrega || entrega.estado === 'cancelada') return { data: null, error: 'La salida de impresión ya no está disponible.' }
+    const log = ds.auditLogs.find((fila) => fila.detalle?.solicitud_id === solicitudId && fila.detalle?.entrega_id === entregaId && fila.actor_id === actor.id && fila.restaurante_id === rid)
+    if (!log || !['comanda_imprimir', 'comanda_reimprimir'].includes(log.accion)) return { data: null, error: 'No se encontró la solicitud de impresión asociada.' }
+    if (entrega.solicitud_impresion_id !== solicitudId) return { data: null, error: 'Hay otra solicitud activa. Actualiza la cola antes de confirmar.' }
+    if (entrega.estado === estado) return { data: null, error: null }
+    if (!['enviada', 'fallida'].includes(entrega.estado)) return { data: null, error: 'La salida no está esperando confirmación de impresión.' }
+    entrega.estado = estado
+    entrega.updated_at = new Date().toISOString()
+    persiste()
+    return { data: null, error: null }
+  },
   async crearPedido(rid, mesaId, items) {
     const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
     if (acceso) return { data: null, error: acceso }
@@ -2768,9 +2933,6 @@ function crearApiDesde(
         return { data: null, error: `La estación ${estacionOperativa?.nombre ?? estacion} está desactivada. Pide al administrador que revise la configuración operativa.` }
       }
       const destinosPrincipales = estacionOperativa.destinos.filter((destino) => destino.activo && destino.grupo === 'principal')
-      if (destinosPrincipales.length === 0) {
-        return { data: null, error: `La estación ${estacionOperativa.nombre} no tiene un destino principal activo. Pide al administrador que revise su configuración.` }
-      }
       if (!estacionOperativa.id || destinosPrincipales.some((destino) => !destino.id)) {
         return { data: null, error: 'No se pudo identificar la estación o el destino operativo. Vuelve a cargar el sistema.' }
       }
@@ -2794,6 +2956,7 @@ function crearApiDesde(
       mesa_id: mesaId,
       mesero_id: actor.id,
       estado: 'pendiente',
+      ruteo_configurado: true,
       observacion: null,
       created_at: ahora,
       updated_at: ahora,
@@ -2817,7 +2980,7 @@ function crearApiDesde(
     for (const ruta of rutasPreparadas) {
       if (!ruta) continue
       const { codigo, estacion, destinos } = ruta
-      ds.estadosComandaEstacion.push({
+      if (destinos.some((destino) => destino.tipo === 'kds')) ds.estadosComandaEstacion.push({
         id: crypto.randomUUID(),
         restaurante_id: rid,
         pedido_id: id,
@@ -2849,6 +3012,7 @@ function crearApiDesde(
           clave_idempotencia: crypto.randomUUID(),
           numero_entrega: 1,
           estado: destino.tipo === 'kds' ? 'confirmada' : 'pendiente',
+          solicitud_impresion_id: null,
           error_publico: null,
           created_at: ahora,
           updated_at: ahora,
@@ -2989,6 +3153,17 @@ function crearApiDesde(
       sincronizarEstadoPedidoLocal(ds, pedidoId)
       persiste()
       return { data: null, error: null }
+    }
+    if (p.ruteo_configurado) {
+      const tieneRutaKds = ds.entregasComanda.some((entrega) =>
+        entrega.pedido_id === pedidoId &&
+        entrega.restaurante_id === rid &&
+        entrega.grupo === 'principal' &&
+        entrega.estacion_codigo === estacion &&
+        entrega.tipo_destino === 'kds',
+      )
+      if (!tieneRutaKds) return { data: null, error: 'Esta estaciÃ³n no tiene una salida KDS configurada para la comanda.' }
+      return { data: null, error: 'No se encontrÃ³ el estado KDS de esta comanda. Actualiza el tablero.' }
     }
     const siguiente = siguienteEstado(p.estado)
     if (siguiente === p.estado) return { data: null, error: 'La comanda ya no tiene estados pendientes' }

@@ -3754,16 +3754,20 @@ check('33b · Cocina enruta a KDS e impresora principal y omite impresora de res
   entregasEnrutadas.filter((fila) => fila.estacion_codigo === 'cocina' && fila.tipo_destino === 'kds' && fila.estado === 'confirmada').length === 1 &&
   entregasEnrutadas.filter((fila) => fila.estacion_codigo === 'cocina' && fila.tipo_destino === 'impresora' && fila.estado === 'pendiente' && fila.configuracion_destino.copias === 1 && fila.configuracion_destino.papel_mm === 80).length === 1 &&
   !entregasEnrutadas.some((fila) => fila.grupo === 'respaldo'))
-check('33c · Barra enruta solo a impresora manual y crea estado por estación',
+check('33c · Barra enruta solo a impresora manual y no crea estado KDS',
   entregasEnrutadas.filter((fila) => fila.estacion_codigo === 'bar').length === 1 &&
   entregasEnrutadas.find((fila) => fila.estacion_codigo === 'bar')?.tipo_destino === 'impresora' &&
   entregasEnrutadas.find((fila) => fila.estacion_codigo === 'bar')?.estado === 'pendiente' &&
-  localSeed.estadosComandaEstacion.filter((fila) => fila.pedido_id === pedidoEnrutado.data).length === 2)
+  localSeed.estadosComandaEstacion.filter((fila) => fila.pedido_id === pedidoEnrutado.data).length === 1 &&
+  !localSeed.estadosComandaEstacion.some((fila) => fila.pedido_id === pedidoEnrutado.data && fila.estacion_id === configEnrutamiento.estaciones.find((e) => e.codigo === 'bar')?.id))
 const avanzarCocinaQA = await api.avanzarPedido(RID_OP_ADMIN_A, pedidoEnrutado.data, 'cocina')
+const avanzarBarraSinKdsQA = await api.avanzarPedido(RID_OP_ADMIN_A, pedidoEnrutado.data, 'bar')
 const rutasConCocinaActiva = (await api.getPedidosActivos(RID_OP_ADMIN_A)).data.find((p) => p.id === pedidoEnrutado.data)?.rutasPorEstacion
-check('33d · Cocina y Barra avanzan de forma independiente',
-  !avanzarCocinaQA.error && pedidoEnrutadoLocal?.estado === 'pendiente' &&
-  rutasConCocinaActiva?.cocina?.estado === 'en_preparacion' && rutasConCocinaActiva?.bar?.estado === 'pendiente')
+check('33d · Cocina KDS avanza; Barra solo impresora no cambia el estado KDS',
+  !avanzarCocinaQA.error && !!avanzarBarraSinKdsQA.error && pedidoEnrutadoLocal?.estado === 'en_preparacion' &&
+  rutasConCocinaActiva?.cocina?.estado === 'en_preparacion' &&
+  localSeed.estadosComandaEstacion.filter((fila) => fila.pedido_id === pedidoEnrutado.data).length === 1 &&
+  entregasEnrutadas.find((fila) => fila.estacion_codigo === 'bar')?.estado === 'pendiente')
 const itemBarParaAnular = itemsEnrutados.find((item) => item.producto_id === 'qa-operacion-admin-producto-a')
 const anularEstacionBar = itemBarParaAnular && await api.anularItem(RID_OP_ADMIN_A, pedidoEnrutado.data, itemBarParaAnular.id)
 const bebidaBarParaAnular = itemsEnrutados.find((item) => item.producto_id === PRODUCTO_OP_BEBIDA)
@@ -3771,7 +3775,7 @@ const anularUltimoItemBar = bebidaBarParaAnular && await api.anularItem(RID_OP_A
 check('33e · anular el último ítem de Barra cancela su entrega pendiente sin alterar Cocina',
   !!anularEstacionBar && !anularEstacionBar.error &&
   !!anularUltimoItemBar && !anularUltimoItemBar.error &&
-  localSeed.estadosComandaEstacion.find((fila) => fila.pedido_id === pedidoEnrutado.data && configEnrutamiento.estaciones.find((e) => e.codigo === 'bar')?.id === fila.estacion_id)?.estado === 'anulado' &&
+  !localSeed.estadosComandaEstacion.some((fila) => fila.pedido_id === pedidoEnrutado.data && configEnrutamiento.estaciones.find((e) => e.codigo === 'bar')?.id === fila.estacion_id) &&
   entregasEnrutadas.find((fila) => fila.estacion_codigo === 'bar')?.estado === 'cancelada' &&
   localSeed.estadosComandaEstacion.find((fila) => fila.pedido_id === pedidoEnrutado.data && fila.estacion_id === configEnrutamiento.estaciones.find((e) => e.codigo === 'cocina')?.id)?.estado === 'en_preparacion' &&
   pedidoEnrutadoLocal?.estado === 'en_preparacion')

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Modal } from './ui'
 import { fmtFecha } from '../lib/format'
-import { esFalloDeRed, type PedidoConItems, type ResultadoRegistroImpresion } from '../lib/api'
+import { esFalloDeRed, type EstadoSalidaImpresion, type PedidoConItems, type ResultadoRegistroImpresion, type RutaComandaEstacion } from '../lib/api'
 import { itemsDeEstacion, MENSAJE_IMPRESION_NO_CONFIRMADA, NOMBRES_ESTACION_COMANDA, validarMotivoReimpresion, type AnchoPapelComanda, type EstacionComanda } from '../domain/restaurant/impresionComandas'
 
 type Props = {
@@ -11,12 +11,14 @@ type Props = {
   mesaNombre: string
   meseroNombre: string
   estacion: EstacionComanda
+  salidaImpresora?: RutaComandaEstacion['impresoras'][number]
   impresorasConfiguradas?: { nombre: string; papel_mm: 58 | 80 | null; copias: number }[]
   onCerrar: () => void
   registrarImpresion: (solicitudId: string, motivo: string | null) => Promise<{
     data: ResultadoRegistroImpresion | null
     error: string | null
   }>
+  actualizarSalida?: (solicitudId: string, estado: EstadoSalidaImpresion) => Promise<{ data: null; error: string | null }>
 }
 
 /** Vista térmica y confirmación de impresión; nunca modifica el pedido. */
@@ -26,11 +28,13 @@ export default function ComandaImprimible({
   mesaNombre,
   meseroNombre,
   estacion,
+  salidaImpresora,
   impresorasConfiguradas = [],
   onCerrar,
   registrarImpresion,
+  actualizarSalida,
 }: Props) {
-  const [ancho, setAncho] = useState<AnchoPapelComanda>(impresorasConfiguradas[0]?.papel_mm ?? 80)
+  const [ancho, setAncho] = useState<AnchoPapelComanda>(salidaImpresora?.papel_mm ?? impresorasConfiguradas[0]?.papel_mm ?? 80)
   const [impresoraSeleccionada, setImpresoraSeleccionada] = useState(impresorasConfiguradas[0]?.nombre ?? '')
   const [estado, setEstado] = useState<'preparando' | 'enviado' | 'impreso' | 'reimpresion'>('preparando')
   const [accion, setAccion] = useState<'comanda_imprimir' | 'comanda_reimprimir' | null>(null)
@@ -56,7 +60,7 @@ export default function ComandaImprimible({
   }, [])
 
   const items = itemsDeEstacion(pedido.items, estacion)
-  const impresoraActiva = impresorasConfiguradas.find((impresora) => impresora.nombre === impresoraSeleccionada) ?? impresorasConfiguradas[0]
+  const impresoraActiva = salidaImpresora ?? impresorasConfiguradas.find((impresora) => impresora.nombre === impresoraSeleccionada) ?? impresorasConfiguradas[0]
   const fecha = new Date(pedido.created_at)
   const fechaLegible = Number.isNaN(fecha.getTime()) ? fmtFecha(pedido.created_at) : fecha.toLocaleDateString('es-PE')
   const horaLegible = Number.isNaN(fecha.getTime()) ? '' : fecha.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
@@ -127,13 +131,34 @@ export default function ComandaImprimible({
     }
   }
 
-  function confirmarImpresion(salio: boolean) {
+  async function confirmarImpresion(salio: boolean) {
+    if (enviando) return
+    setEnviando(true)
+    setError('')
+    try {
+      if (actualizarSalida) {
+        const guardado = await actualizarSalida(solicitudId.current, salio ? 'confirmada' : 'fallida')
+        if (guardado.error) {
+          setError(`El navegador ya mostró el diálogo, pero Mesora no pudo actualizar el estado de esta salida: ${guardado.error}`)
+          setEnviando(false)
+          return
+        }
+      }
+    } catch {
+      setError('El diálogo ya se mostró, pero no se pudo actualizar la salida. No imprimas otra vez; vuelve a confirmar el estado cuando se recupere la conexión.')
+      setEnviando(false)
+      return
+    }
     setConfirmarSalida(false)
     abriendoImpresion.current = false
     if (salio) {
       setEstado(accion === 'comanda_reimprimir' ? 'reimpresion' : 'impreso')
       setMensaje(accion === 'comanda_reimprimir' ? 'Reimpresión confirmada por el usuario.' : 'Impresión confirmada por el usuario.')
       setError('')
+      solicitudId.current = globalThis.crypto.randomUUID()
+      setMotivo('')
+      setRequiereMotivo(true)
+      setEnviando(false)
       return
     }
     setMensaje(MENSAJE_IMPRESION_NO_CONFIRMADA)
@@ -142,6 +167,7 @@ export default function ComandaImprimible({
     setMotivo('')
     setRequiereMotivo(true)
     setPrintListo(false)
+    setEnviando(false)
   }
 
   const motivoValido = validarMotivoReimpresion(motivo)
@@ -158,7 +184,12 @@ export default function ComandaImprimible({
       <Modal titulo={`Comanda · ${NOMBRES_ESTACION_COMANDA[estacion]}`} onCerrar={onCerrar} ancho="max-w-md">
       <div className="comanda-panel">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
-          <label className="flex items-center gap-2 text-sm text-zinc-300">
+          {salidaImpresora ? (
+            <div className="min-w-0 text-sm text-zinc-300">
+              <p className="font-semibold">Salida manual: {salidaImpresora.nombre}</p>
+              <p className="text-xs text-zinc-500">Configuración v{salidaImpresora.configuracion_version} · {salidaImpresora.papel_mm ?? ancho} mm · {salidaImpresora.copias} {salidaImpresora.copias === 1 ? 'copia' : 'copias'}</p>
+            </div>
+          ) : <label className="flex items-center gap-2 text-sm text-zinc-300">
             Papel
             <select
               aria-label="Ancho de papel térmico"
@@ -169,8 +200,8 @@ export default function ComandaImprimible({
               <option value={58}>58 mm</option>
               <option value={80}>80 mm</option>
             </select>
-          </label>
-          {impresorasConfiguradas.length > 1 ? (
+          </label>}
+          {!salidaImpresora && impresorasConfiguradas.length > 1 ? (
             <label className="flex items-center gap-2 text-sm text-zinc-300">
               Impresora configurada
               <select
@@ -186,14 +217,14 @@ export default function ComandaImprimible({
                 {impresorasConfiguradas.map((impresora) => <option key={impresora.nombre} value={impresora.nombre}>{impresora.nombre}</option>)}
               </select>
             </label>
-          ) : impresoraActiva ? (
+          ) : !salidaImpresora && impresoraActiva ? (
             <span className="text-xs text-zinc-400">Impresora configurada: {impresoraActiva.nombre}</span>
           ) : null}
           <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${estado === 'impreso' || estado === 'reimpresion' ? 'border-ok-500/40 bg-ok-500/10 text-ok-400' : 'border-brand-500/40 bg-brand-500/10 text-brand-400'}`} role="status" aria-live="polite">
             {estadoTexto}
           </span>
         </div>
-        {impresoraActiva && <p className="mb-3 text-xs text-zinc-500 print:hidden">Papel sugerido: {impresoraActiva.papel_mm ?? ancho} mm · {impresoraActiva.copias} {impresoraActiva.copias === 1 ? 'copia configurada' : 'copias configuradas'}. Confirma impresora y cantidad en el diálogo del navegador.</p>}
+        {impresoraActiva && <p className="mb-3 text-xs text-zinc-500 print:hidden">La impresión es manual desde el navegador. Confirma el nombre de la impresora y selecciona {impresoraActiva.copias} {impresoraActiva.copias === 1 ? 'copia' : 'copias'} en el diálogo; Mesora no puede detectar si la impresora está conectada.</p>}
 
         <article className="comanda-print mx-auto" data-paper-width={ancho} data-comanda-id={pedido.id} aria-label="Vista imprimible de la comanda">
           <header className="comanda-cabecera">
@@ -249,8 +280,8 @@ export default function ComandaImprimible({
             <p className="text-sm font-semibold text-zinc-200">¿La comanda salió impresa?</p>
             <p className="mt-1 text-xs text-zinc-500">El navegador no puede verificar si hay papel en la impresora. Confírmalo según lo que viste.</p>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" className="btn btn-primary min-h-11" onClick={() => confirmarImpresion(true)}>Sí, salió</button>
-              <button type="button" className="btn btn-outline min-h-11" onClick={() => confirmarImpresion(false)}>No se imprimió</button>
+              <button type="button" className="btn btn-primary min-h-11" disabled={enviando} onClick={() => void confirmarImpresion(true)}>{enviando ? 'Guardando…' : 'Sí, salió'}</button>
+              <button type="button" className="btn btn-outline min-h-11" disabled={enviando} onClick={() => void confirmarImpresion(false)}>{enviando ? 'Guardando…' : 'No se imprimió'}</button>
             </div>
           </div>
         ) : (
@@ -262,7 +293,7 @@ export default function ComandaImprimible({
               disabled={enviando || (requiereMotivo && !motivoValido)}
               onClick={() => printListo ? imprimirAhora() : void registrarSolicitudImpresion()}
             >
-              {enviando ? 'Preparando…' : printListo ? 'Abrir diálogo de impresión' : errorRed ? 'Reintentar de forma segura' : requiereMotivo ? 'Registrar reimpresión' : 'Registrar impresión'}
+              {enviando ? 'Preparando…' : printListo ? 'Imprimir' : errorRed ? 'Reintentar de forma segura' : requiereMotivo ? 'Registrar reimpresión' : 'Registrar impresión'}
             </button>
           </div>
         )}

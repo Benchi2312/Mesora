@@ -199,6 +199,8 @@ export type EntregaComanda = {
   grupo: GrupoDestinoEstacion
   tipo_destino: TipoDestinoEstacion
   configuracion_version: number
+  /** Solicitud manual vigente, usada para confirmar sin aceptar respuestas obsoletas. */
+  solicitud_impresion_id?: string | null
   clave_idempotencia: string
   numero_entrega: number
   estado: EstadoEntregaComanda
@@ -257,6 +259,8 @@ export type Pedido = {
   mesa_id: string
   mesero_id: string
   estado: EstadoPedido
+  /** true en comandas nuevas posteriores a Fase 5, incluso si se configuraron sin salidas. */
+  ruteo_configurado?: boolean
   observacion?: string | null
   created_at: string
   updated_at: string
@@ -710,6 +714,26 @@ export interface Database {
           p_motivo?: string | null
         }
         Returns: { estado: 'requiere_motivo' } | { estado: 'registrada'; accion: 'comanda_imprimir' | 'comanda_reimprimir' }
+      }
+      registrar_impresion_salida_comanda: {
+        Args: {
+          p_restaurante_id: string
+          p_pedido_id: string
+          p_estacion: EstacionComanda
+          p_entrega_id: string
+          p_solicitud_id: string
+          p_motivo?: string | null
+        }
+        Returns: { estado: 'requiere_motivo' } | { estado: 'registrada'; accion: 'comanda_imprimir' | 'comanda_reimprimir' }
+      }
+      actualizar_estado_salida_comanda: {
+        Args: {
+          p_restaurante_id: string
+          p_entrega_id: string
+          p_solicitud_id: string
+          p_estado: 'confirmada' | 'fallida'
+        }
+        Returns: undefined
       }
       /** ¿El restaurante tiene PIN de autorización? Lo usa la UI para pedirlo. */
       tiene_pin_autorizacion: { Args: { p_restaurante_id: string }; Returns: boolean }
