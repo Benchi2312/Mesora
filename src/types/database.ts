@@ -505,6 +505,16 @@ export interface Database {
     }
     Views: Record<string, never>
     Functions: {
+      admin_impresion_crear_codigo: { Args: { p_restaurante_id: string }; Returns: { codigo: string; expira_at: string } }
+      admin_impresion_panel: { Args: { p_restaurante_id: string }; Returns: {
+        agentes: { id: string; nombre: string; estado: 'activo' | 'revocado'; ultimo_heartbeat_at: string | null; impresoras_detectadas: string[]; conectado: boolean }[]
+        asignaciones: { destino_id: string; agente_id: string; cola_windows: string; activa: boolean; max_intentos: number; reintento_base_seg: number }[]
+        trabajos: { id: string; tipo: string; estacion: string; estado: string; cola_windows: string; intentos: number; max_intentos: number; creado_at: string; enviado_at: string | null; error_final: string | null }[]
+        respaldo_automatico_disponible: boolean
+      } }
+      admin_impresion_revocar: { Args: { p_restaurante_id: string; p_agente_id: string }; Returns: undefined }
+      admin_impresion_asignar: { Args: { p_restaurante_id: string; p_destino_id: string; p_agente_id: string; p_cola_windows: string; p_activa: boolean; p_max_intentos: number; p_reintento_base_seg: number }; Returns: undefined }
+      admin_impresion_prueba: { Args: { p_restaurante_id: string; p_destino_id: string }; Returns: string }
       admin_obtener_configuracion_operativa: {
         Args: { p_restaurante_id: string }
         Returns: Json

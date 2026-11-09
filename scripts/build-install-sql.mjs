@@ -45,6 +45,7 @@ const FUENTES_VERSIONADAS = {
   'fase3_configuracion_operativa_admin.sql': '../migrations/20261109012624_fase3_configuracion_operativa_admin.sql',
   'fase4_enrutamiento_comandas.sql': '../migrations/20261109024411_fase4_enrutamiento_comandas.sql',
   'fase5_kds_salida_manual_comandas.sql': '../migrations/20261109045958_fase5_kds_salida_manual_comandas.sql',
+  'fase6_agente_impresion_automatica.sql': '../migrations/20261109061058_fase6_agente_impresion_automatica.sql',
 }
 
 // -----------------------------------------------------------------------------
@@ -116,6 +117,7 @@ const ORDEN = [
   '../migrations/20261109012624_fase3_configuracion_operativa_admin.sql',
   '../migrations/20261109024411_fase4_enrutamiento_comandas.sql',
   '../migrations/20261109045958_fase5_kds_salida_manual_comandas.sql',
+  '../migrations/20261109061058_fase6_agente_impresion_automatica.sql',
 ]
 
 const fallos = []

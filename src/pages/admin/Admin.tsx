@@ -7,6 +7,7 @@ import MenuTab from './MenuTab'
 import PersonalTab from './PersonalTab'
 import ConfiguracionTab from './ConfiguracionTab'
 import ConfiguracionOperativaTab from './ConfiguracionOperativaTab'
+import AgentesImpresionTab from './AgentesImpresionTab'
 import SoporteTab from './SoporteTab'
 import CajaTab from './CajaTab'
 import CobrosTab from './CobrosTab'
@@ -14,7 +15,7 @@ import VentasTab from './VentasTab'
 import AvisoSuscripcion from './AvisoSuscripcion'
 import AuditoriaRestauranteTab from './AuditoriaRestauranteTab'
 
-type SeccionTab = 'dashboard' | 'ventas' | 'caja' | 'cobros' | 'mesas' | 'menu' | 'personal' | 'configuracion' | 'configuracion-operativa' | 'auditoria' | 'soporte'
+type SeccionTab = 'dashboard' | 'ventas' | 'caja' | 'cobros' | 'mesas' | 'menu' | 'personal' | 'configuracion' | 'configuracion-operativa' | 'agentes-impresion' | 'auditoria' | 'soporte'
 
 const SECCIONES: { id: SeccionTab; label: string }[] = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -26,6 +27,7 @@ const SECCIONES: { id: SeccionTab; label: string }[] = [
   { id: 'personal', label: 'Personal' },
   { id: 'configuracion', label: 'Datos del local' },
   { id: 'configuracion-operativa', label: 'Configuración operativa' },
+  { id: 'agentes-impresion', label: 'Impresión automática' },
   { id: 'auditoria', label: 'Auditoría' },
   { id: 'soporte', label: 'Soporte' },
 ]
@@ -80,6 +82,7 @@ export default function Admin() {
       {seccion === 'personal' && <PersonalTab />}
       {seccion === 'configuracion' && <ConfiguracionTab />}
       {seccion === 'configuracion-operativa' && <ConfiguracionOperativaTab />}
+      {seccion === 'agentes-impresion' && <AgentesImpresionTab />}
       {seccion === 'auditoria' && <AuditoriaRestauranteTab />}
       {seccion === 'soporte' && <SoporteTab />}
     </div>
