@@ -14,6 +14,16 @@ function esRutaDemo(pathname: string): boolean {
   return pathname === '/demo' || pathname.startsWith('/demo/')
 }
 
+function rolDemoDesdeRuta(pathname: string): Usuario['rol'] {
+  const rolesPorRuta: Record<string, Usuario['rol']> = {
+    admin: 'admin_restaurante',
+    mesero: 'mesero',
+    cocina: 'cocina',
+    cajero: 'cajero',
+  }
+  return rolesPorRuta[pathname.split('/')[2] ?? ''] ?? 'mesero'
+}
+
 /**
  * Contexto del usuario actual.
  *   * Modo demo → usuario mock según el rol seleccionado + restaurante demo.
@@ -26,14 +36,14 @@ function esRutaDemo(pathname: string): boolean {
  */
 export function useCurrentContext(): CurrentContext {
   const { pathname } = useLocation()
-  const demoRol = useDemoStore((s) => s.demoRol)
   const restauranteDemo = useDemoStore((s) => s.restaurante)
   const auth = useAuthStore()
 
   if (esRutaDemo(pathname)) {
-    const usuario = demoRol
-      ? (mockUsuarios.find((u) => u.rol === demoRol) ?? null)
-      : null
+    // Deriva el usuario del rol de la ruta para que no se muestre el perfil
+    // anterior mientras el efecto de DemoMode sincroniza el store.
+    const rol = rolDemoDesdeRuta(pathname)
+    const usuario = mockUsuarios.find((u) => u.rol === rol) ?? null
     return { usuario, restaurante: restauranteDemo ?? mockRestaurante, signOut: () => {} }
   }
 

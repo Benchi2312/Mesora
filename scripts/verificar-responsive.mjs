@@ -347,6 +347,85 @@ async function correrGuiaMovil(browser, vp) {
   }
 }
 
+async function correrDemoRutas(browser, vp) {
+  const ctx = await browser.newContext({ viewport: { width: vp.w, height: vp.h } })
+  const page = await ctx.newPage()
+  const roles = [
+    { ruta: 'admin', enlace: 'Admin', titulo: 'Panel de administración' },
+    { ruta: 'mesero', enlace: 'Mesero', titulo: 'Restaurante Demo' },
+    { ruta: 'cocina', enlace: 'Cocina', titulo: 'Estaciones de preparación' },
+    { ruta: 'cajero', enlace: 'Cajero', titulo: 'Caja' },
+  ]
+  try {
+    for (const rol of roles) {
+      await page.goto(`${URL}/demo/${rol.ruta}`, { waitUntil: 'networkidle', timeout: 45000 })
+      const titulo = page.getByRole('heading', { level: 1, name: rol.titulo, exact: true })
+      await titulo.waitFor({ state: 'visible', timeout: 15000 })
+      check(`ruta directa ${rol.ruta} muestra su vista ${vp.nombre}`, await titulo.isVisible())
+      check(`ruta directa ${rol.ruta} marca el rol activo ${vp.nombre}`,
+        await page.getByRole('link', { name: rol.enlace, exact: true }).getAttribute('aria-current') === 'page')
+    }
+
+    await page.goto(`${URL}/demo/admin`, { waitUntil: 'networkidle', timeout: 45000 })
+    for (const rol of [...roles.slice(1), roles[0]]) {
+      await page.getByRole('link', { name: rol.enlace, exact: true }).click()
+      await page.waitForURL((url) => url.pathname === `/demo/${rol.ruta}`, { timeout: 10000 })
+      const titulo = page.getByRole('heading', { level: 1, name: rol.titulo, exact: true })
+      await titulo.waitFor({ state: 'visible', timeout: 15000 })
+      check(`navegación interna muestra ${rol.ruta} ${vp.nombre}`, await titulo.isVisible())
+      check(`navegación interna activa ${rol.ruta} ${vp.nombre}`,
+        await page.getByRole('link', { name: rol.enlace, exact: true }).getAttribute('aria-current') === 'page')
+    }
+  } catch (e) {
+    fallos++
+    checks++
+    console.log(`  FALLA rutas demo ${vp.nombre} — ${String(e).split('\n')[0].slice(0, 200)}`)
+  } finally {
+    await ctx.close()
+  }
+}
+
+async function correrGuiaCompletada(browser, vp) {
+  const ctx = await browser.newContext({ viewport: { width: vp.w, height: vp.h } })
+  const page = await ctx.newPage()
+  const progreso = {
+    version: 2,
+    iniciado: true,
+    base: {
+      zonas: 0, mesas: 0, mesaIds: [], mesaEstados: {}, categorias: 0, productos: 0,
+      pedidoIds: [], pedidoEstados: {}, pedidoMesas: {}, cuentasMes: 0, ventaMes: 0,
+    },
+    hechos: ['salon', 'carta', 'comanda', 'cocina', 'cobro', 'panel'],
+    mesaTour: null,
+    pedidoTour: null,
+    pedidoEstados: {},
+    nuevaZona: true,
+    boleta: true,
+  }
+  try {
+    await page.addInitScript((guardado) => localStorage.setItem('mesora.demo.guia.v2', JSON.stringify(guardado)), progreso)
+    await page.goto(`${URL}/demo/admin`, { waitUntil: 'networkidle', timeout: 45000 })
+    await page.locator('[data-guia-minimizada]').waitFor({ state: 'visible', timeout: 15000 })
+    const dashboard = page.getByRole('heading', { level: 1, name: 'Panel de administración', exact: true })
+    check(`recorrido completo inicia minimizado ${vp.nombre}`,
+      await page.getByRole('dialog', { name: 'Recorrido guiado del demo' }).count() === 0 && await dashboard.isVisible())
+    await page.locator('[data-guia-minimizada]').click()
+    const panel = page.getByRole('dialog', { name: 'Recorrido guiado del demo' })
+    await panel.waitFor({ state: 'visible', timeout: 10000 })
+    check(`guía completada se puede abrir ${vp.nombre}`, await panel.isVisible())
+    await panel.getByRole('button', { name: 'Minimizar guía' }).click()
+    await page.locator('[data-guia-minimizada]').waitFor({ state: 'visible', timeout: 10000 })
+    check(`guía completada se puede minimizar ${vp.nombre}`,
+      await page.getByRole('dialog', { name: 'Recorrido guiado del demo' }).count() === 0 && await dashboard.isVisible())
+  } catch (e) {
+    fallos++
+    checks++
+    console.log(`  FALLA guía completada ${vp.nombre} — ${String(e).split('\n')[0].slice(0, 200)}`)
+  } finally {
+    await ctx.close()
+  }
+}
+
 async function correrGuiaCategoria(browser) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } })
   const page = await ctx.newPage()
@@ -620,6 +699,11 @@ async function run() {
     browser = await chromium.launch({ headless: true })
     if (process.argv.includes('--solo-guia-categoria')) {
       await correrGuiaCategoria(browser)
+    } else if (process.argv.includes('--solo-demo-rutas-guia')) {
+      for (const vp of [{ w: 1280, h: 800, nombre: '1280x800' }, { w: 390, h: 844, nombre: '390x844' }]) {
+        await correrDemoRutas(browser, vp)
+        await correrGuiaCompletada(browser, vp)
+      }
     } else if (process.argv.includes('--solo-guia-movil')) {
       for (const vp of VIEWPORTS.filter((vista) => vista.w <= 768)) await correrGuiaMovil(browser, vp)
     } else if (process.argv.includes('--solo-anulacion-ultimo-item')) {
@@ -629,6 +713,10 @@ async function run() {
     } else {
       await correrLandingResponsive(browser)
       await correrAnulacionUltimoItem(browser)
+      for (const vp of [{ w: 1280, h: 800, nombre: '1280x800' }, { w: 390, h: 844, nombre: '390x844' }]) {
+        await correrDemoRutas(browser, vp)
+        await correrGuiaCompletada(browser, vp)
+      }
       for (const vp of VIEWPORTS) {
         console.log(`\nViewport ${vp.nombre}`)
         for (const pantalla of PANTALLAS) await correrPantalla(browser, vp, pantalla)
@@ -652,6 +740,8 @@ async function run() {
   console.log(`\n${'-'.repeat(60)}`)
   const cobertura = process.argv.includes('--solo-guia-categoria')
     ? 'recorrido guiado de categoría en 390x844'
+    : process.argv.includes('--solo-demo-rutas-guia')
+      ? 'rutas del demo y guía completada en escritorio y 390x844'
     : process.argv.includes('--solo-anulacion-ultimo-item')
       ? 'flujo visual de anulación del último ítem en 390x844'
     : process.argv.includes('--solo-guia-movil')

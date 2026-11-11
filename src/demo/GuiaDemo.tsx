@@ -58,6 +58,11 @@ function firmaRect(r: Rect | null): string {
   return r ? `${r.x},${r.y},${r.w},${r.h}` : 'null'
 }
 
+function recorridoGuardadoCompleto(): boolean {
+  const progreso = leerProgreso()
+  return Boolean(progreso?.iniciado && progreso.hechos.length >= TOTAL_PASOS)
+}
+
 function leerInstantanea(rid: string): Promise<Instantanea> {
   const api = getApi()
   return Promise.all([
@@ -177,7 +182,9 @@ export default function GuiaDemo() {
   const [arrancado, setArrancado] = useState(false)
   const [cargado, setCargado] = useState(false)
   const [listo, setListo] = useState(false)
-  const [abierta, setAbierta] = useState(true)
+  // Si el visitante ya terminó el recorrido, no cubrimos el producto ni
+  // siquiera durante la carga inicial del estado asíncrono.
+  const [abierta, setAbierta] = useState(() => !recorridoGuardadoCompleto())
   const [ocultaPorExplorar, setOcultaPorExplorar] = useState(false)
   const [verTodos, setVerTodos] = useState(false)
   const [clics, setClics] = useState<string[]>([])
@@ -308,7 +315,10 @@ export default function GuiaDemo() {
   }, [progreso])
 
   useEffect(() => {
-    if (terminado && !listo) setListo(true)
+    if (terminado && !listo) {
+      setListo(true)
+      setAbierta(false)
+    }
   }, [terminado, listo])
 
   useEffect(() => {
