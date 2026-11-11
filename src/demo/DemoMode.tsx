@@ -38,7 +38,9 @@ export default function DemoMode() {
   const { pathname } = useLocation()
   const enterDemo = useDemoStore((s) => s.enterDemo)
   const exitDemo = useDemoStore((s) => s.exitDemo)
-  const demoRol = useDemoStore((s) => s.demoRol)
+  // La URL es la fuente de verdad para navegación del demo. El store se
+  // actualiza en un efecto y por eso puede conservar el rol anterior durante
+  // el primer render de una navegación interna.
 
   const rol = rolDesdePath(pathname)
 
@@ -66,6 +68,7 @@ export default function DemoMode() {
   return (
     <>
       <AppLayout
+        key={rol}
         banner={
         <div className="border-b border-brand-500/30 bg-brand-500/15">
           <div className="mx-auto flex w-full max-w-7xl flex-wrap items-start justify-between gap-x-4 gap-y-1 px-4 py-2">
@@ -89,8 +92,9 @@ export default function DemoMode() {
               <Link
                 key={r}
                 to={`/demo/${RUTA_DEMO[r]}`}
+                aria-current={rol === r ? 'page' : undefined}
                 className={`rounded-full border px-3 py-1.5 text-sm transition ${
-                  demoRol === r
+                  rol === r
                     ? 'border-brand-500 bg-brand-500 text-surface-950 font-semibold'
                     : 'border-surface-700 bg-surface-800 text-zinc-300 hover:border-brand-500 hover:text-brand-400'
                 }`}
