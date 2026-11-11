@@ -69,6 +69,9 @@ try {
   const minimizar = page.getByRole('button', { name: 'Minimizar guía' })
   if (await minimizar.count()) await minimizar.first().click()
 
+  // networkidle no espera las consultas asíncronas de Cocina ni el fin de su
+  // estado de carga. Espera el primer control del selector como señal funcional.
+  await page.getByRole('button', { name: /^Cocina/ }).waitFor({ state: 'visible' })
   check('aparecen las tres estaciones operativas',
     await page.getByRole('button', { name: /^Cocina/ }).count() === 1 &&
     await page.getByRole('button', { name: /^Bar/ }).count() === 1 &&
