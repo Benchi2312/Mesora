@@ -25,7 +25,67 @@ jobs:
       # requieren la prueba operativa posterior en una computadora del local.
       - run: npm run verificar:agente
       - run: npm run typecheck
-      - run: npx playwright install --with-deps chromium
+      - name: Install Chromium and system dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          azure_mirror="azure.archive.ubuntu.com"
+          fallback_mirror="archive.ubuntu.com"
+
+          if ! timeout 5s getent ahostsv4 "$azure_mirror" >/dev/null 2>&1; then
+            echo "Azure Ubuntu mirror DNS is unavailable; checking the official archive mirror."
+            if ! timeout 5s getent ahostsv4 "$fallback_mirror" >/dev/null 2>&1; then
+              echo "ERROR: neither Azure nor the official Ubuntu archive mirror resolves; Chromium dependencies cannot be installed."
+              exit 1
+            fi
+
+            sudo python3 - <<'PY'
+          from pathlib import Path
+
+          apt_sources = [Path("/etc/apt/sources.list")]
+          sources_dir = Path("/etc/apt/sources.list.d")
+          if sources_dir.exists():
+              apt_sources.extend(
+                  path for path in sources_dir.iterdir()
+                  if path.is_file() and path.suffix in {".list", ".sources"}
+              )
+
+          replaced = 0
+          for source in apt_sources:
+              if not source.exists():
+                  continue
+              contents = source.read_text()
+              updated = contents.replace("azure.archive.ubuntu.com", "archive.ubuntu.com")
+              if updated != contents:
+                  source.write_text(updated)
+                  replaced += 1
+
+          if replaced == 0:
+              raise SystemExit("ERROR: Azure DNS failed, but no apt source referenced the Azure Ubuntu mirror.")
+          print(f"Temporarily switched the Azure Ubuntu mirror in {replaced} apt source file(s).")
+          PY
+          else
+            echo "Azure Ubuntu mirror DNS is available."
+          fi
+
+          sudo tee /etc/apt/apt.conf.d/99mesora-ci-retries >/dev/null <<'APT'
+          Acquire::Retries "2";
+          Acquire::http::Timeout "20";
+          Acquire::https::Timeout "20";
+          APT
+
+          for attempt in 1 2; do
+            echo "Installing Chromium and dependencies (attempt ${attempt}/2)."
+            if npx playwright install --with-deps chromium; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 2 ]; then
+              echo "ERROR: Playwright could not install Chromium or its system dependencies after 2 attempts."
+              exit 1
+            fi
+            sleep 5
+          done
       - run: npm run verificar:impresion
       - run: npm run verificar:acceso
       - run: npm run verificar:contacto
