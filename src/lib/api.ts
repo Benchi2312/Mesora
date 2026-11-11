@@ -2096,10 +2096,10 @@ function esBebidaEn(ds: Dataset, rid: string, productoId: string | null): boolea
   return producto?.es_bebida === true
 }
 
-/** Ids de pedidos que ya pertenecen a una cuenta pagada de este restaurante. */
+/** Una anulación revierte la venta, pero no libera el pedido para otro cobro. */
 function idsPedidosCobradosEn(ds: Dataset, rid: string): Set<string> {
   const cuentasPagadas = new Set(
-    ds.cuentas.filter((c) => c.restaurante_id === rid && c.estado === 'pagada').map((c) => c.id),
+    ds.cuentas.filter((c) => c.restaurante_id === rid && (c.estado === 'pagada' || c.estado === 'anulada')).map((c) => c.id),
   )
   return new Set(
     ds.cuentaPedidos.filter((cp) => cuentasPagadas.has(cp.cuenta_id)).map((cp) => cp.pedido_id),
@@ -3227,6 +3227,7 @@ function crearApiDesde(
     await espera(250)
     const p = ds.pedidos.find((x) => x.id === pedidoId && x.restaurante_id === rid)
     if (!p) return { data: null, error: 'Pedido no encontrado' }
+    if (idsPedidosCobradosEn(ds, rid).has(pedidoId)) return { data: null, error: 'La comanda ya tiene un recibo emitido o anulado y no puede volver a preparación.' }
     if (p.estado === 'anulado') return { data: null, error: 'La comanda está anulada' }
     const configuracion = configuracionOperativaLocal(ds, rid)
     const estacionConfigurada = configuracion.estaciones.find((fila) => fila.codigo === estacion)
@@ -3273,6 +3274,8 @@ function crearApiDesde(
   async anularCuenta(rid, cuentaId, motivo, pin = null) {
     const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
     if (acceso) return { data: null, error: acceso }
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+    if (!actor || !['admin_restaurante', 'cajero'].includes(actor.rol)) return { data: null, error: 'Solo el administrador o cajero activo puede anular un recibo de este restaurante.' }
     await espera(250)
     const cuenta = ds.cuentas.find((c) => c.id === cuentaId && c.restaurante_id === rid)
     if (!cuenta) return { data: null, error: 'La cuenta no pertenece al restaurante' }
@@ -3281,7 +3284,7 @@ function crearApiDesde(
     // Autorización antes de tocar nada, igual que en el SQL.
     const errorPin = errorDePin(ds, rid, pin)
     if (errorPin) return { data: null, error: errorPin }
-    if (cuenta.estado === 'anulada') return { data: null, error: 'Esta boleta ya fue anulada' }
+    if (cuenta.estado === 'anulada') return { data: cuenta, error: null }
     if (cuenta.estado !== 'pagada') return { data: null, error: 'Solo se puede anular una cuenta cobrada' }
 
     // Lo que se devuelve al cliente es el total MÁS la propina (también se

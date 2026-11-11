@@ -149,10 +149,9 @@ begin
   if not denegado then raise exception 'Se anuló un cobro con PIN incorrecto'; end if;
   c:=public.anular_cuenta(r,cuenta,'Anulación de QA con PIN','4242');
   if c.estado<>'anulada' or c.monto_reembolsado<>61 then raise exception 'Reembolso incorrecto'; end if;
-  denegado:=false;
-  begin perform public.anular_cuenta(r,cuenta,'Segundo intento QA','4242');
-  exception when others then denegado:=true; end;
-  if not denegado then raise exception 'Se permitió una segunda anulación'; end if;
+  if (public.anular_cuenta(r,cuenta,'Segundo intento QA','4242')).motivo_anulacion <> 'Anulación de QA con PIN' then
+    raise exception 'La segunda anulación cambió el motivo original';
+  end if;
   execute format('set local role %I',rol_inicial);
   if not exists (
     select 1 from public.audit_logs
