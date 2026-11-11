@@ -6,6 +6,7 @@ export type PoliticaCobro = {
   modalidad_cobro: ModalidadCobro
   modalidad_aplicada: ModalidadCobro | null
   usuarios_autorizados: string[]
+  actualizado_at?: string | null
 }
 
 export function normalizarPoliticaCobro(restauranteId: string, valor: unknown): PoliticaCobro | null {

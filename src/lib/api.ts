@@ -922,7 +922,9 @@ const realApi: DataApi = {
     const { data, error } = await supabase.rpc('admin_obtener_politica_cobro', { p_restaurante_id: rid })
     if (error) return { data: null, error: mensajeOperacion(error.message, 'No se pudieron cargar los permisos de cobro. Actualiza la página.') }
     const politica = normalizarPoliticaCobro(rid, data)
-    return politica ? { data: politica, error: null } : { data: null, error: 'No se pudo confirmar la modalidad de cobro. Actualiza la página.' }
+    if (!politica) return { data: null, error: 'No se pudo confirmar la modalidad de cobro. Actualiza la página.' }
+    const { data: fecha } = await supabase.from('configuracion_operativa').select('updated_at').eq('restaurante_id', rid).maybeSingle()
+    return { data: { ...politica, actualizado_at: fecha?.updated_at ?? null }, error: null }
   },
   async guardarPoliticaCobro(rid, modalidad, usuarios) {
     const { data, error } = await supabase.rpc('admin_guardar_politica_cobro', {
@@ -932,7 +934,9 @@ const realApi: DataApi = {
     })
     if (error) return { data: null, error: mensajeOperacion(error.message, 'No se pudo guardar la autorización de cobro. Revisa el personal seleccionado.') }
     const politica = normalizarPoliticaCobro(rid, data)
-    return politica ? { data: politica, error: null } : { data: null, error: 'El cambio pudo guardarse, pero no se pudo confirmar. Actualiza antes de volver a intentarlo.' }
+    if (!politica) return { data: null, error: 'El cambio pudo guardarse, pero no se pudo confirmar. Actualiza antes de volver a intentarlo.' }
+    const { data: fecha } = await supabase.from('configuracion_operativa').select('updated_at').eq('restaurante_id', rid).maybeSingle()
+    return { data: { ...politica, actualizado_at: fecha?.updated_at ?? new Date().toISOString() }, error: null }
   },
   async puedeCobrar(rid) {
     const { data, error } = await supabase.rpc('puede_cobrar_restaurante', { p_restaurante_id: rid })
@@ -2664,7 +2668,7 @@ function crearApiDesde(
     const anterior = politicaCobroLocal(ds, rid)
     const politica: PoliticaCobro = {
       restaurante_id: rid, modalidad_cobro: modalidad, modalidad_aplicada: modalidad,
-      usuarios_autorizados: [...usuarios],
+      usuarios_autorizados: [...usuarios], actualizado_at: new Date().toISOString(),
     }
     const indice = ds.politicasCobro.findIndex((p) => p.restaurante_id === rid)
     if (indice < 0) ds.politicasCobro.push(politica)
