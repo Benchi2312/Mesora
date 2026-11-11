@@ -6,7 +6,7 @@ import { PREFILL_GUIA, prefillDe } from '../../demo/guia'
 import { escribirSecuencia } from '../../demo/escritura'
 import type { DatosProducto } from '../../lib/api'
 import type { CategoriaProducto, Producto } from '../../types/database'
-import { ESTACIONES_COMANDA, NOMBRES_ESTACION_COMANDA, type EstacionComanda } from '../../domain/restaurant/impresionComandas'
+import { NOMBRES_ESTACION_COMANDA, type EstacionComanda } from '../../domain/restaurant/impresionComandas'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 import { fmtPEN } from '../../lib/format'
@@ -333,7 +333,9 @@ export default function MenuTab() {
       es_promocion: m.esPromocion,
       precio_promocion: precioPromocion,
       es_bebida: m.esBebida,
-      estacion: m.estacion,
+      // Los productos nuevos siguen la regla sencilla del formulario. En una
+      // edición se conserva la asignación histórica, incluso si es explícita.
+      estacion: m.accion === 'crear' ? (m.esBebida ? 'bar' : 'cocina') : m.estacion,
     }
     const api = getApi()
     const res =
@@ -670,23 +672,14 @@ export default function MenuTab() {
               />
             </Campo>
 
-            <Campo etiqueta="Estación de preparación" htmlFor="producto-estacion" error={null}>
-              <select
-                id="producto-estacion"
-                value={modalProducto.estacion ?? ''}
-                onChange={(e) => setModalProducto({
-                  ...modalProducto,
-                  estacion: e.target.value ? e.target.value as EstacionComanda : null,
-                })}
-                className="input h-11"
-              >
-                <option value="">Heredar de categoría</option>
-                {ESTACIONES_COMANDA.map((estacion) => (
-                  <option key={estacion} value={estacion}>{NOMBRES_ESTACION_COMANDA[estacion]}</option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-zinc-500">Si hereda, usa la estación predeterminada de la categoría; si no está definida, bebidas van a Barra y los demás productos a Cocina. Cada comanda guarda su ruta al enviarse.</p>
-            </Campo>
+            {modalProducto.accion === 'editar' && modalProducto.estacion && (
+              <details className="rounded-xl border border-surface-700 bg-surface-900/60 p-3">
+                <summary className="min-h-11 cursor-pointer select-none text-sm font-semibold text-zinc-300">Compatibilidad avanzada de asignación heredada</summary>
+                <p className="mt-2 text-xs leading-relaxed text-zinc-400">
+                  Este producto conserva su ruta explícita anterior a {NOMBRES_ESTACION_COMANDA[modalProducto.estacion]}. Tiene prioridad sobre la categoría y sobre “Es bebida”. Las comandas históricas mantienen su ruta guardada.
+                </p>
+              </details>
+            )}
 
             <Campo etiqueta={null} htmlFor={undefined} error={null}>
               <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm text-zinc-300">
@@ -773,8 +766,9 @@ export default function MenuTab() {
                     </svg>
                   )}
                 </span>
-                Es bebida (para reportes de ventas)
+                Es bebida
               </label>
+              <p className="mt-1 text-xs leading-relaxed text-zinc-500">En productos nuevos, las bebidas van a Barra y los demás a Cocina. Los productos existentes conservan su ruta explícita o heredada; puedes revisarla en Configuración operativa → Opciones avanzadas y compatibilidad.</p>
             </Campo>
 
             {productoError && (
