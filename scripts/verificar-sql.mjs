@@ -131,6 +131,8 @@ try {
   await pg.exec(readFileSync(new URL('../supabase/qa/fase6_agente_impresion_rollback.sql', import.meta.url), 'utf8'))
   await pg.exec(readFileSync(new URL('../supabase/qa/modalidad_cobro_rollback.sql', import.meta.url), 'utf8'))
   console.log('SQL QA: modalidades de cobro, bypass RPC, roles, histórico y auditoría aprobados')
+  await pg.exec(readFileSync(new URL('../supabase/qa/anulacion_recibo_sin_recobro_rollback.sql', import.meta.url), 'utf8'))
+  console.log('SQL QA: recibo anulado no reaparece ni admite otro cobro; historial, roles e idempotencia aprobados')
   console.log('SQL QA: Fase 6 vinculación, RLS, cola, idempotencia, lease, reintentos y revocación aprobados')
   console.log('SQL QA: matriz Fase 5, solicitudes manuales, snapshots, reimpresión, idempotencia y RLS aprobados')
   console.log('SQL QA: enrutamiento por estación, snapshots, avance independiente, RLS y aislamiento tenant aprobados')

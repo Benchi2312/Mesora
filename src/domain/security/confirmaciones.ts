@@ -43,7 +43,7 @@ export function confirmarAnulacionCuenta(datos: {
 }): ResumenConfirmacion {
   return resumen(
     'Anular una cuenta ya cobrada y devolver el dinero',
-    `Boleta ${datos.boleta}: venta ${datos.total}, propina ${datos.propina}, devolución total ${datos.reembolso}. Se registrará el motivo «${datos.motivo}»; la venta se excluirá del reporte y el efectivo devuelto se reflejará en el arqueo.`,
+    `Recibo interno ${datos.boleta}: venta ${datos.total}, propina ${datos.propina}, devolución total ${datos.reembolso}. Se registrará el motivo «${datos.motivo}»; la venta se excluirá del reporte y el efectivo devuelto se reflejará en el arqueo. El pedido y sus pagos quedarán en el historial; la venta no volverá a Caja ni podrá cobrarse de nuevo.`,
     datos.requierePin,
   )
 }

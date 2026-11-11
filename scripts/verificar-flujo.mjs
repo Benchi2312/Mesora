@@ -1795,15 +1795,30 @@ check('19v · la boleta queda "anulada", no borrada', cuentaAnulable.estado === 
 check('19w · queda el motivo registrado', cuentaAnulable.motivo_anulacion === 'Error de cobro')
 check('19w1 · la anulación de la boleta deja auditoría local con motivo', localSeed.auditLogs.some((l) => l.accion === 'cuenta_anular' && l.entidad_id === cuentaAnulable.id && l.detalle?.motivo === 'Error de cobro'))
 check('19x · queda quién la anuló', cuentaAnulable.anulada_por === adminId)
+check('19x1 · el pedido cobrado y anulado no reaparece en Caja',
+  !(await api.getMesasPorCobrar(RID)).data?.some((m) => m.mesa_id === 'm-9'))
+check('19x2 · recargar pendientes conserva la mesa fuera de Caja',
+  !(await api.getPedidosDeMesa(RID, 'm-9')).data?.some((p) => p.id === comandaCobro.data))
+check('19x3 · la API directa rechaza cobrar de nuevo el pedido anulado',
+  Boolean((await api.cerrarCuenta(RID, 'm-9', [comandaCobro.data], 'efectivo')).error))
+check('19x4 · se conservaron el pedido, el vínculo, el pago y el recibo',
+  localSeed.pedidos.some((p) => p.id === comandaCobro.data && p.estado === 'entregado') &&
+  localSeed.cuentaPedidos.some((cp) => cp.cuenta_id === cuentaAnulable.id && cp.pedido_id === comandaCobro.data) &&
+  localSeed.pagos.some((p) => p.cuenta_id === cuentaAnulable.id) &&
+  localSeed.cuentas.some((c) => c.id === cuentaAnulable.id))
+check('19x5 · la comanda anulada no vuelve a preparación por API directa',
+  Boolean((await api.avanzarPedido(RID, comandaCobro.data, 'cocina')).error))
 check(
   '19y · el monto devuelto es el total + la propina',
   cuentaAnulable.monto_reembolsado === cuentaAnulable.total + (cuentaAnulable.propina ?? 0),
   `devuelto ${cuentaAnulable.monto_reembolsado} · total ${cuentaAnulable.total} + propina ${cuentaAnulable.propina ?? 0}`,
 )
-check(
-  '19z · anular dos veces la misma boleta se rechaza',
-  (await api.anularCuenta(RID, cuentaAnulable.id, 'Error de cobro', '2468')).error === 'Esta boleta ya fue anulada',
-)
+const auditoriasAnulacionAntes = localSeed.auditLogs.filter((l) => l.accion === 'cuenta_anular' && l.entidad_id === cuentaAnulable.id).length
+const anuladaAtAntes = cuentaAnulable.anulada_at
+const repetida = await api.anularCuenta(RID, cuentaAnulable.id, 'Error de cobro', '2468')
+check('19z · segunda anulación idempotente, sin otra auditoría ni fecha nueva',
+  !repetida.error && repetida.data?.id === cuentaAnulable.id && cuentaAnulable.anulada_at === anuladaAtAntes &&
+  localSeed.auditLogs.filter((l) => l.accion === 'cuenta_anular' && l.entidad_id === cuentaAnulable.id).length === auditoriasAnulacionAntes)
 
 // -- Búsqueda/paginación de cobros y filtros tenant-scoped de auditoría
 apiMode.operadorId = adminId

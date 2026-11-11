@@ -120,6 +120,7 @@ const ORDEN = [
   '../migrations/20261109045958_fase5_kds_salida_manual_comandas.sql',
   '../migrations/20261109061058_fase6_agente_impresion_automatica.sql',
   '../migrations/20261109075129_validar_modalidad_cobro_restaurante.sql',
+  '../migrations/20261111034528_impedir_recobro_tras_anulacion_recibo.sql',
 ]
 
 const fallos = []
