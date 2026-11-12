@@ -423,12 +423,28 @@ try {
       apiMode.operadorId = actorAnterior
     }
   }, pedidoMixto.mesa)
+  const rutaNuevaComandaBarra = await page.evaluate(async (pedidoId) => {
+    const { getApi } = await import('/src/lib/api.ts')
+    const resultado = await getApi().getPedidosActivos('r-demo')
+    const pedido = resultado.data?.find((fila) => fila.id === pedidoId)
+    return { error: resultado.error, destinos: pedido?.rutasPorEstacion?.bar?.destinos ?? [] }
+  }, comandaBarraKds)
+  check('el snapshot nuevo de Barra incluye el destino KDS',
+    !rutaNuevaComandaBarra.error && rutaNuevaComandaBarra.destinos.includes('kds'), JSON.stringify(rutaNuevaComandaBarra))
   await page.goto(`${URL}/demo/cocina`, { waitUntil: 'networkidle', timeout: 45000 })
   await explorarDemoSinGuia(page)
   await page.getByRole('button', { name: /^Barra/ }).waitFor({ state: 'visible' })
   await page.getByRole('button', { name: /^Barra/ }).click()
   const kdsBarra = page.getByRole('region', { name: 'KDS de Barra' })
   await kdsBarra.waitFor({ state: 'visible' })
+  const nuevaComandaBarra = kdsBarra.locator(`[data-comanda-kds="${comandaBarraKds}"]`)
+  await nuevaComandaBarra.waitFor({ state: 'visible' })
+  // La región KDS puede aparecer antes de terminar el siguiente ciclo de
+  // lectura tras cambiar la estación. Esperamos el contenido que prueba que
+  // la nueva comanda y sus estados ya llegaron a la interfaz.
+  await kdsBarra.getByRole('heading', { name: 'Pendientes' }).waitFor({ state: 'visible' })
+  await kdsBarra.getByRole('heading', { name: 'En preparación' }).waitFor({ state: 'visible' })
+  await kdsBarra.getByRole('heading', { name: 'Listos' }).waitFor({ state: 'visible' })
   check('Barra con KDS muestra estados operativos y una comanda nueva',
     await kdsBarra.getByRole('heading', { name: 'Pendientes' }).count() === 1 &&
     await kdsBarra.getByRole('heading', { name: 'En preparación' }).count() === 1 &&
