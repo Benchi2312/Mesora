@@ -532,6 +532,11 @@
     margin-bottom: 1.25rem;
   }
 
+  .admin-content > .mb-8.flex {
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.2rem;
+  }
+
   .admin-content h1 {
     font-size: 1.55rem;
     line-height: 1.15;
