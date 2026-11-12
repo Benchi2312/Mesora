@@ -181,16 +181,16 @@ export default function DashboardTab() {
       <div className="card space-y-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-sm text-zinc-300">Resumen del periodo: <strong>{nombrePeriodo(periodo, rango.desde, rango.hasta)}</strong></p>
+            <p className="text-sm text-zinc-300">Periodo: <strong className="text-zinc-100">{nombrePeriodo(periodo, rango.desde, rango.hasta)}</strong></p>
             <p className="mt-1 text-xs text-zinc-500">Hora local de Lima{actualizado ? ` · Actualizado a las ${new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit' }).format(actualizado)}` : ''}{cargando ? ' · Actualizando…' : ''}</p>
           </div>
           <div className="no-print flex flex-wrap gap-2">
-            <button type="button" data-guia="exportar-csv" onClick={() => void exportarCsv()} disabled={exportando || !metricasCsv} title="El CSV contiene el mes en curso" className="btn btn-outline min-h-11 px-4 disabled:opacity-50">{exportando ? 'Generando…' : 'Exportar CSV del mes'}</button>
-            <button type="button" onClick={imprimirReporte} className="btn btn-outline min-h-11 px-4">Imprimir</button>
+            <button type="button" data-guia="exportar-csv" onClick={() => void exportarCsv()} disabled={exportando || !metricasCsv} title="El CSV contiene el mes en curso" className="btn btn-outline min-h-11 px-3 disabled:opacity-50 sm:px-4">{exportando ? 'Generando…' : 'Exportar CSV del mes'}</button>
+            <button type="button" onClick={imprimirReporte} className="btn btn-outline min-h-11 px-3 sm:px-4">Imprimir</button>
           </div>
         </div>
 
-        <div className="no-print flex flex-wrap gap-2" role="group" aria-label="Periodo del Dashboard">
+        <div className="no-print flex flex-wrap gap-2 border-t border-surface-800 pt-4" role="group" aria-label="Periodo del Dashboard">
           {([['hoy', 'Hoy'], ['7dias', 'Últimos 7 días'], ['mes', 'Este mes'], ['personalizado', 'Fechas']] as const).map(([id, texto]) => (
             <button key={id} type="button" aria-pressed={periodo === id} onClick={() => elegirPeriodo(id)} className={`btn min-h-11 px-4 ${periodo === id ? 'btn-primary' : 'btn-outline'}`}>{texto}</button>
           ))}
@@ -206,14 +206,35 @@ export default function DashboardTab() {
       {avisoExport && <p role="status" className={`no-print aviso ${avisoExport.startsWith('No se pudo') ? 'border-danger-500/40 bg-danger-500/10 text-danger-500' : 'border-ok-500/40 bg-ok-500/10 text-ok-500'}`}>{avisoExport}</p>}
 
       {reporte && resumen && <>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-          <TarjetaResumen etiqueta="Cobrado en el periodo" valor={fmtPEN(resumen.ventas)} detalle={`${resumen.cuentas_pagadas} cuentas pagadas`} acento="text-ok-500" guia="panel-ventas" />
-          <TarjetaResumen etiqueta="Reembolsado en el periodo" valor={fmtPEN(resumen.reembolsos)} detalle={`${resumen.cuentas_anuladas} cuentas anuladas`} acento={resumen.reembolsos > 0 ? 'text-danger-500' : 'text-zinc-300'} />
-          <TarjetaResumen etiqueta="Neto de caja" valor={fmtPEN(resumen.neto)} detalle="Cobrado menos reembolsos del periodo" acento="text-brand-400" />
-          <TarjetaResumen etiqueta="Ticket promedio" valor={fmtPEN(resumen.ticket_promedio)} detalle="por cuenta pagada" acento="text-zinc-100" />
-          <TarjetaResumen etiqueta="Propinas" valor={fmtPEN(resumen.propinas)} detalle="separadas de las ventas" acento="text-zinc-300" />
-          <TarjetaResumen etiqueta="Cuentas pagadas" valor={String(resumen.cuentas_pagadas)} detalle={`${resumen.cuentas_anuladas} anuladas`} acento="text-brand-400" />
-        </div>
+        <section aria-label="Indicadores del periodo" className="card overflow-hidden border-brand-500/20 bg-[radial-gradient(ellipse_at_top_left,rgba(255,149,0,0.10),transparent_48%),linear-gradient(145deg,#18181b,#111113)]">
+          <div className="p-4 sm:p-6">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Ventas del periodo</p>
+                <p className="mt-1 text-sm text-zinc-500">Cobros y devoluciones en las fechas seleccionadas</p>
+              </div>
+              <span className="chip chip-neutral">{nombrePeriodo(periodo, rango.desde, rango.hasta)}</span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div data-guia="panel-ventas" className="rounded-xl border border-ok-500/20 bg-surface-950/55 p-4 sm:p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Cobrado</p>
+                <p className="mt-2 text-3xl font-extrabold tracking-tight text-ok-500 sm:text-4xl">{fmtPEN(resumen.ventas)}</p>
+                <p className="mt-1.5 text-sm text-zinc-500">{resumen.cuentas_pagadas} cuentas pagadas</p>
+              </div>
+              <div className="rounded-xl border border-brand-500/20 bg-surface-950/45 p-4 sm:p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">Neto de caja</p>
+                <p className="mt-2 text-3xl font-extrabold tracking-tight text-brand-400 sm:text-4xl">{fmtPEN(resumen.neto)}</p>
+                <p className="mt-1.5 text-sm text-zinc-500">Cobrado menos reembolsos</p>
+              </div>
+            </div>
+          </div>
+          <dl className="grid grid-cols-2 border-t border-surface-700/70 sm:grid-cols-4">
+            <MetricaCompacta etiqueta="Reembolsado" valor={fmtPEN(resumen.reembolsos)} detalle={`${resumen.cuentas_anuladas} anuladas`} tono={resumen.reembolsos > 0 ? 'text-danger-400' : 'text-zinc-200'} />
+            <MetricaCompacta etiqueta="Ticket promedio" valor={fmtPEN(resumen.ticket_promedio)} detalle="por cuenta pagada" />
+            <MetricaCompacta etiqueta="Propinas" valor={fmtPEN(resumen.propinas)} detalle="separadas de las ventas" />
+            <MetricaCompacta etiqueta="Cuentas pagadas" valor={String(resumen.cuentas_pagadas)} detalle="en este periodo" />
+          </dl>
+        </section>
 
         <div className="aviso border-surface-700 bg-surface-900 text-zinc-400">
           <strong className="text-zinc-300">Cómo leerlo:</strong> “Cobrado” suma las cuentas pagadas en las fechas elegidas. “Reembolsado” suma las cuentas anuladas en esas fechas, aunque se hubieran cobrado antes. “Neto de caja” resta ambos movimientos; las propinas y el vuelto no se consideran ventas.
@@ -276,11 +297,11 @@ export default function DashboardTab() {
   )
 }
 
-function TarjetaResumen({ etiqueta, valor, detalle, acento, guia }: { etiqueta: string; valor: string; detalle: string; acento: string; guia?: string }) {
-  return <div data-guia={guia} className="card card-hover p-4 transition-transform duration-150 hover:-translate-y-0.5 sm:p-5">
-    <p className="text-xs font-medium uppercase tracking-widest text-zinc-500">{etiqueta}</p>
-    <p className={`mt-2.5 text-xl font-extrabold tracking-tight sm:text-2xl ${acento}`}>{valor}</p>
-    <p className="mt-1.5 text-xs text-zinc-500">{detalle}</p>
+function MetricaCompacta({ etiqueta, valor, detalle, tono = 'text-zinc-100' }: { etiqueta: string; valor: string; detalle: string; tono?: string }) {
+  return <div className="min-w-0 border-b border-surface-800 p-4 sm:border-b-0 sm:border-r sm:p-5 [&:nth-child(even)]:border-r-0 sm:[&:nth-child(even)]:border-r sm:[&:nth-child(4)]:border-r-0 [&:nth-child(n+3)]:border-b-0">
+    <dt className="text-xs font-semibold uppercase tracking-[0.1em] text-zinc-500">{etiqueta}</dt>
+    <dd className={`mt-1.5 truncate text-lg font-bold tabular-nums ${tono}`}>{valor}</dd>
+    <p className="mt-1 text-xs text-zinc-500">{detalle}</p>
   </div>
 }
 

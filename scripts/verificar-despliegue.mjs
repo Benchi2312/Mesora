@@ -52,7 +52,7 @@ console.log('OK caché HTML, caché de assets versionados y 404 real para chunk 
 const casos = [
   { ruta: '/', tipo: 'landing' },
   { ruta: '/login', tipo: 'login' },
-  { ruta: '/demo/admin', tipo: 'demo', titulo: 'Panel de administración' },
+  { ruta: '/demo/admin', tipo: 'demo', titulo: 'Resumen de ventas' },
   { ruta: '/demo/mesero', tipo: 'demo', texto: 'Toma de pedidos y cierre de cuentas' },
   { ruta: '/demo/cocina', tipo: 'demo', titulo: 'Estaciones de preparación' },
   { ruta: '/demo/cajero', tipo: 'demo', titulo: 'Caja' },
