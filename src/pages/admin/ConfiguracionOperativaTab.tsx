@@ -53,6 +53,21 @@ function destinoNuevo(tipo: TipoDestinoEstacion, estacion: EstacionOperativaEdit
   }
 }
 
+function destinoPrincipalActivo(estacion: EstacionOperativaEditor, tipo: TipoDestinoEstacion): boolean {
+  return estacion.activo && estacion.destinos.some((destino) =>
+    destino.tipo === tipo && destino.grupo === 'principal' && destino.activo,
+  )
+}
+
+function resumenDestinos(estacion: EstacionOperativaEditor): string {
+  const kds = destinoPrincipalActivo(estacion, 'kds')
+  const ticketera = destinoPrincipalActivo(estacion, 'impresora')
+  if (kds && ticketera) return 'Pantalla KDS y ticketera'
+  if (kds) return 'Solo pantalla KDS'
+  if (ticketera) return 'Solo ticketera'
+  return 'Sin salida operativa'
+}
+
 export default function ConfiguracionOperativaTab() {
   const { restaurante, usuario } = useCurrentContext()
   const restauranteId = restaurante?.id
@@ -111,6 +126,25 @@ export default function ConfiguracionOperativaTab() {
     }))
   }
 
+  function cambiarDestinoPrincipal(codigo: EstacionComanda, tipo: TipoDestinoEstacion, activo: boolean) {
+    cambiarEstacion(codigo, (actual) => {
+      // Si una estación había sido desactivada desde el bloque avanzado, al
+      // reactivarla con un switch básico empezamos solo con el destino elegido.
+      const existentes = !actual.activo && activo
+        ? actual.destinos.map((destino) => destino.grupo === 'principal' ? { ...destino, activo: false } : destino)
+        : actual.destinos
+      const tieneDestino = existentes.some((destino) => destino.tipo === tipo && destino.grupo === 'principal')
+      const destinos = tieneDestino
+        ? existentes.map((destino) => destino.tipo === tipo && destino.grupo === 'principal'
+          ? { ...destino, activo }
+          : destino)
+        : activo
+          ? [...existentes, destinoNuevo(tipo, actual)]
+          : existentes
+      return { ...actual, activo: activo ? true : actual.activo, destinos }
+    })
+  }
+
   function moverEstacion(codigo: EstacionComanda, direccion: -1 | 1) {
     setConfig((actual) => {
       if (!actual) return actual
@@ -131,13 +165,13 @@ export default function ConfiguracionOperativaTab() {
     setError(null)
     const resultado = await getApi().guardarConfiguracionOperativa(restauranteId, copiaConfig(config))
     setGuardando(false)
-    setConfirmarGuardar(false)
     if (resultado.error || !resultado.data) {
       setError(resultado.error ?? 'No se pudo confirmar el guardado. Actualiza antes de volver a intentarlo.')
       return
     }
+    setConfirmarGuardar(false)
     setConfig(resultado.data)
-    setAviso('Estaciones y categorías guardadas. Los permisos de cobro se aplican en su propia sección.')
+    setAviso('Configuración de comandas guardada correctamente. Queda activa para comandas nuevas; las existentes conservan su ruta.')
   }
 
   if (!esAdminRestaurante) {
@@ -161,42 +195,30 @@ export default function ConfiguracionOperativaTab() {
   }
 
   const estacionesOrdenadas = [...config.estaciones].sort((a, b) => a.orden - b.orden)
-  const destinosKds = config.estaciones.flatMap((estacion) => estacion.destinos.filter((destino) => destino.tipo === 'kds' && destino.activo).map((destino) => `${estacion.nombre}: ${destino.nombre} (${destino.grupo})`))
-  const destinosImpresion = config.estaciones.flatMap((estacion) => estacion.destinos.filter((destino) => destino.tipo === 'impresora' && destino.activo).map((destino) => `${estacion.nombre}: ${destino.nombre} (${destino.grupo}, ${destino.papel_mm} mm)`))
+  const estacionesPrincipales = (['cocina', 'bar'] as const).map((codigo) =>
+    config.estaciones.find((estacion) => estacion.codigo === codigo)!,
+  )
   const resumen = (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <div>
-        <h4 className="font-bold text-zinc-100">Permisos de cobro</h4>
-        <p className="mt-1 text-sm text-zinc-300">Se configuran y confirman por separado arriba.</p>
+    <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        {estacionesPrincipales.map((estacion) => {
+          const sinSalida = resumenDestinos(estacion) === 'Sin salida operativa'
+          return (
+            <article key={estacion.codigo} className={`rounded-xl border p-4 ${sinSalida ? 'border-amber-500/40 bg-amber-500/10' : 'border-surface-700 bg-surface-900/70'}`}>
+              <h4 className="font-bold text-zinc-100">{ETIQUETA_ESTACION[estacion.codigo]}</h4>
+              <p className="mt-1 text-sm text-zinc-300">{resumenDestinos(estacion)}</p>
+              {sinSalida && <p className="mt-2 text-xs leading-relaxed text-amber-200">Los pedidos nuevos de esta área no tendrán salida operativa.</p>}
+            </article>
+          )
+        })}
       </div>
-      <div>
-        <h4 className="font-bold text-zinc-100">Estaciones activas</h4>
-        <p className="mt-1 text-sm text-zinc-300">{estacionesOrdenadas.filter((estacion) => estacion.activo).map((estacion) => estacion.nombre).join(', ') || 'Ninguna'}</p>
-      </div>
-      <div>
-        <h4 className="font-bold text-zinc-100">Categorías por estación</h4>
-        <ul className="mt-1 space-y-1 text-sm text-zinc-300">
-          {estacionesOrdenadas.map((estacion) => (
-            <li key={estacion.codigo}><span className="font-semibold">{estacion.nombre}:</span> {categoriasPorEstacion.get(estacion.codigo)?.join(', ') || 'Sin categorías asignadas'}</li>
-          ))}
-        </ul>
-      </div>
-      <div>
-        <h4 className="font-bold text-zinc-100">Destinos KDS activos</h4>
-        <p className="mt-1 text-sm text-zinc-300">{destinosKds.join(' · ') || 'Ninguno'}</p>
-      </div>
-      <div className="sm:col-span-2">
-        <h4 className="font-bold text-zinc-100">Impresión</h4>
-        <p className="mt-1 text-sm text-zinc-300">{destinosImpresion.join(' · ') || 'No hay destinos de impresora configurados.'}</p>
-        <p className="mt-1 text-xs text-emerald-300">Impresión manual disponible. La impresión automática está desactivada; no hay agente local.</p>
-      </div>
-      <p className="sm:col-span-2 rounded-lg border border-surface-700 bg-surface-900/70 p-3 text-sm text-zinc-300">Estos cambios se preparan para comandas nuevas. No modifican comandas, pedidos, cuentas ni pagos existentes.</p>
+      <p className="rounded-lg border border-surface-700 bg-surface-900/70 p-3 text-sm text-zinc-300">La configuración solo se aplicará a comandas nuevas. Las rutas y salidas de comandas anteriores no cambian.</p>
     </div>
   )
 
   return (
     <section className="space-y-6" aria-label="Configuración operativa">
-      <PageHeader titulo="Configuración operativa" descripcion="Define cómo trabaja tu restaurante. Las estaciones aplican a comandas nuevas; los permisos de cobro, a cobros futuros." />
+      <PageHeader titulo="Configuración operativa" descripcion="Define cómo trabajan las comandas de tu restaurante. Los cambios aplican a las nuevas." />
       {config.solo_lectura && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm leading-relaxed text-amber-200" role="status">
           {config.limitacion ?? 'La configuración se muestra como vista previa.'} El guardado estará disponible cuando se instale la migración de esta fase.
@@ -209,10 +231,63 @@ export default function ConfiguracionOperativaTab() {
 
       <section className="space-y-4" aria-labelledby="estaciones-titulo">
         <div>
-          <h2 id="estaciones-titulo" className="text-lg font-extrabold text-zinc-100">Estaciones y destinos</h2>
-          <p className="mt-1 text-sm text-zinc-400">Organiza las comandas por Cocina, Barra y Otros. Los cambios aplican a comandas nuevas.</p>
+          <h2 id="estaciones-titulo" className="text-lg font-extrabold text-zinc-100">Cómo reciben comandas Cocina y Barra</h2>
+          <p className="mt-1 text-sm text-zinc-400">La pantalla KDS es un área de trabajo: Cocina o Barra puede avanzar el estado de sus comandas. Desde el celular, Ventas y Auditoría sirven para consulta administrativa; no reemplazan el KDS ni permiten avanzar comandas.</p>
         </div>
-        {estacionesOrdenadas.map((estacion, indice) => (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {estacionesPrincipales.map((estacion) => {
+            const kdsActivo = destinoPrincipalActivo(estacion, 'kds')
+            const ticketeraActiva = destinoPrincipalActivo(estacion, 'impresora')
+            const sinSalida = !kdsActivo && !ticketeraActiva
+            return (
+              <article key={estacion.codigo} className="card min-w-0 p-4 sm:p-6" aria-label={`Comandas de ${ETIQUETA_ESTACION[estacion.codigo]}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-extrabold text-zinc-100">{ETIQUETA_ESTACION[estacion.codigo]}</h3>
+                    <p className="mt-1 text-sm text-zinc-400">Ahora: {resumenDestinos(estacion)}</p>
+                  </div>
+                  <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${sinSalida ? 'border-amber-500/40 bg-amber-500/10 text-amber-200' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'}`}>
+                    {sinSalida ? 'Revisar salidas' : 'Configurado'}
+                  </span>
+                </div>
+                <div className="mt-5 space-y-3">
+                  <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-xl border border-surface-700 bg-surface-900/60 p-3">
+                    <input type="checkbox" checked={kdsActivo} disabled={!editando || guardando} onChange={(e) => cambiarDestinoPrincipal(estacion.codigo, 'kds', e.target.checked)} className="mt-0.5 h-7 w-7 shrink-0 accent-amber-500" aria-label={`Pantalla KDS de ${ETIQUETA_ESTACION[estacion.codigo]}`} />
+                    <span>
+                      <span className="block text-sm font-semibold text-zinc-100">Pantalla KDS</span>
+                      <span className="mt-0.5 block text-xs leading-relaxed text-zinc-400">Área de trabajo donde se ven y avanzan las comandas de {ETIQUETA_ESTACION[estacion.codigo]}.</span>
+                    </span>
+                  </label>
+                  <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-xl border border-surface-700 bg-surface-900/60 p-3">
+                    <input type="checkbox" checked={ticketeraActiva} disabled={!editando || guardando} onChange={(e) => cambiarDestinoPrincipal(estacion.codigo, 'impresora', e.target.checked)} className="mt-0.5 h-7 w-7 shrink-0 accent-amber-500" aria-label={`Ticketera de ${ETIQUETA_ESTACION[estacion.codigo]}`} />
+                    <span>
+                      <span className="block text-sm font-semibold text-zinc-100">Ticketera</span>
+                      <span className="mt-0.5 block text-xs leading-relaxed text-zinc-400">Crea una salida para imprimir. Si ya hay un agente vinculado puede enviarla a la cola; Mesora no confirma que haya salido papel.</span>
+                    </span>
+                  </label>
+                </div>
+                {sinSalida ? (
+                  <p className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm leading-relaxed text-amber-200" role="status">
+                    No hay salida activa. Los pedidos nuevos de {ETIQUETA_ESTACION[estacion.codigo]} no aparecerán en KDS ni crearán una salida de impresión.
+                  </p>
+                ) : (
+                  <p className="mt-4 rounded-lg border border-surface-700 bg-surface-900/50 p-3 text-sm leading-relaxed text-zinc-300">Resultado: {resumenDestinos(estacion)} recibirán las comandas nuevas de esta área.</p>
+                )}
+              </article>
+            )
+          })}
+        </div>
+      </section>
+
+      <details className="card p-4 sm:p-6">
+        <summary className="min-h-11 cursor-pointer select-none font-semibold text-zinc-200">Opciones avanzadas y compatibilidad</summary>
+        <p className="mt-2 text-sm leading-relaxed text-zinc-400">Aquí se conservan los nombres de destinos, papel, copias, destinos de respaldo, categorías y la estación Otros. Los productos nuevos asignan su ruta según “Es bebida”; los productos existentes mantienen la prioridad histórica: estación explícita, categoría heredada y luego regla de bebida. Los cambios siguen aplicando solo a comandas nuevas.</p>
+        <section className="mt-5 space-y-4" aria-labelledby="estaciones-avanzadas-titulo">
+          <div>
+            <h3 id="estaciones-avanzadas-titulo" className="text-base font-bold text-zinc-100">Destinos y ajustes heredados</h3>
+            <p className="mt-1 text-sm text-zinc-400">Impresión manual disponible cuando no se usa un agente vinculado. Activar un destino no abre el diálogo de impresión del navegador.</p>
+          </div>
+          {estacionesOrdenadas.map((estacion, indice) => (
           <article key={estacion.codigo} className="card min-w-0 p-4 sm:p-6" aria-label={`Estación ${estacion.nombre}`}>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center">
@@ -281,21 +356,19 @@ export default function ConfiguracionOperativaTab() {
                           {[1, 2, 3, 4, 5].map((copias) => <option key={copias} value={copias}>{copias}</option>)}
                         </select>
                       </label>
-                      <p className="text-xs text-emerald-300 sm:col-span-2 lg:col-span-12">Impresión manual disponible. No se afirma que haya una impresora conectada; la impresión automática está desactivada.</p>
+                      <p className="text-xs text-zinc-400 sm:col-span-2 lg:col-span-12">Salida para impresión. No se afirma que haya una impresora conectada ni que el papel haya salido.</p>
                     </>
                   )}
-                  {destino.tipo === 'kds' && <p className="text-xs text-zinc-400 sm:col-span-2 lg:col-span-12">Destino lógico KDS. Esta configuración aún no cambia el KDS actual.</p>}
+                  {destino.tipo === 'kds' && <p className="text-xs text-zinc-400 sm:col-span-2 lg:col-span-12">Las comandas nuevas de este destino aparecen en la estación KDS correspondiente.</p>}
                 </div>
               ))}
             </div>
           </article>
         ))}
-      </section>
-
-      <section className="card p-4 sm:p-6" aria-labelledby="categorias-operativas-titulo">
+          <section className="mt-6 border-t border-surface-700 pt-5" aria-labelledby="categorias-operativas-titulo">
         <div className="mb-4">
-          <h2 id="categorias-operativas-titulo" className="text-lg font-extrabold text-zinc-100">Categorías y estaciones</h2>
-          <p className="mt-1 text-sm text-zinc-400">La estación predeterminada se hereda solo cuando el producto no tiene una asignación explícita.</p>
+          <h3 id="categorias-operativas-titulo" className="text-base font-bold text-zinc-100">Asignaciones heredadas por categoría</h3>
+          <p className="mt-1 text-sm text-zinc-400">La asignación explícita del producto gana; luego se usa la categoría; si ninguna existe, las bebidas van a Barra y los demás productos a Cocina.</p>
         </div>
         {config.categorias.length === 0 ? (
           <p className="rounded-lg border border-surface-700 bg-surface-900/60 p-4 text-sm text-zinc-400">Aún no hay categorías. Cuando agregues categorías al menú, aparecerán aquí.</p>
@@ -308,14 +381,14 @@ export default function ConfiguracionOperativaTab() {
                 <article key={categoria.id} className="grid min-w-0 gap-3 rounded-xl border border-surface-700 bg-surface-900/60 p-3 sm:grid-cols-2 sm:items-center sm:p-4">
                   <div className="min-w-0">
                     <h3 className="break-words font-bold text-zinc-100">{categoria.nombre}</h3>
-                    <p className="mt-1 text-xs leading-relaxed text-zinc-400">Los productos con estación propia conservan prioridad sobre la categoría.</p>
+                    <p className="mt-1 text-xs leading-relaxed text-zinc-400">La categoría conserva su regla histórica para productos sin estación propia.</p>
                     {productosExplicitos.length > 0 && (
                       <p className="mt-2 text-xs text-sky-300">Asignación explícita: {productosExplicitos.map((producto) => `${producto.nombre} (${ETIQUETA_ESTACION[producto.estacion!]})`).join(', ')}</p>
                     )}
-                    {mixto && <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs leading-relaxed text-amber-200" role="status">Categoría mixta: sus productos terminan en más de una estación. Las asignaciones explícitas de cada producto tienen prioridad.</p>}
+                    {mixto && <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs leading-relaxed text-amber-200" role="status">Categoría mixta: sus productos terminan en más de una estación por sus asignaciones anteriores.</p>}
                   </div>
                   <label className="text-sm font-medium text-zinc-300">
-                    Estación predeterminada
+                    Compatibilidad heredada de categoría
                     <select value={categoria.estacion_codigo ?? ''} disabled={!editando || guardando} onChange={(e) => {
                       const codigo = e.target.value ? e.target.value as EstacionComanda : null
                       setConfig((actual) => actual ? { ...actual, categorias: actual.categorias.map((c) => c.id === categoria.id ? { ...c, estacion_codigo: codigo } : c) } : actual)
@@ -330,27 +403,29 @@ export default function ConfiguracionOperativaTab() {
             })}
           </div>
         )}
-      </section>
+          </section>
+        </section>
+      </details>
 
       <section className="card p-4 sm:p-6" aria-labelledby="resumen-operativo-titulo">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 id="resumen-operativo-titulo" className="text-lg font-extrabold text-zinc-100">Resumen antes de guardar</h2>
-            <p className="mt-1 text-sm text-zinc-400">Revisa destinos, estaciones y categorías antes de confirmar.</p>
+            <h2 id="resumen-operativo-titulo" className="text-lg font-extrabold text-zinc-100">Revisa el resultado</h2>
+            <p className="mt-1 text-sm text-zinc-400">Confirma cómo recibirán Cocina y Barra las comandas nuevas.</p>
           </div>
-          <button type="button" disabled={!editando || guardando} onClick={() => setConfirmarGuardar(true)} className="btn-primary min-h-11 w-full sm:w-auto">Revisar y guardar</button>
+          <button type="button" disabled={!editando || guardando} onClick={() => { setError(null); setConfirmarGuardar(true) }} className="btn-primary min-h-11 w-full sm:w-auto">Revisar y guardar configuración</button>
         </div>
         {resumen}
       </section>
 
       {confirmarGuardar && (
-        <Modal titulo="Confirma la configuración operativa" onCerrar={() => !guardando && setConfirmarGuardar(false)} ancho="max-w-3xl">
-          <p className="mb-5 text-sm leading-relaxed text-zinc-300">Se guardarán preferencias para el restaurante <strong>{restaurante?.nombre}</strong>. Esta acción quedará en auditoría. No cambiará las autorizaciones de cobro ni los pedidos, cuentas o pagos actuales.</p>
+        <Modal titulo="Revisa la configuración de comandas" onCerrar={() => !guardando && setConfirmarGuardar(false)} ancho="max-w-3xl">
+          <p className="mb-5 text-sm leading-relaxed text-zinc-300">Se guardarán estos destinos para <strong>{restaurante?.nombre}</strong>. La configuración cambiará solo las comandas nuevas; los pedidos y las rutas históricas se conservan.</p>
           {resumen}
           {error && <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300" role="alert">{error}</p>}
           <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <button type="button" disabled={guardando} onClick={() => setConfirmarGuardar(false)} className="btn-secondary min-h-11">Seguir editando</button>
-            <button type="button" disabled={guardando} onClick={() => void guardar()} className="btn-primary min-h-11">{guardando ? 'Guardando…' : 'Confirmar y guardar'}</button>
+            <button type="button" disabled={guardando} onClick={() => void guardar()} className="btn-primary min-h-11">{guardando ? 'Guardando…' : 'Confirmar y guardar configuración'}</button>
           </div>
         </Modal>
       )}

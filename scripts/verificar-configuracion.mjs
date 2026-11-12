@@ -73,6 +73,7 @@ try {
     console.log(`Configuración QA: guardado, errores y persistencia ${width}px`)
     const context = await browser.newContext({ viewport: { width, height: 900 } })
     const page = await context.newPage()
+    await page.addInitScript(() => { window.__impresionesQA = 0; window.print = () => { window.__impresionesQA += 1 } })
     page.setDefaultTimeout(15000)
     const errores = []
     page.on('pageerror', (e) => errores.push(e.message))
@@ -167,6 +168,64 @@ try {
     await expect(cobro.getByRole('checkbox', { name: /Mesero/ }).first()).toBeChecked()
     await page.evaluate(async () => { (await import('/src/lib/api.ts')).getApi().guardarPoliticaCobro = window.__guardarPolitica })
     await page.getByRole('button', { name: 'Cancelar', exact: true }).click()
+
+    // Los seis modos operativos se representan con dos controles claros por área.
+    // La matriz de enrutamiento y los snapshots se verifican además en verificar:enrutamiento.
+    const comandas = page.getByRole('region', { name: 'Cómo reciben comandas Cocina y Barra' })
+    const destinos = {
+      cocina: {
+        kds: comandas.getByRole('checkbox', { name: 'Pantalla KDS de Cocina' }),
+        ticketera: comandas.getByRole('checkbox', { name: 'Ticketera de Cocina' }),
+      },
+      bar: {
+        kds: comandas.getByRole('checkbox', { name: 'Pantalla KDS de Barra' }),
+        ticketera: comandas.getByRole('checkbox', { name: 'Ticketera de Barra' }),
+      },
+    }
+    const establecer = async (estacion, { kds, ticketera }) => {
+      if (kds) await destinos[estacion].kds.check()
+      else await destinos[estacion].kds.uncheck()
+      if (ticketera) await destinos[estacion].ticketera.check()
+      else await destinos[estacion].ticketera.uncheck()
+    }
+    const revisarResumen = async (estacion, texto) => {
+      await expect(comandas.locator(`[aria-label="Comandas de ${estacion === 'cocina' ? 'Cocina' : 'Barra'}"]`)).toContainText(texto)
+    }
+    for (const estacion of ['cocina', 'bar']) {
+      await establecer(estacion, { kds: true, ticketera: false })
+      await revisarResumen(estacion, 'Solo pantalla KDS')
+      await establecer(estacion, { kds: false, ticketera: true })
+      await revisarResumen(estacion, 'Solo ticketera')
+      await establecer(estacion, { kds: true, ticketera: true })
+      await revisarResumen(estacion, 'Pantalla KDS y ticketera')
+      await establecer(estacion, { kds: false, ticketera: false })
+      await revisarResumen(estacion, 'Sin salida operativa')
+      await expect(comandas.getByText(`Los pedidos nuevos de ${estacion === 'cocina' ? 'Cocina' : 'Barra'} no aparecerán en KDS ni crearán una salida de impresión.`)).toBeVisible()
+    }
+    // Cocina queda en ambos destinos y Barra solo en ticketera para comprobar persistencia exacta.
+    await establecer('cocina', { kds: true, ticketera: true })
+    await establecer('bar', { kds: false, ticketera: true })
+    const revisarYGuardar = page.getByRole('button', { name: 'Revisar y guardar configuración', exact: true })
+    await revisarYGuardar.click()
+    const confirmacionComandas = page.getByRole('dialog', { name: 'Revisa la configuración de comandas' })
+    await expect(confirmacionComandas).toContainText('Cocina')
+    await expect(confirmacionComandas).toContainText('Barra')
+    await expect(confirmacionComandas).toContainText('solo las comandas nuevas')
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      window.__guardarConfiguracion = api.guardarConfiguracionOperativa
+      api.guardarConfiguracionOperativa = async () => ({ data: null, error: 'Conexión interrumpida al guardar destinos QA' })
+    })
+    await confirmacionComandas.getByRole('button', { name: 'Confirmar y guardar configuración' }).click()
+    await expect(confirmacionComandas.getByRole('alert')).toContainText('Conexión interrumpida al guardar destinos QA')
+    await expect(destinos.cocina.kds).toBeChecked()
+    await expect(destinos.cocina.ticketera).toBeChecked()
+    await expect(destinos.bar.kds).not.toBeChecked()
+    await expect(destinos.bar.ticketera).toBeChecked()
+    await page.evaluate(async () => { (await import('/src/lib/api.ts')).getApi().guardarConfiguracionOperativa = window.__guardarConfiguracion })
+    await confirmacionComandas.getByRole('button', { name: 'Confirmar y guardar configuración' }).click()
+    await expect(page.getByText('Configuración de comandas guardada correctamente. Queda activa para comandas nuevas; las existentes conservan su ruta.', { exact: true })).toBeVisible()
+    assert.equal(await page.evaluate(() => window.__impresionesQA), 0, 'Configurar destinos no debe abrir window.print()')
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
     await page.reload({ waitUntil: 'networkidle' })
     const guiaCobro = page.getByRole('button', { name: 'Minimizar guía' })
@@ -174,6 +233,11 @@ try {
     await page.getByRole('button', { name: 'Configuración operativa', exact: true }).click()
     await expect(page.getByRole('region', { name: '¿Quién puede cobrar?' }).getByText('Regla activa: Solo caja', { exact: false })).toBeVisible()
     await expect(page.getByRole('region', { name: '¿Quién puede cobrar?' }).getByText('Actualizada el', { exact: false })).toBeVisible()
+    const destinosTrasRecarga = page.getByRole('region', { name: 'Cómo reciben comandas Cocina y Barra' })
+    await expect(destinosTrasRecarga.getByRole('checkbox', { name: 'Pantalla KDS de Cocina' })).toBeChecked()
+    await expect(destinosTrasRecarga.getByRole('checkbox', { name: 'Ticketera de Cocina' })).toBeChecked()
+    await expect(destinosTrasRecarga.getByRole('checkbox', { name: 'Pantalla KDS de Barra' })).not.toBeChecked()
+    await expect(destinosTrasRecarga.getByRole('checkbox', { name: 'Ticketera de Barra' })).toBeChecked()
     await page.getByRole('link', { name: 'Cajero', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Cobrar una mesa' })).toBeVisible()
     await expect(page.getByText('No hay mesas pendientes de cobro.')).toBeVisible()
@@ -184,6 +248,53 @@ try {
     await page.getByRole('button', { name: /Agregar/ }).first().click()
     await expect(page.getByText('@local-qa.pe', { exact: true })).toBeVisible()
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
+    await page.getByRole('button', { name: 'Cancelar', exact: true }).click()
+    await page.getByRole('link', { name: 'Admin', exact: true }).click()
+    await page.getByRole('button', { name: 'Menú', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Menú', exact: true })).toBeVisible()
+    if (await page.getByRole('button', { name: 'Agregar producto' }).count() === 0) {
+      await page.getByRole('button', { name: 'Nueva categoría', exact: true }).click()
+      const categoria = page.getByRole('dialog', { name: 'Nueva categoría' })
+      await categoria.getByLabel('Nombre', { exact: true }).fill('Categoría QA')
+      await categoria.getByRole('button', { name: 'Crear categoría', exact: true }).click()
+      await expect(page.getByRole('button', { name: 'Agregar producto' }).first()).toBeVisible()
+    }
+    await page.getByRole('button', { name: 'Agregar producto' }).first().click()
+    const nuevoProducto = page.getByRole('dialog', { name: 'Agregar producto' })
+    await expect(nuevoProducto.getByLabel('Nombre', { exact: true })).toBeVisible()
+    await expect(nuevoProducto.getByLabel('Precio (S/)')).toBeVisible()
+    await expect(nuevoProducto.getByLabel('Es bebida')).toBeVisible()
+    await expect(nuevoProducto.locator('#producto-estacion')).toHaveCount(0)
+    await expect(nuevoProducto.getByText('En productos nuevos, las bebidas van a Barra y los demás a Cocina.', { exact: false })).toBeVisible()
+    await nuevoProducto.getByLabel('Nombre', { exact: true }).fill('Bebida de QA')
+    await nuevoProducto.getByLabel('Precio (S/)').fill('8.50')
+    await nuevoProducto.locator('label').filter({ hasText: 'Es bebida' }).click()
+    await expect(nuevoProducto.getByLabel('Es bebida')).toBeChecked()
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      window.__crearProducto = api.crearProducto
+      api.crearProducto = async (_rid, datos) => { window.__productoQA = datos; return { data: { id: 'producto-qa', ...datos }, error: null } }
+    })
+    await nuevoProducto.getByRole('button', { name: 'Crear producto' }).click()
+    await expect(nuevoProducto).toHaveCount(0)
+    const productoQA = await page.evaluate(() => window.__productoQA)
+    assert.equal(productoQA.es_bebida, true)
+    assert.equal(productoQA.estacion, 'bar', 'Una bebida nueva se asigna internamente a Barra sin pedir estación')
+    await page.evaluate(async () => { (await import('/src/lib/api.ts')).getApi().crearProducto = window.__crearProducto })
+    await page.getByRole('button', { name: 'Agregar producto' }).first().click()
+    const nuevoPlato = page.getByRole('dialog', { name: 'Agregar producto' })
+    await nuevoPlato.getByLabel('Nombre', { exact: true }).fill('Plato QA')
+    await nuevoPlato.getByLabel('Precio (S/)').fill('18.00')
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      window.__crearProducto = api.crearProducto
+      api.crearProducto = async (_rid, datos) => { window.__productoQA = datos; return { data: { id: 'plato-qa', ...datos }, error: null } }
+    })
+    await nuevoPlato.getByRole('button', { name: 'Crear producto' }).click()
+    const platoQA = await page.evaluate(() => window.__productoQA)
+    assert.equal(platoQA.es_bebida, false)
+    assert.equal(platoQA.estacion, 'cocina', 'Un producto nuevo que no es bebida se asigna internamente a Cocina')
+    await page.evaluate(async () => { (await import('/src/lib/api.ts')).getApi().crearProducto = window.__crearProducto })
     assert.deepEqual(errores, [])
     await context.close()
   }
