@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { getApi, ROLES_PERSONAL } from '../../lib/api'
 import type { RolPersonal, UsuarioPlataforma } from '../../lib/api'
 import { fmtFecha } from '../../lib/format'
@@ -31,6 +32,10 @@ const ESTADOS: { valor: FiltroEstadoUsuarios; texto: string }[] = [
 
 export default function SuperAdminUsuarios() {
   const usuario = useAuthStore((s) => s.usuario)
+  const [searchParams] = useSearchParams()
+  const usuarioQuery = searchParams.get('usuario')
+  const busquedaQuery = searchParams.get('busqueda') ?? ''
+  const usuarioQueryAbierto = useRef<string | null>(null)
 
   const [usuarios, setUsuarios] = useState<UsuarioPlataforma[]>([])
   const [restaurantes, setRestaurantes] = useState<Restaurante[]>([])
@@ -38,7 +43,7 @@ export default function SuperAdminUsuarios() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [criterios, setCriterios] = useState<CriteriosUsuarios>(CRITERIOS_USUARIOS_VACIOS)
+  const [criterios, setCriterios] = useState<CriteriosUsuarios>(() => ({ ...CRITERIOS_USUARIOS_VACIOS, busqueda: busquedaQuery }))
   const [aviso, setAviso] = useState<string | null>(null)
   const [detalle, setDetalle] = useState<UsuarioPlataforma | null>(null)
 
@@ -72,6 +77,18 @@ export default function SuperAdminUsuarios() {
     setCargando(true)
     void cargar().finally(() => setCargando(false))
   }, [cargar])
+
+  useEffect(() => {
+    if (busquedaQuery) setCriterios((c) => c.busqueda === busquedaQuery ? c : { ...c, busqueda: busquedaQuery })
+  }, [busquedaQuery])
+
+  useEffect(() => {
+    if (cargando || !usuarioQuery || usuarioQueryAbierto.current === usuarioQuery) return
+    const coincidencia = usuarios.find((u) => u.id === usuarioQuery)
+    if (!coincidencia) return
+    usuarioQueryAbierto.current = usuarioQuery
+    setDetalle(coincidencia)
+  }, [cargando, usuarioQuery, usuarios])
 
   const filtrados = useMemo(() => filtrarUsuarios(usuarios, criterios), [usuarios, criterios])
   const conFiltros = hayFiltrosUsuarios(criterios)

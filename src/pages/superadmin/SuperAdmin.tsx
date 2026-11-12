@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { getApi } from '../../lib/api'
 import type { AdminRestaurante, UsuarioPlataforma } from '../../lib/api'
@@ -6,8 +6,10 @@ import { fmtFecha, fmtHora } from '../../lib/format'
 import { rolLabel } from '../../domain/security/roles'
 import { suSuscripcionVencida } from '../../store/auth'
 import type { Restaurante } from '../../types/database'
+import type { SoporteTicket } from '../../types/database'
 import SuperAdminCarga from './SuperAdminCarga'
 import EstadoVacio from '../../components/EstadoVacio'
+import { buscarCentroOperativo, calcularElementosAtencion } from '../../domain/platform/centroOperativo'
 import {
   PRESETS_RANGO,
   etiquetaDia,
@@ -47,24 +49,55 @@ function Tarjeta({
   )
 }
 
+function GrupoBusqueda({
+  titulo,
+  vacio,
+  cantidad,
+  children,
+}: {
+  titulo: string
+  vacio: string
+  cantidad: number
+  children: ReactNode
+}) {
+  return (
+    <section className="min-w-0 rounded-xl border border-surface-800 p-3" aria-label={`${titulo}: ${cantidad} resultados`}>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">{titulo}</h3>
+        <span className="text-xs text-zinc-500">{cantidad}</span>
+      </div>
+      {cantidad ? <div className="space-y-1">{children}</div> : <p className="px-3 py-2 text-xs text-zinc-500">{vacio}</p>}
+    </section>
+  )
+}
+
 export default function SuperAdmin() {
   const [restaurantes, setRestaurantes] = useState<Restaurante[]>([])
   const [admins, setAdmins] = useState<AdminRestaurante[]>([])
   const [usuarios, setUsuarios] = useState<UsuarioPlataforma[]>([])
+  const [tickets, setTickets] = useState<SoporteTicket[]>([])
+  const [ultimoAcceso, setUltimoAcceso] = useState<Record<string, string | null>>({})
+  const [errorTickets, setErrorTickets] = useState(false)
+  const [errorAccesos, setErrorAccesos] = useState(false)
+  const [busqueda, setBusqueda] = useState('')
+  const [intentoCarga, setIntentoCarga] = useState(0)
   const [preset, setPreset] = useState<PresetRango>('7d')
   const [estadisticas, setEstadisticas] = useState<EstadisticasGlobales | null>(null)
   const [cargandoEstadisticas, setCargandoEstadisticas] = useState(true)
   const [errorEstadisticas, setErrorEstadisticas] = useState<string | null>(null)
+  const [intentoEstadisticas, setIntentoEstadisticas] = useState(0)
   const [actualizado, setActualizado] = useState<Date | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const cargar = useCallback(async () => {
     const api = getApi()
-    const [rRes, aRes, uRes] = await Promise.all([
+    const [rRes, aRes, uRes, tRes, accessRes] = await Promise.all([
       api.getRestaurantes(),
       api.getAdministradores(),
       api.getUsuariosPlataforma(),
+      api.getTickets(),
+      api.getUltimosAccesos(),
     ])
     if (rRes.error || aRes.error || uRes.error) {
       setError(rRes.error ?? aRes.error ?? uRes.error ?? 'Error al cargar el resumen')
@@ -73,13 +106,19 @@ export default function SuperAdmin() {
     setRestaurantes(rRes.data ?? [])
     setAdmins(aRes.data ?? [])
     setUsuarios(uRes.data ?? [])
+    setTickets(tRes.data ?? [])
+    setUltimoAcceso(accessRes.data ?? {})
+    setErrorTickets(!!tRes.error)
+    setErrorAccesos(!!accessRes.error)
     setError(null)
   }, [])
 
   useEffect(() => {
     setCargando(true)
-    void cargar().finally(() => setCargando(false))
-  }, [cargar])
+    void cargar().catch((e: unknown) => {
+      setError(e instanceof Error ? e.message : 'No se pudo cargar el resumen de la plataforma.')
+    }).finally(() => setCargando(false))
+  }, [cargar, intentoCarga])
 
   useEffect(() => {
     let vigente = true
@@ -103,19 +142,39 @@ export default function SuperAdmin() {
       setCargandoEstadisticas(false)
     })
     return () => { vigente = false }
-  }, [preset])
+  }, [preset, intentoEstadisticas])
+
+  const atencion = useMemo(() => calcularElementosAtencion({
+    restaurantes,
+    administradores: admins,
+    usuarios,
+    tickets,
+    ultimoAccesoPorUsuario: ultimoAcceso,
+    errorTickets,
+    errorAccesos,
+  }), [restaurantes, admins, usuarios, tickets, ultimoAcceso, errorTickets, errorAccesos])
+  const resultadosBusqueda = useMemo(() => buscarCentroOperativo({
+    termino: busqueda,
+    restaurantes,
+    administradores: admins,
+    usuarios,
+    tickets,
+  }), [busqueda, restaurantes, admins, usuarios, tickets])
 
   if (cargando) return <SuperAdminCarga recurso="el resumen de la plataforma" />
 
   if (error)
     return (
       <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
-        No se pudo cargar el resumen de la plataforma. {error}
+        <p>No se pudo cargar el resumen de la plataforma. {error}</p>
+        <button type="button" onClick={() => { setError(null); setCargando(true); setIntentoCarga((n) => n + 1) }} className="btn btn-outline mt-3 min-h-11 px-4">Reintentar</button>
       </div>
     )
 
   const activos = restaurantes.filter((r) => !suSuscripcionVencida(r)).length
   const inactivos = restaurantes.length - activos
+  const suspendidos = restaurantes.filter((r) => !r.suscripcion_activa).length
+  const vencidos = restaurantes.filter((r) => r.suscripcion_activa && !!r.fecha_vencimiento && Date.parse(r.fecha_vencimiento) < Date.now()).length
   const conVencimiento = restaurantes.filter((r) => r.fecha_vencimiento)
   const ahora = Date.now()
   const proximos = restaurantes.filter((r) => {
@@ -150,6 +209,66 @@ export default function SuperAdmin() {
 
   return (
     <div>
+      <section className="card mb-6 p-4 sm:p-5" aria-labelledby="busqueda-centro-titulo">
+        <div className="mb-3">
+          <h2 id="busqueda-centro-titulo" className="text-sm font-bold uppercase tracking-widest text-zinc-300">Búsqueda rápida</h2>
+          <p className="mt-1 text-xs text-zinc-500">Encuentra restaurantes, administradores, usuarios y tickets disponibles para Superadmin.</p>
+        </div>
+        <label className="sr-only" htmlFor="busqueda-centro-operativo">Buscar en la plataforma</label>
+        <input
+          id="busqueda-centro-operativo"
+          type="search"
+          className="input min-h-11 w-full"
+          placeholder="Nombre, RUC, correo, código o asunto del ticket…"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+        />
+        {busqueda.trim() && (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-live="polite">
+            <GrupoBusqueda titulo="Restaurantes" vacio="Sin coincidencias" cantidad={resultadosBusqueda.restaurantes.length}>
+              {resultadosBusqueda.restaurantes.map((r) => <Link key={r.id} to={`/super-admin/restaurantes/${r.id}`} className="block rounded-lg px-3 py-2 text-sm text-zinc-200 hover:bg-surface-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"><span className="block truncate font-medium">{r.nombre}</span><span className="text-xs text-zinc-500">RUC: {r.ruc ?? 'No registrado'}</span></Link>)}
+            </GrupoBusqueda>
+            <GrupoBusqueda titulo="Administradores" vacio="Sin coincidencias" cantidad={resultadosBusqueda.administradores.length}>
+              {resultadosBusqueda.administradores.map((u) => <Link key={u.id} to={`/super-admin/usuarios?usuario=${encodeURIComponent(u.id)}&busqueda=${encodeURIComponent(u.email ?? u.nombre)}`} className="block rounded-lg px-3 py-2 text-sm text-zinc-200 hover:bg-surface-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"><span className="block truncate font-medium">{u.nombre}</span><span className="block truncate text-xs text-zinc-500">{u.email ?? 'Sin correo'}</span></Link>)}
+            </GrupoBusqueda>
+            <GrupoBusqueda titulo="Usuarios" vacio="Sin coincidencias" cantidad={resultadosBusqueda.usuarios.length}>
+              {resultadosBusqueda.usuarios.map((u) => <Link key={u.id} to={`/super-admin/usuarios?usuario=${encodeURIComponent(u.id)}&busqueda=${encodeURIComponent(u.email ?? u.nombre)}`} className="block rounded-lg px-3 py-2 text-sm text-zinc-200 hover:bg-surface-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"><span className="block truncate font-medium">{u.nombre}</span><span className="block truncate text-xs text-zinc-500">{u.email ?? 'Sin correo'}</span></Link>)}
+            </GrupoBusqueda>
+            <GrupoBusqueda titulo="Tickets" vacio={errorTickets ? 'Búsqueda de tickets no disponible' : 'Sin coincidencias'} cantidad={resultadosBusqueda.tickets.length}>
+              {resultadosBusqueda.tickets.map((t) => <Link key={t.id} to={`/super-admin/soporte?ticket=${encodeURIComponent(t.id)}`} className="block rounded-lg px-3 py-2 text-sm text-zinc-200 hover:bg-surface-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"><span className="block truncate font-medium">{t.codigo} · {t.asunto}</span><span className="text-xs text-zinc-500">{t.estado.replace('_', ' ')}</span></Link>)}
+            </GrupoBusqueda>
+          </div>
+        )}
+      </section>
+
+      <section className="card mb-6 p-4 sm:p-5" aria-labelledby="atencion-titulo">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 id="atencion-titulo" className="text-sm font-bold uppercase tracking-widest text-zinc-300">Requiere atención</h2>
+            <p className="mt-1 text-xs text-zinc-500">Estados operativos derivados de suscripciones, administradores y tickets existentes.</p>
+          </div>
+          <span className="rounded-full border border-surface-700 px-3 py-1 text-xs text-zinc-300" aria-live="polite">{atencion.length} elementos</span>
+        </div>
+        {(errorTickets || errorAccesos) && <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-warn-400"><p>Algunas fuentes operativas no están disponibles; se muestran los avisos verificables.{errorTickets ? ' Tickets no disponibles.' : ''}{errorAccesos ? ' Últimos accesos no disponibles.' : ''}</p><button type="button" className="btn btn-outline min-h-10 px-3 text-xs" onClick={() => { setCargando(true); setIntentoCarga((n) => n + 1) }}>Reintentar fuentes</button></div>}
+        {atencion.length === 0 ? (
+          <EstadoVacio titulo="No hay elementos que requieran atención" descripcion="No se detectan vencimientos próximos, cuentas detenidas, falta de administrador activo ni tickets abiertos sin responsable en los datos consultados." className="py-5" />
+        ) : (
+          <ul className="divide-y divide-surface-800">
+            {atencion.slice(0, 8).map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.prioridad === 'critica' ? 'bg-danger-500' : item.prioridad === 'advertencia' ? 'bg-warn-400' : 'bg-sky-400'}`} aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-zinc-100">{item.nombre}</p>
+                  <p className="text-sm text-zinc-400">{item.motivo}</p>
+                </div>
+              </div>
+              <Link to={item.href} className="btn btn-outline min-h-11 shrink-0 px-3 text-xs">{item.tipo === 'ticket' ? 'Abrir ticket' : 'Ver restaurante'}</Link>
+            </li>)}
+          </ul>
+        )}
+        {atencion.length > 8 && <p className="mt-3 text-xs text-zinc-500">Se muestran 8 de {atencion.length}. Revisa Restaurantes y Soporte para ver la lista completa.</p>}
+      </section>
+
       <section className="card sa-dashboard-pulse mb-6 space-y-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -178,7 +297,7 @@ export default function SuperAdmin() {
         {cargandoEstadisticas && !estadisticas && !errorEstadisticas && (
           <p role="status" aria-live="polite" className="text-sm text-zinc-500">Cargando métricas del periodo…</p>
         )}
-        {errorEstadisticas && <p role="alert" className="text-sm text-danger-400">No se pudieron cargar las métricas del periodo. {errorEstadisticas}</p>}
+        {errorEstadisticas && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 text-sm text-danger-400"><span>No se pudieron cargar las métricas del periodo. {errorEstadisticas}</span><button type="button" className="btn btn-outline min-h-10 px-3 text-xs" onClick={() => { setErrorEstadisticas(null); setCargandoEstadisticas(true); setIntentoEstadisticas((n) => n + 1) }}>Reintentar métricas</button></div>}
         <div className="sa-dashboard-metrics grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Tarjeta etiqueta="Restaurantes activos" valor={estadisticas ? estadisticas.resumen.restaurantesActivos : '—'} clase="text-ok-500" nota="Con suscripción vigente hoy" />
           <Tarjeta etiqueta="Ventas de clientes" valor={estadisticas ? `S/ ${estadisticas.resumen.ventas.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'} clase="text-brand-400" nota="Cuentas pagadas en el periodo" />
@@ -229,7 +348,9 @@ export default function SuperAdmin() {
           nota="Altas totales de la plataforma"
         />
         <Tarjeta etiqueta="Restaurantes activos" valor={activos} clase="text-ok-500" nota="Pueden operar en la app" />
-        <Tarjeta etiqueta="Restaurantes inactivos" valor={inactivos} clase="text-danger-500" nota="Vencidos o desactivados" />
+        <Tarjeta etiqueta="Restaurantes suspendidos" valor={suspendidos} clase="text-danger-500" nota="Desactivados desde la plataforma" />
+        <Tarjeta etiqueta="Restaurantes vencidos" valor={vencidos} clase="text-warn-400" nota="Suscripción activa con fecha pasada" />
+        <Tarjeta etiqueta="Restaurantes detenidos" valor={inactivos} clase="text-danger-500" nota="Suspendidos o vencidos; sin acceso operativo" />
         <Tarjeta
           etiqueta="Próximos a vencer"
           valor={conVencimiento.length > 0 ? proximos.length : '—'}
