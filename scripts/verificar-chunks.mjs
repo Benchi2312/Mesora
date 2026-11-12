@@ -30,11 +30,20 @@ async function abrirContexto() {
   return context
 }
 
+function esImportacionDesdeBundle(request) {
+  const referer = request.headers().referer
+  return Boolean(referer && new URL(referer).pathname.startsWith('/assets/'))
+}
+
 try {
   // La ruta afectada debe abrirse directamente y sobrevivir a una recarga.
   {
     const context = await abrirContexto()
     const page = await context.newPage()
+    let solicitudesChunkAdmin = 0
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === `/assets/${chunkAdmin}`) solicitudesChunkAdmin++
+    })
     for (let intento = 0; intento < 2; intento++) {
       const response = await page.goto(`${ORIGEN}/super-admin/configuracion`, { waitUntil: 'load' })
       assert(response?.ok(), 'La ruta de configuración no devolvió el shell de la aplicación.')
@@ -44,6 +53,13 @@ try {
       if (intento === 0) await page.reload({ waitUntil: 'load' })
       console.log(`OK /super-admin/configuracion ${intento === 0 ? 'apertura directa' : 'recarga'}`)
     }
+    await page.goto(`${ORIGEN}/demo/admin`, { waitUntil: 'load' })
+    await expect(page.getByRole('heading', { level: 1, name: 'Panel de administración' })).toBeVisible()
+    await page.reload({ waitUntil: 'load' })
+    await expect(page.getByRole('heading', { level: 1, name: 'Panel de administración' })).toBeVisible()
+    assert(solicitudesChunkAdmin >= 1, 'La apertura directa de Admin debe cargar el chunk compilado.')
+    await expect(page.getByText('Unexpected Application Error')).toHaveCount(0)
+    console.log('OK /demo/admin apertura directa y recarga normal con chunk')
     await context.close()
   }
 
@@ -52,7 +68,9 @@ try {
   {
     const context = await abrirContexto()
     const page = await context.newPage()
-    let fallosChunk = 0
+    let fallosDeImportacion = 0
+    let fallosDePrecarga = 0
+    let solicitudesTrasReintento = 0
     let documentosDeReintento = 0
     page.on('request', (request) => {
       const url = new URL(request.url())
@@ -61,21 +79,27 @@ try {
       }
     })
     await context.route(`**/assets/${chunkAdmin}`, async (route) => {
-      fallosChunk++
-      if (fallosChunk === 1) {
-        await route.fulfill({
-          status: 404,
-          contentType: 'text/html; charset=utf-8',
-          body: '<!doctype html><title>Not Found</title>',
-        })
-      } else {
+      // Vite precarga con fetch desde el documento. Aunque su respuesta 404 no
+      // rechaza el fetch, también debe fallar el import dinámico real del bundle.
+      if (documentosDeReintento > 0) {
+        solicitudesTrasReintento++
         await route.continue()
+        return
       }
+      if (esImportacionDesdeBundle(route.request())) fallosDeImportacion++
+      else fallosDePrecarga++
+      await route.fulfill({
+        status: 404,
+        contentType: 'text/html; charset=utf-8',
+        body: '<!doctype html><title>Not Found</title>',
+      })
     })
     await page.goto(`${ORIGEN}/demo/admin`, { waitUntil: 'load' })
     await expect(page.getByRole('heading', { level: 1, name: 'Panel de administración' })).toBeVisible({ timeout: 20_000 })
     await expect.poll(() => new URL(page.url()).searchParams.has('__mesora_chunk_retry')).toBe(false)
-    assert.equal(fallosChunk, 2, 'El chunk fallido debe volver a solicitarse una sola vez tras recargar.')
+    assert(fallosDePrecarga >= 1, 'Debe fallar la precarga inicial del chunk obsoleto.')
+    assert.equal(fallosDeImportacion, 1, 'El import dinámico real debe fallar una sola vez antes de recuperar.')
+    assert(solicitudesTrasReintento >= 1, 'Tras la recarga debe solicitarse el chunk vigente.')
     assert.equal(documentosDeReintento, 1, 'Debe producirse una única recarga automática.')
     await expect(page.getByText('Unexpected Application Error')).toHaveCount(0)
     console.log('OK chunk obsoleto: una recarga automática, módulo nuevo cargado y URL limpia')
@@ -87,7 +111,8 @@ try {
   {
     const context = await abrirContexto()
     const page = await context.newPage()
-    let fallosChunk = 0
+    let fallosDeImportacion = 0
+    let fallosDePrecarga = 0
     let documentosDeReintento = 0
     page.on('request', (request) => {
       const url = new URL(request.url())
@@ -96,7 +121,10 @@ try {
       }
     })
     await context.route(`**/assets/${chunkAdmin}`, async (route) => {
-      fallosChunk++
+      // Fallar la precarga y el import garantiza que el módulo no se satisfaga
+      // desde el mapa de módulos antes de probar la recuperación del router.
+      if (esImportacionDesdeBundle(route.request())) fallosDeImportacion++
+      else fallosDePrecarga++
       await route.fulfill({
         status: 404,
         contentType: 'text/html; charset=utf-8',
@@ -108,7 +136,8 @@ try {
     await expect(page.getByText('Unexpected Application Error')).toHaveCount(0)
     await expect(page.getByText('Failed to fetch dynamically imported module')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Recargar página' })).toBeVisible()
-    assert.equal(fallosChunk, 2, 'Un fallo persistente debe detenerse tras dos solicitudes del chunk.')
+    assert(fallosDePrecarga >= 2, 'El escenario debe fallar la precarga inicial y la del reintento.')
+    assert.equal(fallosDeImportacion, 2, 'El import dinámico debe fallar una vez por carga de página.')
     assert.equal(documentosDeReintento, 1, 'Un fallo persistente no debe producir un bucle de recargas.')
     console.log('OK segundo fallo: mensaje amigable, sin pantalla técnica ni bucle')
     await context.close()
