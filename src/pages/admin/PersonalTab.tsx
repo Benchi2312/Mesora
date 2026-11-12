@@ -116,6 +116,8 @@ export default function PersonalTab() {
   }, [rid])
 
   const adminsActivos = personal.filter((m) => m.rol === 'admin_restaurante' && m.activo).length
+  const personasActivas = personal.filter((m) => m.activo).length
+  const personasInactivas = personal.length - personasActivas
   const puedeCrearAdmin = adminsActivos < (limiteAdmins >= 0 ? limiteAdmins : 999)
   const personalFiltrado = filtrarPersonal(personal, { busqueda, rol: filtroRol, estado: filtroEstado })
 
@@ -274,8 +276,8 @@ export default function PersonalTab() {
   }
 
   return (
-    <div>
-      <div className="aviso mb-5 border-brand-500/30 bg-brand-500/10 text-brand-300">
+    <div className="admin-managed-section admin-personal-section">
+      <div className="aviso admin-personal-notice border-brand-500/30 bg-brand-500/10 text-brand-300">
         <span className="flex items-start gap-2.5">
           <IconoInfo className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
@@ -287,11 +289,12 @@ export default function PersonalTab() {
 
       {mensajePassword && <div role="status" className="aviso mb-5 border-ok-500/40 bg-ok-500/10 text-ok-400">{mensajePassword}</div>}
 
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold tracking-tight text-zinc-100">Personal</h2>
-          <p className="mt-0.5 text-sm text-zinc-500">
-            Meseros, cocina y admins con acceso a Mesora. Administradores: {adminsActivos} de {limiteAdmins >= 0 ? limiteAdmins : '∞'}.
+      <div className="admin-module-heading">
+        <div className="admin-module-copy">
+          <span className="admin-section-kicker">Equipo y accesos</span>
+          <h2>Personas del restaurante</h2>
+          <p>
+            Revisa roles y estado de acceso. Administradores activos: {adminsActivos} de {limiteAdmins >= 0 ? limiteAdmins : '∞'}.
           </p>
         </div>
         <button
@@ -300,11 +303,29 @@ export default function PersonalTab() {
             setModalError(null)
             setModal({ accion: 'crear', nombre: '', email: '', password: '', rol: 'mesero' })
           }}
-          className="btn btn-primary min-h-11 px-4"
+          className="btn btn-primary min-h-11 px-4 admin-module-primary"
         >
           <IconoMas />
           Agregar personal
         </button>
+      </div>
+
+      <div className="admin-summary-grid" aria-label="Resumen del equipo">
+        <div className="admin-summary-item admin-summary-availability">
+          <span>Accesos activos</span>
+          <strong>{personasActivas}</strong>
+          <small>Personas habilitadas</small>
+        </div>
+        <div className="admin-summary-item">
+          <span>Accesos inactivos</span>
+          <strong>{personasInactivas}</strong>
+          <small>Historial conservado</small>
+        </div>
+        <div className="admin-summary-item">
+          <span>Administradores activos</span>
+          <strong>{adminsActivos}<small> / {limiteAdmins >= 0 ? limiteAdmins : '∞'}</small></strong>
+          <small>Límite según el plan</small>
+        </div>
       </div>
 
       {personal.length === 0 ? (
@@ -314,8 +335,8 @@ export default function PersonalTab() {
         />
       ) : (
         <>
-        <div className="card mb-4 grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
-          <label className="text-sm text-zinc-400">Buscar por nombre, correo o rol
+        <div className="admin-person-filters">
+          <label className="admin-person-search">Buscar por nombre, correo o rol
             <input type="search" className="input mt-1 min-h-11 w-full" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Ej. María o cocina" />
           </label>
           <label className="text-sm text-zinc-400">Rol
@@ -329,12 +350,12 @@ export default function PersonalTab() {
               <option value="todos">Activos e inactivos</option><option value="activos">Solo activos</option><option value="inactivos">Solo inactivos</option>
             </select>
           </label>
-          {(busqueda || filtroRol !== 'todos' || filtroEstado !== 'activos') && <button type="button" className="btn btn-outline min-h-11 px-4 sm:col-span-2 xl:col-span-3 xl:justify-self-start" onClick={() => { setBusqueda(''); setFiltroRol('todos'); setFiltroEstado('activos') }}>Limpiar filtros</button>}
+          {(busqueda || filtroRol !== 'todos' || filtroEstado !== 'activos') && <button type="button" className="btn btn-outline min-h-11 px-4 admin-filter-reset" onClick={() => { setBusqueda(''); setFiltroRol('todos'); setFiltroEstado('activos') }}>Limpiar filtros</button>}
         </div>
-        {personalFiltrado.length === 0 ? <EstadoVacio titulo="Ninguna persona coincide con estos filtros." descripcion="Cambia la búsqueda o limpia los filtros para volver a ver el personal." /> : <ul className="card divide-y divide-zinc-800/70 p-0 sm:p-0">
+        {personalFiltrado.length === 0 ? <EstadoVacio titulo="Ninguna persona coincide con estos filtros." descripcion="Cambia la búsqueda o limpia los filtros para volver a ver el personal." /> : <ul className="admin-people-list">
           {personalFiltrado.map((m) => (
-            <li key={m.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5">
-              <div className="flex min-w-0 items-center gap-3">
+            <li key={m.id} className={`admin-person-row ${m.activo ? 'is-active' : 'is-inactive'}`}>
+              <div className="admin-person-identity">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-500/15 text-sm font-bold text-brand-400">
                   {m.nombre
                     .split(/\s+/)
@@ -343,12 +364,12 @@ export default function PersonalTab() {
                     .map((x) => x[0]?.toUpperCase() ?? '')
                     .join('')}
                 </span>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-zinc-100">{m.nombre}</p>
-                  <p className="truncate text-xs text-zinc-500">{m.email ?? 'Sin correo'}</p>
+                <div className="admin-person-copy">
+                  <p>{m.nombre}</p>
+                  <p>{m.email ?? 'Sin correo'}</p>
                 </div>
               </div>
-              <div className="flex min-w-0 flex-wrap items-center justify-start gap-2 sm:justify-end">
+              <div className="admin-person-actions">
                 <span
                   className={`chip ${
                     m.rol === 'cocina'
@@ -368,7 +389,7 @@ export default function PersonalTab() {
                   disabled={yoId === m.id}
                   aria-label={m.activo ? `Desactivar a ${m.nombre}` : `Reactivar a ${m.nombre}`}
                   title={yoId === m.id ? 'No puedes desactivar tu propio acceso' : undefined}
-                  className={`chip min-h-9 touch-manipulation ${m.activo ? 'chip-ok' : 'chip-danger'} disabled:cursor-not-allowed disabled:opacity-60`}
+                  className={`chip min-h-9 touch-manipulation admin-person-status ${m.activo ? 'chip-ok' : 'chip-danger'} disabled:cursor-not-allowed disabled:opacity-60`}
                 >
                   {m.activo ? 'Activo' : 'Inactivo'}
                 </button>

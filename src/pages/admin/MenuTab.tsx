@@ -31,6 +31,10 @@ type Confirmar = { tipo: 'categoria' | 'producto'; id: string; nombre: string } 
 /** Campo del formulario que el autocompletado está rellenando ahora mismo. */
 type CampoAuto = 'categoria' | 'nombre' | 'precio'
 
+function normalizarBusquedaMenu(texto: string) {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase()
+}
+
 function precioValido(s: string): number | null {
   const n = Number.parseFloat(s)
   if (!Number.isFinite(n) || n <= 0) return null
@@ -49,6 +53,8 @@ export default function MenuTab() {
 
   const [categorias, setCategorias] = useState<CategoriaProducto[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
+  const [busquedaMenu, setBusquedaMenu] = useState('')
+  const [filtroDisponibilidad, setFiltroDisponibilidad] = useState<'todos' | 'disponibles' | 'agotados'>('todos')
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -411,12 +417,27 @@ export default function MenuTab() {
     })
   }
 
+  const busquedaNormalizada = normalizarBusquedaMenu(busquedaMenu.trim())
+  const productosDisponibles = productos.filter((producto) => producto.disponible).length
+  const productosAgotados = productos.length - productosDisponibles
+  const bebidas = productos.filter((producto) => producto.es_bebida === true).length
+  const coincideProducto = (producto: Producto, categoria: CategoriaProducto) => {
+    const coincideTexto = !busquedaNormalizada || normalizarBusquedaMenu(
+      [producto.nombre, producto.descripcion ?? '', categoria.nombre].join(' '),
+    ).includes(busquedaNormalizada)
+    const coincideEstado = filtroDisponibilidad === 'todos'
+      || (filtroDisponibilidad === 'disponibles' && producto.disponible)
+      || (filtroDisponibilidad === 'agotados' && !producto.disponible)
+    return coincideTexto && coincideEstado
+  }
+
   return (
-    <div>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold tracking-tight text-zinc-100">Menú</h2>
-          <p className="mt-0.5 text-sm text-zinc-500">Organiza tus categorías y productos a la carta.</p>
+    <div className="admin-managed-section admin-menu-section">
+      <div className="admin-module-heading">
+        <div className="admin-module-copy">
+          <span className="admin-section-kicker">Productos y categorías</span>
+          <h2>Tu oferta, organizada</h2>
+          <p>Los platos se envían a Cocina y las bebidas a Barra, según la regla actual del producto.</p>
         </div>
         <button
           type="button"
@@ -424,12 +445,68 @@ export default function MenuTab() {
             setCategoriaError(null)
             setModalCategoria({ accion: 'crear', nombre: '' })
           }}
-          className="btn btn-primary min-h-11 px-4"
+          className="btn btn-primary min-h-11 px-4 admin-module-primary"
         >
           <IconoMas />
           Nueva categoría
         </button>
       </div>
+
+      <div className="admin-summary-grid" aria-label="Resumen del menú">
+        <div className="admin-summary-item">
+          <span>Productos</span>
+          <strong>{productos.length}</strong>
+          <small>En {categorias.length} {categorias.length === 1 ? 'categoría' : 'categorías'}</small>
+        </div>
+        <div className="admin-summary-item admin-summary-availability">
+          <span>Disponibles</span>
+          <strong>{productosDisponibles}</strong>
+          <small>{productosAgotados} agotados</small>
+        </div>
+        <div className="admin-summary-item">
+          <span>Bebidas</span>
+          <strong>{bebidas}</strong>
+          <small>Asignadas a Barra por defecto</small>
+        </div>
+      </div>
+
+      {categorias.length > 0 && (
+        <div className="admin-menu-filters">
+          <label className="admin-menu-search">
+            <span>Buscar productos</span>
+            <input
+              type="search"
+              className="input min-h-11"
+              value={busquedaMenu}
+              onChange={(evento) => setBusquedaMenu(evento.target.value)}
+              placeholder="Nombre, descripción o categoría"
+              aria-label="Buscar productos por nombre, descripción o categoría"
+            />
+          </label>
+          <label>
+            <span>Disponibilidad</span>
+            <select
+              className="input min-h-11"
+              value={filtroDisponibilidad}
+              onChange={(evento) => setFiltroDisponibilidad(evento.target.value as typeof filtroDisponibilidad)}
+              aria-label="Filtrar productos por disponibilidad"
+            >
+              <option value="todos">Todos los estados</option>
+              <option value="disponibles">Disponibles</option>
+              <option value="agotados">Agotados</option>
+            </select>
+          </label>
+          {(busquedaMenu || filtroDisponibilidad !== 'todos') && (
+            <button
+              type="button"
+              className="btn btn-outline min-h-11 px-4 admin-filter-reset"
+              onClick={() => { setBusquedaMenu(''); setFiltroDisponibilidad('todos') }}
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+      )}
 
       {categorias.length === 0 && (
         <EstadoVacio
@@ -440,15 +517,16 @@ export default function MenuTab() {
 
       <div className="space-y-6">
         {categorias.map((cat) => {
-          const ps = productos.filter((p) => p.categoria_id === cat.id)
-          const bloqueada = ps.length > 0
+          const productosCategoria = productos.filter((producto) => producto.categoria_id === cat.id)
+          const ps = productosCategoria.filter((producto) => coincideProducto(producto, cat))
+          const bloqueada = productosCategoria.length > 0
           return (
-            <section key={cat.id} className="card p-4 sm:p-5">
+            <section key={cat.id} className="card admin-entity-section admin-category-section">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="flex items-center gap-2 text-base font-bold tracking-tight text-zinc-100">
+                <h3 className="admin-entity-title">
                   {cat.nombre}
-                  <span className="chip chip-neutral px-2 py-0.5 text-xs">
-                    {ps.length} {ps.length === 1 ? 'producto' : 'productos'}
+                  <span className="chip chip-neutral admin-count-chip">
+                    {productosCategoria.length} {productosCategoria.length === 1 ? 'producto' : 'productos'}
                   </span>
                 </h3>
                 <div className="flex shrink-0 items-center gap-2">
@@ -481,34 +559,32 @@ export default function MenuTab() {
                 </p>
               )}
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <div className="admin-product-grid">
                 {ps.map((p) => {
                   const enPromo = Boolean(p.es_promocion) && p.precio_promocion != null
+                  const rutaProducto = p.estacion
+                    ? p.estacion === 'bar' ? 'Barra' : NOMBRES_ESTACION_COMANDA[p.estacion]
+                    : p.es_bebida === true ? 'Barra' : 'Cocina'
                   return (
                     <div
                       key={p.id}
-                      className={`flex items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 ${
+                      className={`admin-product-item ${
                         p.disponible
-                          ? 'border-surface-800 bg-surface-950/40'
-                          : 'border-surface-800 bg-surface-950/40 opacity-60'
+                          ? 'is-available'
+                          : 'is-unavailable'
                       }`}
                     >
-                      <div className="min-w-0">
-                        <p className="flex items-center gap-2 text-sm font-semibold text-zinc-200">
-                          <span className="truncate">{p.nombre}</span>
-                          <span className="chip chip-neutral shrink-0 px-1.5 py-0.5 text-[10px]">
+                      <div className="admin-product-details">
+                        <div className="admin-product-heading">
+                          <p>{p.nombre}</p>
+                          <span className={`admin-product-status ${p.disponible ? 'is-available' : 'is-unavailable'}`}>
                             {p.disponible ? 'Disponible' : 'Agotado'}
                           </span>
-                          {p.es_bebida === true && (
-                            <span className="chip shrink-0 bg-sky-500/15 px-1.5 py-0.5 text-[10px] text-sky-300">
-                              BARRA
-                            </span>
-                          )}
-                        </p>
-                        {p.descripcion && (
-                          <p className="mt-0.5 truncate text-xs text-zinc-500">{p.descripcion}</p>
-                        )}
-                        <p className="mt-1 text-sm font-bold text-brand-400">
+                          {p.es_bebida === true && <span className="admin-product-kind">Bebida</span>}
+                          <span className="admin-product-route">{rutaProducto}</span>
+                        </div>
+                        {p.descripcion && <p className="admin-product-description">{p.descripcion}</p>}
+                        <p className="admin-product-price">
                           {enPromo ? (
                             <>
                               {fmtPEN(p.precio_promocion!)}{' '}
@@ -542,11 +618,19 @@ export default function MenuTab() {
                   )
                 })}
 
+                {ps.length === 0 && (
+                  <p className="admin-filter-empty">
+                    {busquedaMenu || filtroDisponibilidad !== 'todos'
+                      ? 'No hay productos que coincidan en esta categoría.'
+                      : 'Todavía no hay productos en esta categoría.'}
+                  </p>
+                )}
+
                 <button
                   type="button"
                   data-guia="agregar-producto"
                   onClick={() => abrirProductoCrear(cat.id)}
-                  className="flex min-h-11 touch-manipulation items-center justify-center gap-1.5 rounded-xl border border-dashed border-surface-700 px-3 text-sm font-semibold text-zinc-400 transition hover:border-brand-500/60 hover:bg-brand-500/5 hover:text-brand-400 active:scale-[0.99]"
+                  className="admin-add-item"
                 >
                   <IconoMas className="h-4 w-4" />
                   Agregar producto

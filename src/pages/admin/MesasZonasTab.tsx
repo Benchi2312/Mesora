@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useCurrentContext } from '../../lib/useCurrentContext'
-import { getApi } from '../../lib/api'
+import { getApi, type MesaPorCobrar } from '../../lib/api'
+import { fmtPEN } from '../../lib/format'
 import { useDemoStore } from '../../demo/demoStore'
 import { PREFILL_GUIA, prefillDe } from '../../demo/guia'
 import { escribirSecuencia } from '../../demo/escritura'
@@ -26,6 +27,8 @@ export default function MesasZonasTab() {
 
   const [zonas, setZonas] = useState<Zona[]>([])
   const [mesas, setMesas] = useState<Mesa[]>([])
+  const [mesasPorCobrar, setMesasPorCobrar] = useState<MesaPorCobrar[]>([])
+  const [errorConsumo, setErrorConsumo] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -42,13 +45,19 @@ export default function MesasZonasTab() {
   const cargar = useCallback(async () => {
     if (!rid) return
     const api = getApi()
-    const [zRes, mRes] = await Promise.all([api.getZonas(rid), api.getMesas(rid)])
+    const [zRes, mRes, consumoRes] = await Promise.all([
+      api.getZonas(rid),
+      api.getMesas(rid),
+      api.getMesasPorCobrar(rid),
+    ])
     if (zRes.error || mRes.error) {
       setError(zRes.error ?? mRes.error ?? 'Error al cargar mesas y zonas')
       return
     }
     setZonas(zRes.data ?? [])
     setMesas(mRes.data ?? [])
+    setMesasPorCobrar(consumoRes.data ?? [])
+    setErrorConsumo(consumoRes.error)
     setError(null)
   }, [rid])
 
@@ -216,12 +225,19 @@ export default function MesasZonasTab() {
     await cargar()
   }
 
+  const mesasOcupadas = mesas.filter((mesa) => mesa.estado === 'ocupada').length
+  const mesasLibres = mesas.length - mesasOcupadas
+  const consumosPorMesa = new Map(mesasPorCobrar.map((mesa) => [mesa.mesa_id, mesa]))
+  const totalPendiente = mesasPorCobrar.reduce((total, mesa) => total + mesa.total, 0)
+  const pedidosPendientes = mesasPorCobrar.reduce((total, mesa) => total + mesa.pedidos, 0)
+
   return (
-    <div>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold tracking-tight text-zinc-100">Mesas y zonas</h2>
-          <p className="mt-0.5 text-sm text-zinc-500">Organiza el salón en zonas y agrega tus mesas.</p>
+    <div className="admin-managed-section admin-mesas-section">
+      <div className="admin-module-heading">
+        <div className="admin-module-copy">
+          <span className="admin-section-kicker">Operación del salón</span>
+          <h2>Disponibilidad de mesas</h2>
+          <p>Revisa de un vistazo qué está libre y qué zona necesita atención.</p>
         </div>
         <button
           type="button"
@@ -231,12 +247,42 @@ export default function MesasZonasTab() {
             setZonaError(null)
             setModalZona({ accion: 'crear', nombre: prefill?.zona ?? '' })
           }}
-          className="btn btn-primary min-h-11 px-4"
+          className="btn btn-primary min-h-11 px-4 admin-module-primary"
         >
           <IconoMas />
           Nueva zona
         </button>
       </div>
+
+      <div className="admin-summary-grid" aria-label="Resumen del salón">
+        <div className="admin-summary-item">
+          <span>Zonas</span>
+          <strong>{zonas.length}</strong>
+          <small>{zonas.length === 1 ? 'espacio configurado' : 'espacios configurados'}</small>
+        </div>
+        <div className="admin-summary-item">
+          <span>Mesas en total</span>
+          <strong>{mesas.length}</strong>
+          <small>En todas las zonas</small>
+        </div>
+        <div className="admin-summary-item admin-summary-availability">
+          <span>Disponibilidad</span>
+          <strong>{mesasLibres} <small>libres</small></strong>
+          <small>
+            {mesasOcupadas} {mesasOcupadas === 1 ? 'ocupada' : 'ocupadas'}
+            {' · '}
+            {errorConsumo
+              ? 'Consumo pendiente no disponible'
+              : `Pendiente ${fmtPEN(totalPendiente)} en ${pedidosPendientes} pedidos`}
+          </small>
+        </div>
+      </div>
+
+      {errorConsumo && (
+        <div className="aviso border-warn-500/30 bg-warn-500/10 text-warn-400" role="status">
+          Las mesas y su estado están disponibles, pero no se pudo cargar el consumo pendiente.
+        </div>
+      )}
 
       {zonas.length === 0 && (
         <EstadoVacio
@@ -250,12 +296,12 @@ export default function MesasZonasTab() {
           const ms = mesas.filter((m) => m.zona_id === zona.id)
           const bloqueada = ms.length > 0
           return (
-            <section key={zona.id} className="card p-4 sm:p-5">
+            <section key={zona.id} className="card admin-entity-section admin-zone-section">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="flex items-center gap-2 text-base font-bold tracking-tight text-zinc-100">
+                  <h3 className="admin-entity-title">
                     {zona.nombre}
-                    <span className="chip chip-neutral px-2 py-0.5 text-xs">
+                    <span className="chip chip-neutral admin-count-chip">
                       {ms.length} {ms.length === 1 ? 'mesa' : 'mesas'}
                     </span>
                   </h3>
@@ -277,6 +323,7 @@ export default function MesasZonasTab() {
                     disabled={bloqueada}
                     title={bloqueada ? `Elimina primero las mesas de «${zona.nombre}»` : `Eliminar ${zona.nombre}`}
                     onClick={() => setConfirmar({ tipo: 'zona', id: zona.id, nombre: zona.nombre })}
+                    aria-label={`Eliminar zona ${zona.nombre}`}
                     className="btn btn-ghost h-11 w-11 p-0 text-zinc-400 hover:text-danger-500 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-zinc-400"
                   >
                     <IconoBasura />
@@ -290,19 +337,26 @@ export default function MesasZonasTab() {
                 </p>
               )}
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <div className="admin-table-grid">
                 {ms.map((m) => (
                   <div
                     key={m.id}
-                    className="flex items-center justify-between gap-2 rounded-xl border border-surface-800 bg-surface-950/40 px-3.5 py-1.5"
+                    className={`admin-table-item ${m.estado === 'ocupada' ? 'is-occupied' : 'is-free'}`}
                   >
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <span
-                        className={`h-2 w-2 shrink-0 rounded-full ${m.estado === 'ocupada' ? 'bg-brand-500' : 'bg-ok-500'}`}
-                      />
-                      <span className="truncate text-sm font-semibold text-zinc-200">{m.nombre}</span>
-                      <span className="shrink-0 text-xs text-zinc-500">
-                        {m.estado === 'ocupada' ? 'Ocupada' : 'Libre'}
+                    <div className="admin-table-info">
+                      <div className="admin-table-status-line">
+                        <span className="admin-status-dot" aria-hidden="true" />
+                        <span className="admin-table-name">{m.nombre}</span>
+                        <span className={`admin-status-label ${m.estado === 'ocupada' ? 'is-occupied' : 'is-free'}`}>
+                          {m.estado === 'ocupada' ? 'Ocupada' : 'Libre'}
+                        </span>
+                      </div>
+                      <span className="admin-table-consumption">
+                        {errorConsumo
+                          ? 'Consumo pendiente no disponible'
+                          : consumosPorMesa.has(m.id)
+                            ? `Pendiente ${fmtPEN(consumosPorMesa.get(m.id)!.total)} · ${consumosPorMesa.get(m.id)!.pedidos} pedidos`
+                            : 'Sin consumo pendiente'}
                       </span>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
@@ -337,7 +391,7 @@ export default function MesasZonasTab() {
                     setMesaError(null)
                     setModalMesa({ accion: 'crear', zonaId: zona.id, nombre: prefill?.mesa ?? '' })
                   }}
-                  className="flex min-h-11 touch-manipulation items-center justify-center gap-1.5 rounded-xl border border-dashed border-surface-700 px-3 text-sm font-semibold text-zinc-400 transition hover:border-brand-500/60 hover:bg-brand-500/5 hover:text-brand-400 active:scale-[0.99]"
+                  className="admin-add-item"
                 >
                   <IconoMas className="h-4 w-4" />
                   Agregar mesa

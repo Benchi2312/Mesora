@@ -17,6 +17,7 @@ import VentasTab from './VentasTab'
 import AvisoSuscripcion from './AvisoSuscripcion'
 import AuditoriaRestauranteTab from './AuditoriaRestauranteTab'
 import './admin-layout.css'
+import './admin-managed-pages.css'
 
 type SeccionTab = 'dashboard' | 'ventas' | 'caja' | 'cobros' | 'mesas' | 'menu' | 'personal' | 'configuracion' | 'configuracion-operativa' | 'agentes-impresion' | 'auditoria' | 'soporte'
 
@@ -105,6 +106,9 @@ export default function Admin() {
     dashboard: { titulo: 'Resumen de ventas', descripcion: 'Revisa los resultados reales del periodo y cómo se distribuyen las ventas.' },
     caja: { titulo: 'Caja del turno', descripcion: 'Consulta el estado del turno, cobra mesas autorizadas y revisa el arqueo.' },
     cobros: { titulo: 'Cobros y recibos internos', descripcion: 'Consulta lo cobrado y anulado; las cuentas pendientes se atienden desde Caja.' },
+    mesas: { titulo: 'Mesas y zonas', descripcion: 'Consulta la disponibilidad del salón y organiza las mesas por zona.' },
+    menu: { titulo: 'Menú', descripcion: 'Administra productos, precios y categorías que usa tu equipo.' },
+    personal: { titulo: 'Personal', descripcion: 'Revisa quién tiene acceso al restaurante y gestiona el equipo.' },
   }
   const encabezado = encabezadoPorSeccion[seccion] ?? {
     titulo: 'Panel de administración',
