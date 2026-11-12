@@ -181,7 +181,7 @@ export default function ComandaImprimible({
 
   return createPortal(
     <div className="comanda-portal-root">
-      <Modal titulo={`Comanda · ${NOMBRES_ESTACION_COMANDA[estacion]}`} onCerrar={onCerrar} ancho="max-w-md">
+      <Modal titulo={`Comanda · ${estacion === 'bar' ? 'Barra' : NOMBRES_ESTACION_COMANDA[estacion]}`} onCerrar={onCerrar} ancho="max-w-md">
       <div className="comanda-panel">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
           {salidaImpresora ? (
@@ -229,7 +229,7 @@ export default function ComandaImprimible({
         <article className="comanda-print mx-auto" data-paper-width={ancho} data-comanda-id={pedido.id} aria-label="Vista imprimible de la comanda">
           <header className="comanda-cabecera">
             <strong className="comanda-restaurante">{restauranteNombre || 'Restaurante'}</strong>
-            <div className="comanda-estacion">COMANDA · {NOMBRES_ESTACION_COMANDA[estacion].toUpperCase()}</div>
+            <div className="comanda-estacion">COMANDA · {(estacion === 'bar' ? 'Barra' : NOMBRES_ESTACION_COMANDA[estacion]).toUpperCase()}</div>
             <div className="comanda-numero">N.º {pedido.id.slice(0, 8).toUpperCase()}</div>
           </header>
           <section className="comanda-metadatos">
@@ -293,7 +293,7 @@ export default function ComandaImprimible({
               disabled={enviando || (requiereMotivo && !motivoValido)}
               onClick={() => printListo ? imprimirAhora() : void registrarSolicitudImpresion()}
             >
-              {enviando ? 'Preparando…' : printListo ? 'Imprimir' : errorRed ? 'Reintentar de forma segura' : requiereMotivo ? 'Registrar reimpresión' : 'Registrar impresión'}
+              {enviando ? 'Preparando…' : printListo ? 'Imprimir' : errorRed ? 'Reintentar de forma segura' : requiereMotivo ? 'Registrar reimpresión' : 'Registrar solicitud de impresión'}
             </button>
           </div>
         )}

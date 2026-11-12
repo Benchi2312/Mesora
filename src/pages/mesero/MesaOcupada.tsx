@@ -395,33 +395,37 @@ export default function MesaOcupada({
         </div>
       )}
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <button
-          type="button"
-          disabled={asignadaAOtro}
-          onClick={onAgregarPedido}
-          className="min-h-14 touch-manipulation rounded-xl border-2 border-brand-500/50 bg-brand-500/10 px-4 py-3.5 text-base font-semibold text-brand-400 transition hover:border-brand-500 hover:bg-brand-500/15 active:scale-[0.98]"
-        >
-          + Agregar otro pedido
-        </button>
-        <button
-          type="button"
-          disabled={cargando || Boolean(error) || !hayPedidos || total <= 0}
-          onClick={() => setVerPrecuenta(true)}
-          className="btn btn-outline min-h-14 px-4 py-3.5 text-base"
-        >
-          Ver precuenta
-        </button>
-        <button
-          type="button"
-          data-guia="cerrar-cuenta"
-          onClick={onCerrarCuenta}
-          disabled={!hayPedidos || asignadaAOtro}
-          className="min-h-14 touch-manipulation rounded-xl bg-brand-500 px-4 py-3.5 text-base font-semibold text-surface-950 transition hover:bg-brand-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {hayPedidos ? `Cerrar cuenta · ${fmtPEN(total)}` : 'Cerrar cuenta'}
-        </button>
-      </div>
+      <section className="mt-5" aria-labelledby="acciones-cuenta-titulo">
+        <h2 id="acciones-cuenta-titulo" className="text-sm font-semibold text-zinc-200">Siguiente paso</h2>
+        <p className="mt-1 text-xs text-zinc-500">Agrega otro pedido si hace falta, revisa la precuenta y luego cierra la cuenta.</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3" role="group" aria-label="Acciones principales de la cuenta">
+          <button
+            type="button"
+            disabled={asignadaAOtro}
+            onClick={onAgregarPedido}
+            className="min-h-14 touch-manipulation rounded-xl border-2 border-brand-500/50 bg-brand-500/10 px-4 py-3.5 text-base font-semibold text-brand-400 transition hover:border-brand-500 hover:bg-brand-500/15 active:scale-[0.98]"
+          >
+            + Agregar otro pedido
+          </button>
+          <button
+            type="button"
+            disabled={cargando || Boolean(error) || !hayPedidos || total <= 0}
+            onClick={() => setVerPrecuenta(true)}
+            className="btn btn-outline min-h-14 px-4 py-3.5 text-base"
+          >
+            Ver precuenta
+          </button>
+          <button
+            type="button"
+            data-guia="cerrar-cuenta"
+            onClick={onCerrarCuenta}
+            disabled={!hayPedidos || asignadaAOtro}
+            className="min-h-14 touch-manipulation rounded-xl bg-brand-500 px-4 py-3.5 text-base font-semibold text-surface-950 transition hover:bg-brand-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {hayPedidos ? `Cerrar cuenta · ${fmtPEN(total)}` : 'Cerrar cuenta'}
+          </button>
+        </div>
+      </section>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <button
           type="button"

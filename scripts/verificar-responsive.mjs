@@ -26,6 +26,7 @@ const VIEWPORTS = [
   { w: 768, h: 1024, nombre: '768x1024' },
   { w: 1024, h: 768, nombre: '1024x768' },
   { w: 1280, h: 800, nombre: '1280x800' },
+  { w: 1440, h: 900, nombre: '1440x900' },
 ]
 
 const VIEWPORTS_SUPERADMIN = [
@@ -723,7 +724,7 @@ async function correrAnulacionUltimoItem(browser) {
     etapa = 'agregar el producto desde el menú'
     await page.getByRole('button', { name: /Cheesecake QA/ }).click()
     etapa = 'enviar el pedido a cocina'
-    await page.getByRole('button', { name: 'Enviar comanda a cocina', exact: true }).click()
+    await page.getByRole('button', { name: 'Enviar comanda', exact: true }).click()
     await page.locator('button[data-guia-mesa="' + setup.mesaId + '"]').waitFor()
     etapa = 'abrir mesa QA ocupada'
     await page.locator('button[data-guia-mesa="' + setup.mesaId + '"]').click()
@@ -760,6 +761,200 @@ async function correrAnulacionUltimoItem(browser) {
     await page.screenshot({ path: join(CAPTURAS, 'anulacion-ultimo-item-falla.png'), fullPage: false }).catch(() => {})
     console.log('  FALLA flujo visual de anulación del último ítem (' + etapa + ') — ' + String(e).split('\n')[0].slice(0, 200))
     console.log('    URL=' + page.url() + ' · ' + textoPantalla.replace(/\s+/g, ' ').slice(0, 240))
+  } finally {
+    await ctx.close()
+  }
+}
+
+async function correrFlujoMeseroMovil(browser) {
+  const vp = { w: 390, h: 844, nombre: '390x844_mesero_operativo' }
+  const ctx = await browser.newContext({ viewport: { width: vp.w, height: vp.h } })
+  const page = await ctx.newPage()
+  let etapa = 'preparar fixture local de demo'
+  try {
+    page.setDefaultTimeout(10000)
+    await page.goto(URL + '/demo/admin', { waitUntil: 'networkidle', timeout: 45000 })
+    const setup = await page.evaluate(async (sufijo) => {
+      const { getApi, apiMode } = await import('/src/lib/api.ts')
+      const api = getApi()
+      const actorAnterior = apiMode.operadorId
+      apiMode.operadorId = 'u-admin'
+      try {
+        const zona = await api.crearZona('r-demo', `QA móvil ${sufijo}`)
+        if (zona.error || !zona.data) throw new Error(zona.error ?? 'No se creó la zona de prueba local')
+        const mesa = await api.crearMesa('r-demo', { nombre: `Mesa QA ${sufijo}`, zona_id: zona.data.id })
+        if (mesa.error || !mesa.data) throw new Error(mesa.error ?? 'No se creó la mesa de prueba local')
+        const [comidas, bebidas, postres] = await Promise.all([
+          api.crearCategoria('r-demo', `Comidas QA ${sufijo}`),
+          api.crearCategoria('r-demo', `Bebidas QA ${sufijo}`),
+          api.crearCategoria('r-demo', `Postres QA ${sufijo}`),
+        ])
+        if (comidas.error || !comidas.data || bebidas.error || !bebidas.data || postres.error || !postres.data) {
+          throw new Error('No se crearon las categorías de prueba local')
+        }
+        const productos = await Promise.all([
+          ...Array.from({ length: 4 }, (_, i) => api.crearProducto('r-demo', {
+            nombre: `Comida ${i + 1} QA ${sufijo}`, categoria_id: comidas.data.id, precio: 11, disponible: true, es_bebida: false,
+          })),
+          ...Array.from({ length: 2 }, (_, i) => api.crearProducto('r-demo', {
+            nombre: `Bebida ${i + 1} QA ${sufijo}`, categoria_id: bebidas.data.id, precio: 5, disponible: true, es_bebida: true,
+          })),
+          ...Array.from({ length: 2 }, (_, i) => api.crearProducto('r-demo', {
+            nombre: `Postre ${i + 1} QA ${sufijo}`, categoria_id: postres.data.id, precio: 8, disponible: true, es_bebida: false,
+          })),
+        ])
+        if (productos.some((resultado) => resultado.error || !resultado.data)) throw new Error('No se crearon todos los productos de prueba local')
+        return {
+          mesaId: mesa.data.id,
+          mesaNombre: mesa.data.nombre,
+          comidas: productos.slice(0, 4).map((resultado) => resultado.data.nombre),
+          bebidas: productos.slice(4, 6).map((resultado) => resultado.data.nombre),
+          postres: productos.slice(6).map((resultado) => resultado.data.nombre),
+        }
+      } finally {
+        apiMode.operadorId = actorAnterior
+      }
+    }, String(Date.now()))
+
+    etapa = 'abrir ruta del mesero y confirmar recarga directa'
+    await page.goto(URL + '/demo/mesero', { waitUntil: 'networkidle', timeout: 45000 })
+    const guiaInicial = page.locator('[data-guia-panel]')
+    await guiaInicial.waitFor({ state: 'visible' })
+    await guiaInicial.getByRole('button', { name: 'Explorar por mi cuenta' }).click()
+    await guiaInicial.waitFor({ state: 'detached' })
+    const mesa = page.locator(`button[data-guia-mesa="${setup.mesaId}"]`)
+    await mesa.waitFor({ state: 'visible' })
+    await page.reload({ waitUntil: 'networkidle', timeout: 45000 })
+    const guiaTrasRecarga = page.locator('[data-guia-panel]')
+    await guiaTrasRecarga.waitFor({ state: 'visible' })
+    await guiaTrasRecarga.getByRole('button', { name: 'Explorar por mi cuenta' }).click()
+    await guiaTrasRecarga.waitFor({ state: 'detached' })
+    await page.locator(`button[data-guia-mesa="${setup.mesaId}"]`).waitFor({ state: 'visible' })
+    check('Mesero carga mesa demo por URL directa y después de recargar', await page.evaluate(() => window.location.pathname === '/demo/mesero'))
+
+    etapa = 'comprobar filtros Todos, Bebidas, Comidas y Postres'
+    const filtros = page.getByRole('group', { name: 'Filtrar productos por tipo' })
+    const abrirMesa = page.locator(`button[data-guia-mesa="${setup.mesaId}"]`)
+    await abrirMesa.click()
+    await filtros.waitFor({ state: 'visible' })
+    const conteoProductos = () => page.locator('[data-guia="producto"]').count()
+    check('el filtro Todos muestra el menú completo', await conteoProductos() === 8)
+    await filtros.getByRole('button', { name: 'Bebidas', exact: true }).click()
+    check('el filtro Bebidas muestra únicamente productos marcados como bebida', await conteoProductos() === 2)
+    await filtros.getByRole('button', { name: 'Comidas', exact: true }).click()
+    check('el filtro Comidas excluye bebidas y categorías de postres', await conteoProductos() === 4)
+    await filtros.getByRole('button', { name: 'Postres', exact: true }).click()
+    check('el filtro Postres usa categorías existentes cuyo nombre lo identifica', await conteoProductos() === 2)
+    await filtros.getByRole('button', { name: 'Todos', exact: true }).click()
+
+    etapa = 'agregar varios productos y validar resumen móvil persistente'
+    async function agregarProducto(nombre) {
+      await page.locator('[data-guia="producto"]').filter({ hasText: nombre }).click()
+    }
+    await agregarProducto(setup.comidas[0])
+    await agregarProducto(setup.comidas[0])
+    await agregarProducto(setup.bebidas[0])
+    await agregarProducto(setup.postres[0])
+    const resumen = page.getByRole('region', { name: 'Resumen de la comanda' })
+    await resumen.waitFor({ state: 'visible' })
+    await resumen.getByText('4 ítems en la comanda', { exact: true }).waitFor()
+    check('el resumen móvil muestra cantidad y total de los productos seleccionados',
+      /35[.,]00/.test((await resumen.innerText()).replace(/\u00a0/g, ' ')))
+    await page.locator('[data-guia="producto"]').last().scrollIntoViewIfNeeded()
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }))
+    await page.waitForFunction(() => Math.abs(window.scrollY + window.innerHeight - document.documentElement.scrollHeight) < 2)
+    const geometria = await page.evaluate(() => {
+      const barra = document.querySelector('[data-resumen-pedido-movil]')?.getBoundingClientRect()
+      const ultimoProducto = [...document.querySelectorAll('[data-guia="producto"]')].at(-1)?.getBoundingClientRect()
+      return {
+        anchoDocumento: document.documentElement.scrollWidth,
+        anchoVentana: window.innerWidth,
+        barraVisible: Boolean(barra && barra.top >= 0 && barra.bottom <= window.innerHeight),
+        productoSobreBarra: Boolean(barra && ultimoProducto && ultimoProducto.bottom <= barra.top),
+        barraTop: barra ? Math.round(barra.top) : null,
+        productoTop: ultimoProducto ? Math.round(ultimoProducto.top) : null,
+        productoBottom: ultimoProducto ? Math.round(ultimoProducto.bottom) : null,
+        desplazamiento: window.scrollY,
+        altoDocumento: document.documentElement.scrollHeight,
+        elementosFuera: [...document.querySelectorAll('body *')].flatMap((elemento) => {
+          const rect = elemento.getBoundingClientRect()
+          return rect.width > 0 && (rect.right > window.innerWidth + 1 || rect.left < -1)
+            ? [{ elemento: elemento.tagName, clase: typeof elemento.className === 'string' ? elemento.className.slice(0, 100) : '', texto: (elemento.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 55), izquierda: Math.round(rect.left), derecha: Math.round(rect.right) }]
+            : []
+        }).slice(0, 12),
+      }
+    })
+    check('la barra fija respeta scroll, espacio inferior y ancho de móvil', geometria.anchoDocumento <= geometria.anchoVentana + 1 && geometria.barraVisible && geometria.productoSobreBarra, JSON.stringify(geometria))
+
+    etapa = 'demostrar un único envío ante doble clic'
+    await page.evaluate(async () => {
+      const { getApi } = await import('/src/lib/api.ts')
+      const api = getApi()
+      const crearOriginal = api.crearPedido
+      window.__mesoraCrearPedidoCalls = 0
+      api.crearPedido = async (...args) => {
+        window.__mesoraCrearPedidoCalls++
+        await new Promise((resolve) => setTimeout(resolve, 120))
+        return crearOriginal(...args)
+      }
+    })
+    await resumen.getByRole('button', { name: 'Enviar comanda' }).evaluate((button) => {
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    const mesaOcupada = page.locator(`button[data-guia-mesa="${setup.mesaId}"]`)
+    await page.waitForFunction((id) => document.querySelector(`button[data-guia-mesa="${id}"]`)?.textContent?.includes('1 comanda'), setup.mesaId, { timeout: 15000 })
+    const textoMesa = await mesaOcupada.innerText()
+    const cantidadEnvios = await page.evaluate(() => window.__mesoraCrearPedidoCalls)
+    check('doble clic del CTA móvil crea una sola comanda', cantidadEnvios === 1, `solicitudes=${cantidadEnvios}`)
+    check('mesa ocupada resume saldo, comanda, responsable y preparación',
+      /Ocupada/i.test(textoMesa) && /35[.,]00/.test(textoMesa.replace(/\u00a0/g, ' ')) && textoMesa.includes('1 comanda') && textoMesa.includes('Mesero ·') && textoMesa.includes('Por preparar'),
+      textoMesa.replace(/\s+/g, ' '))
+
+    etapa = 'recargar mesa ocupada y sumar una segunda comanda'
+    await page.reload({ waitUntil: 'networkidle', timeout: 45000 })
+    const guiaTrasPedido = page.locator('[data-guia-panel]')
+    await guiaTrasPedido.waitFor({ state: 'visible' })
+    await guiaTrasPedido.getByRole('button', { name: 'Explorar por mi cuenta' }).click()
+    await guiaTrasPedido.waitFor({ state: 'detached' })
+    const mesaTrasRecarga = page.locator(`button[data-guia-mesa="${setup.mesaId}"]`)
+    await page.waitForFunction((id) => document.querySelector(`button[data-guia-mesa="${id}"]`)?.textContent?.includes('1 comanda'), setup.mesaId, { timeout: 15000 })
+    check('el resumen de mesa ocupada persiste después de recargar', /35[.,]00/.test((await mesaTrasRecarga.innerText()).replace(/\u00a0/g, ' ')))
+    etapa = 'abrir mesa ocupada después de recargar'
+    await mesaTrasRecarga.click()
+    etapa = 'iniciar segundo pedido desde la mesa ocupada'
+    await page.getByRole('button', { name: '+ Agregar otro pedido', exact: true }).click()
+    etapa = 'seleccionar producto para el segundo pedido'
+    await agregarProducto(setup.comidas[1])
+    etapa = 'enviar segundo pedido'
+    await page.getByRole('button', { name: 'Enviar comanda', exact: true }).click()
+    await page.getByText('2 comandas por cobrar', { exact: true }).waitFor({ timeout: 15000 })
+    await page.getByText(/46[.,]00/).first().waitFor({ timeout: 15000 })
+    const textoCuentaDosComandas = (await page.locator('body').innerText()).replace(/\u00a0/g, ' ')
+    const resumenCuentaDosComandas = await page.getByText('2 comandas por cobrar', { exact: true }).locator('..').innerText()
+    check('mesa ocupada resume dos comandas y el total actualizado', /46[.,]00/.test(resumenCuentaDosComandas.replace(/\u00a0/g, ' ')), resumenCuentaDosComandas.replace(/\s+/g, ' '))
+
+    etapa = 'verificar prioridad de acciones y precuenta'
+    const agregar = page.getByRole('button', { name: '+ Agregar otro pedido', exact: true })
+    const precuentaButton = page.getByRole('button', { name: 'Ver precuenta', exact: true })
+    const cerrar = page.getByRole('button', { name: /Cerrar cuenta/ })
+    const indices = await Promise.all([agregar, precuentaButton, cerrar].map((locator) => locator.evaluate((element) => {
+      const parent = element.parentElement
+      return parent ? [...parent.children].indexOf(element) : -1
+    })))
+    check('Agregar pedido, precuenta y cierre aparecen en esa secuencia operativa', indices[0] >= 0 && indices[0] < indices[1] && indices[1] < indices[2], JSON.stringify(indices))
+    await precuentaButton.click()
+    const precuenta = page.getByRole('region', { name: 'Precuenta' })
+    await precuenta.waitFor({ state: 'visible' })
+    await precuenta.getByText('No es un comprobante de pago.', { exact: true }).waitFor()
+    check('la precuenta aclara que no es comprobante de pago', await precuenta.getByRole('heading', { name: 'PRECUENTA' }).count() === 1)
+    check('Mesero no presenta overflow horizontal en la operación móvil', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+  } catch (e) {
+    fallos++
+    checks++
+    const textoPantalla = await page.locator('body').innerText().catch(() => '')
+    await page.screenshot({ path: join(CAPTURAS, 'mesero-operativo-falla.png'), fullPage: false }).catch(() => {})
+    console.log(`  FALLA flujo operativo de Mesero en ${etapa} — ${String(e).split('\n')[0].slice(0, 220)}; pantalla=${textoPantalla.replace(/\s+/g, ' ').slice(0, 300)}`)
   } finally {
     await ctx.close()
   }
@@ -957,6 +1152,8 @@ async function run() {
       for (const vp of VIEWPORTS.filter((vista) => vista.w <= 768)) await correrGuiaMovil(browser, vp)
     } else if (process.argv.includes('--solo-anulacion-ultimo-item')) {
       await correrAnulacionUltimoItem(browser)
+    } else if (process.argv.includes('--solo-roles-operativos')) {
+      await correrFlujoMeseroMovil(browser)
     } else if (process.argv.includes('--solo-landing')) {
       await correrLandingResponsive(browser)
     } else if (process.argv.includes('--solo-superadmin-responsive')) {
@@ -972,6 +1169,7 @@ async function run() {
     } else {
       await correrLandingResponsive(browser)
       await correrAnulacionUltimoItem(browser)
+      await correrFlujoMeseroMovil(browser)
       for (const vp of [
         { w: 390, h: 844, nombre: '390x844' },
         { w: 768, h: 1024, nombre: '768x1024' },
@@ -1015,6 +1213,8 @@ async function run() {
       ? 'rutas del demo y guía completada en escritorio y 390x844'
     : process.argv.includes('--solo-anulacion-ultimo-item')
       ? 'flujo visual de anulación del último ítem en 390x844'
+    : process.argv.includes('--solo-roles-operativos')
+      ? 'pedido móvil, resumen persistente, envío único, mesa ocupada y precuenta en 390x844'
     : process.argv.includes('--solo-guia-movil')
       ? 'guía móvil en 360x640 y 390x844'
       : process.argv.includes('--solo-landing')

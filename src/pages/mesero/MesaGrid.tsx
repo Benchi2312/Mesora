@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import { getApi } from '../../lib/api'
 import type { Mesa, Zona } from '../../types/database'
+import type { MesaPorCobrar, PedidoConItems } from '../../lib/api'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
+import { fmtPEN } from '../../lib/format'
 
 interface MesaGridProps {
   onSelectMesa: (mesa: Mesa, ocupada: boolean) => void
@@ -17,6 +19,8 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
   const [error, setError] = useState<string | null>(null)
   const [intento, setIntento] = useState(0)
   const [nombreMeseros, setNombreMeseros] = useState<Map<string, string>>(() => new Map())
+  const [resumenPorMesa, setResumenPorMesa] = useState<Map<string, MesaPorCobrar> | null>(null)
+  const [pedidosActivos, setPedidosActivos] = useState<PedidoConItems[]>([])
 
   useEffect(() => {
     const rid = restaurante?.id
@@ -29,7 +33,13 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
     ;(async () => {
       try {
         const api = getApi()
-        const [zRes, mRes, meserosRes] = await Promise.all([api.getZonas(rid), api.getMesas(rid), api.getMeseros(rid)])
+        const [zRes, mRes, meserosRes, pendientesRes, pedidosRes] = await Promise.all([
+          api.getZonas(rid),
+          api.getMesas(rid),
+          api.getMeseros(rid),
+          api.getMesasPorCobrar(rid),
+          api.getPedidosActivos(rid),
+        ])
 
         if (!activo) return
         if (zRes.error || mRes.error) {
@@ -39,6 +49,8 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
         setZonas(zRes.data ?? [])
         setMesas(mRes.data ?? [])
         setNombreMeseros(new Map((meserosRes.data ?? []).filter((u) => u.activo !== false).map((u) => [u.id, u.nombre])))
+        setResumenPorMesa(pendientesRes.error ? null : new Map((pendientesRes.data ?? []).map((fila) => [fila.mesa_id, fila])))
+        setPedidosActivos(pedidosRes.error ? [] : pedidosRes.data ?? [])
         setError(null)
       } catch {
         if (activo) setError('No se pudo conectar para cargar las mesas. Inténtalo de nuevo.')
@@ -53,8 +65,9 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
 
   if (cargando)
     return (
-      <div className="flex justify-center py-16">
+      <div role="status" aria-live="polite" className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-zinc-400">
         <Spinner />
+        <span>Cargando mesas y comandas…</span>
       </div>
     )
 
@@ -101,7 +114,14 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
             </h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               {ms.map((mesa) => (
-                <MesaButton key={mesa.id} mesa={mesa} meseroNombre={mesa.mesero_responsable_id ? nombreMeseros.get(mesa.mesero_responsable_id) : undefined} onSelect={onSelectMesa} />
+                <MesaButton
+                  key={mesa.id}
+                  mesa={mesa}
+                  meseroNombre={mesa.mesero_responsable_id ? nombreMeseros.get(mesa.mesero_responsable_id) : undefined}
+                  resumen={resumenPorMesa?.get(mesa.id)}
+                  estadoPreparacion={estadoPreparacionDeMesa(pedidosActivos.filter((pedido) => pedido.mesa_id === mesa.id))}
+                  onSelect={onSelectMesa}
+                />
               ))}
             </div>
           </section>
@@ -115,7 +135,14 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {sinZona.map((mesa) => (
-              <MesaButton key={mesa.id} mesa={mesa} meseroNombre={mesa.mesero_responsable_id ? nombreMeseros.get(mesa.mesero_responsable_id) : undefined} onSelect={onSelectMesa} />
+              <MesaButton
+                key={mesa.id}
+                mesa={mesa}
+                meseroNombre={mesa.mesero_responsable_id ? nombreMeseros.get(mesa.mesero_responsable_id) : undefined}
+                resumen={resumenPorMesa?.get(mesa.id)}
+                estadoPreparacion={estadoPreparacionDeMesa(pedidosActivos.filter((pedido) => pedido.mesa_id === mesa.id))}
+                onSelect={onSelectMesa}
+              />
             ))}
           </div>
         </section>
@@ -124,7 +151,29 @@ export default function MesaGrid({ onSelectMesa }: MesaGridProps) {
   )
 }
 
-function MesaButton({ mesa, meseroNombre, onSelect }: { mesa: Mesa; meseroNombre?: string; onSelect: MesaGridProps['onSelectMesa'] }) {
+function estadoPreparacionDeMesa(pedidos: readonly PedidoConItems[]): string | undefined {
+  const estados = pedidos.flatMap((pedido) => Object.values(pedido.rutasPorEstacion ?? {})
+    .filter((ruta) => ruta && (ruta.legado || ruta.destinos.includes('kds')))
+    .map((ruta) => ruta!.estado))
+  if (estados.includes('pendiente')) return 'Por preparar'
+  if (estados.includes('en_preparacion')) return 'En preparación'
+  if (estados.includes('listo')) return 'Listo para entregar'
+  return undefined
+}
+
+function MesaButton({
+  mesa,
+  meseroNombre,
+  resumen,
+  estadoPreparacion,
+  onSelect,
+}: {
+  mesa: Mesa
+  meseroNombre?: string
+  resumen?: MesaPorCobrar
+  estadoPreparacion?: string
+  onSelect: MesaGridProps['onSelectMesa']
+}) {
   const ocupada = mesa.estado === 'ocupada'
   return (
     <button
@@ -132,7 +181,7 @@ function MesaButton({ mesa, meseroNombre, onSelect }: { mesa: Mesa; meseroNombre
       data-guia={ocupada ? 'mesa-ocupada' : 'mesa-libre'}
       data-guia-mesa={mesa.id}
       onClick={() => onSelect(mesa, ocupada)}
-      className={`relative flex min-h-24 touch-manipulation flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-3 transition active:scale-[0.98] ${
+      className={`relative flex min-h-24 touch-manipulation flex-col items-center justify-center gap-1 rounded-xl border px-2 py-3 text-center transition active:scale-[0.98] ${
         ocupada
           ? 'border-surface-700 bg-surface-800 text-zinc-400'
           : 'border-brand-500/50 bg-surface-800 text-zinc-100 hover:border-brand-500 hover:bg-brand-500/10'
@@ -143,7 +192,9 @@ function MesaButton({ mesa, meseroNombre, onSelect }: { mesa: Mesa; meseroNombre
       <span className="text-xs uppercase tracking-wider text-zinc-500">
         {ocupada ? 'Ocupada' : 'Libre'}
       </span>
-      {meseroNombre ? <span className="max-w-full truncate text-[11px] text-zinc-500">{meseroNombre}</span> : null}
+      {ocupada && resumen ? <span className="mt-1 text-xs font-semibold tabular-nums text-zinc-200">{fmtPEN(resumen.total)} · {resumen.pedidos} {resumen.pedidos === 1 ? 'comanda' : 'comandas'}</span> : null}
+      {ocupada && estadoPreparacion ? <span className="max-w-full rounded-full border border-brand-500/30 bg-brand-500/10 px-2 py-0.5 text-[11px] text-brand-300">{estadoPreparacion}</span> : null}
+      {meseroNombre ? <span className="max-w-full truncate text-[11px] text-zinc-500">Mesero · {meseroNombre}</span> : null}
     </button>
   )
 }
