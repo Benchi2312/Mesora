@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { esFalloDeRed, getApi, type ItemComanda } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import type { CategoriaProducto, Mesa, Producto } from '../../types/database'
@@ -22,6 +22,8 @@ interface CartItem {
   nota: string
 }
 
+type FiltroMenu = 'todos' | 'bebidas' | 'comidas' | 'postres'
+
 interface MenuPickerProps {
   mesa: Mesa
   onVolver: () => void
@@ -39,6 +41,7 @@ export default function MenuPicker({
   const { restaurante, usuario } = useCurrentContext()
   const [categorias, setCategorias] = useState<CategoriaProducto[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
+  const [filtroMenu, setFiltroMenu] = useState<FiltroMenu>('todos')
   const [catActiva, setCatActiva] = useState<string | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
   const [cargando, setCargando] = useState(true)
@@ -49,6 +52,7 @@ export default function MenuPicker({
   const [exito, setExito] = useState(false)
   /** Aviso no bloqueante (tope de cantidad, etc.). */
   const [aviso, setAviso] = useState<string | null>(null)
+  const envioEnCurso = useRef(false)
 
   useEffect(() => {
     const rid = restaurante?.id
@@ -79,15 +83,28 @@ export default function MenuPicker({
     }
   }, [restaurante?.id, intentoCarga])
 
-  const productosVisibles = useMemo(
-    () => (catActiva ? productos.filter((p) => p.categoria_id === catActiva) : productos),
-    [productos, catActiva],
-  )
+  const categoriasPostres = useMemo(() => {
+    const ids = new Set(categorias
+      .filter((categoria) => /postr|dessert/i.test(categoria.nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '')))
+      .map((categoria) => categoria.id))
+    return ids
+  }, [categorias])
+
+  const productosVisibles = useMemo(() => {
+    const filtrados = productos.filter((producto) => {
+      if (filtroMenu === 'bebidas') return producto.es_bebida === true
+      if (filtroMenu === 'postres') return Boolean(producto.categoria_id && categoriasPostres.has(producto.categoria_id))
+      if (filtroMenu === 'comidas') return producto.es_bebida !== true && !(producto.categoria_id && categoriasPostres.has(producto.categoria_id))
+      return true
+    })
+    return catActiva ? filtrados.filter((producto) => producto.categoria_id === catActiva) : filtrados
+  }, [productos, filtroMenu, catActiva, categoriasPostres])
 
   const total = useMemo(
     () => cart.reduce((acc, it) => acc + it.cantidad * it.precio_unitario, 0),
     [cart],
   )
+  const cantidadItems = useMemo(() => cart.reduce((acc, item) => acc + item.cantidad, 0), [cart])
 
   function precioFinal(p: Producto): number {
     return p.es_promocion && p.precio_promocion ? p.precio_promocion : p.precio
@@ -128,7 +145,7 @@ export default function MenuPicker({
   const itemFueraDeRango = cart.find((it) => it.cantidad > CANTIDAD_MAXIMA)
 
   async function enviarComanda() {
-    if (!restaurante || !usuario || cart.length === 0) return
+    if (!restaurante || !usuario || cart.length === 0 || envioEnCurso.current) return
     // Se valida antes de tocar la red: un envío con un ítem fuera de rango
     // wastea un round-trip y vuelve con un error genérico del servidor.
     if (itemFueraDeRango) {
@@ -136,6 +153,7 @@ export default function MenuPicker({
       return
     }
     setEnviando(true)
+    envioEnCurso.current = true
     setError(null)
     setAviso(null)
 
@@ -165,6 +183,7 @@ export default function MenuPicker({
         setError('No se pudo confirmar el envío. Vuelve a mesas y revisa la comanda antes de reenviarla.')
         return
       }
+      envioEnCurso.current = false
       setError(apiErr ?? 'No se pudo enviar la comanda')
       return
     }
@@ -174,8 +193,9 @@ export default function MenuPicker({
 
   if (cargando)
     return (
-      <div className="flex justify-center py-16">
+      <div role="status" aria-live="polite" className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-zinc-400">
         <Spinner />
+        <span>Cargando menú para {mesa.nombre}…</span>
       </div>
     )
 
@@ -185,14 +205,14 @@ export default function MenuPicker({
         <span className="grid h-14 w-14 place-items-center rounded-full border border-ok-500 bg-ok-500/20 text-2xl font-bold text-ok-500">
           ✓
         </span>
-        <p className="text-lg font-semibold text-zinc-100">Comanda enviada a cocina</p>
+        <p className="text-lg font-semibold text-zinc-100">Comanda enviada</p>
         <p className="text-sm text-zinc-400">Mesa {mesa.nombre}</p>
       </div>
     )
   }
 
   return (
-    <div>
+    <div className="pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-0" data-mesero-pedido>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <button
@@ -203,7 +223,7 @@ export default function MenuPicker({
             {textoVolver}
           </button>
           <h1 className="text-xl font-extrabold tracking-tight text-zinc-100">
-            Tomar pedido · Mesa {mesa.nombre}
+            Tomar pedido · {mesa.nombre}
           </h1>
         </div>
         {error && (
@@ -216,38 +236,52 @@ export default function MenuPicker({
         )}
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         {/* Menú */}
-        <div>
-          <div className="mb-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setCatActiva(null)}
-              className={`min-h-11 touch-manipulation rounded-full border px-4 py-2.5 text-base transition ${
-                catActiva === null
-                  ? 'border-brand-500 bg-brand-500/15 text-brand-400'
-                  : 'border-surface-700 bg-surface-800 text-zinc-300 hover:border-surface-500'
-              }`}
-            >
-              Todos
-            </button>
-            {categorias.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setCatActiva(c.id)}
-                className={`min-h-11 touch-manipulation rounded-full border px-4 py-2.5 text-base transition ${
-                  catActiva === c.id
-                    ? 'border-brand-500 bg-brand-500/15 text-brand-400'
-                    : 'border-surface-700 bg-surface-800 text-zinc-300 hover:border-surface-500'
-                }`}
-              >
-                {c.nombre}
-              </button>
-            ))}
+        <div className="min-w-0">
+          <div className="mb-4 min-w-0 space-y-2">
+            <div className="flex max-w-full gap-2 overflow-x-auto pb-1" role="group" aria-label="Filtrar productos por tipo">
+              {([
+                ['todos', 'Todos'],
+                ['bebidas', 'Bebidas'],
+                ['comidas', 'Comidas'],
+                ['postres', 'Postres'],
+              ] as const).map(([filtro, etiqueta]) => (
+                <button
+                  key={filtro}
+                  type="button"
+                  aria-pressed={filtroMenu === filtro}
+                  onClick={() => { setFiltroMenu(filtro); setCatActiva(null) }}
+                  className={`min-h-11 shrink-0 touch-manipulation rounded-full border px-4 py-2 text-sm font-medium transition ${
+                    filtroMenu === filtro
+                      ? 'border-brand-500 bg-brand-500/15 text-brand-400'
+                      : 'border-surface-700 bg-surface-800 text-zinc-300 hover:border-surface-500'
+                  }`}
+                >
+                  {etiqueta}
+                </button>
+              ))}
+            </div>
+            {categorias.length > 0 && <div className="flex max-w-full gap-2 overflow-x-auto pb-1" role="group" aria-label="Filtrar productos por categoría">
+              {categorias.map((categoria) => (
+                <button
+                  key={categoria.id}
+                  type="button"
+                  aria-pressed={catActiva === categoria.id}
+                  onClick={() => { setFiltroMenu('todos'); setCatActiva(catActiva === categoria.id ? null : categoria.id) }}
+                  className={`min-h-10 shrink-0 touch-manipulation rounded-full border px-3 py-1.5 text-sm transition ${
+                    catActiva === categoria.id
+                      ? 'border-brand-500 bg-brand-500/15 text-brand-400'
+                      : 'border-surface-700 bg-surface-800 text-zinc-400 hover:border-surface-500'
+                  }`}
+                >
+                  {categoria.nombre}
+                </button>
+              ))}
+            </div>}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2">
             {productosVisibles.length === 0 && (
               <p className="text-sm text-zinc-500 sm:col-span-2">
                 No hay productos disponibles en esta categoría.
@@ -261,13 +295,13 @@ export default function MenuPicker({
                   type="button"
                   data-guia="producto"
                   onClick={() => agregar(p)}
-                  className="group flex min-h-20 touch-manipulation items-center gap-3 rounded-xl border border-surface-800 bg-surface-900 p-3 text-left transition hover:border-brand-500/60 hover:bg-surface-800 active:scale-[0.99]"
+                  className="group flex min-h-[5.25rem] touch-manipulation items-center gap-2.5 rounded-xl border border-surface-800 bg-surface-900 p-2.5 text-left transition hover:border-brand-500/60 hover:bg-surface-800 active:scale-[0.99] sm:gap-3 sm:p-3"
                 >
                   <img
                     src={p.imagen_url ?? IMG_DEFAULT}
                     alt={p.nombre}
                     loading="lazy"
-                    className="h-20 w-20 shrink-0 rounded-lg object-cover"
+                    className="h-16 w-16 shrink-0 rounded-lg object-cover sm:h-20 sm:w-20"
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block text-base font-semibold text-zinc-100">{p.nombre}</span>
@@ -304,10 +338,10 @@ export default function MenuPicker({
         </div>
 
         {/* Carrito / comanda */}
-        <div className="lg:sticky lg:top-20 lg:self-start">
+        <div className="min-w-0 lg:sticky lg:top-20 lg:self-start">
           <div className="rounded-2xl border border-surface-800 bg-surface-900 p-4">
             <h2 className="titulo-seccion mb-3 text-xs font-semibold">
-              Comanda · {cart.length} {cart.length === 1 ? 'ítem' : 'ítems'}
+              Comanda · {cantidadItems} {cantidadItems === 1 ? 'ítem' : 'ítems'}
             </h2>
 
             {cart.length === 0 && (
@@ -376,9 +410,9 @@ export default function MenuPicker({
               data-guia="enviar-comanda"
               disabled={cart.length === 0 || enviando || envioIncierto || Boolean(itemFueraDeRango)}
               onClick={() => void enviarComanda()}
-              className="mt-4 min-h-14 w-full touch-manipulation rounded-xl bg-brand-500 py-3.5 text-base font-semibold text-surface-950 transition hover:bg-brand-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-4 hidden min-h-14 w-full touch-manipulation rounded-xl bg-brand-500 py-3.5 text-base font-semibold text-surface-950 transition hover:bg-brand-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 lg:flex lg:items-center lg:justify-center"
             >
-              {enviando ? 'Enviando…' : 'Enviar comanda a cocina'}
+              {enviando ? 'Enviando…' : 'Enviar comanda'}
             </button>
             {envioIncierto && (
               <button type="button" onClick={onVolver} className="mt-2 min-h-11 w-full rounded-xl border border-surface-700 px-4 text-sm text-zinc-300">
@@ -387,6 +421,25 @@ export default function MenuPicker({
             )}
           </div>
         </div>
+      </div>
+
+      <div role="region" aria-label="Resumen de la comanda" className="fixed inset-x-0 bottom-0 z-40 border-t border-surface-700 bg-surface-950/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-12px_32px_rgba(0,0,0,0.35)] backdrop-blur lg:hidden" data-resumen-pedido-movil>
+        <div className="mx-auto flex max-w-3xl items-center gap-3">
+          <div className="min-w-0 flex-1" aria-live="polite">
+            <p className="truncate text-xs text-zinc-400">{cantidadItems} {cantidadItems === 1 ? 'ítem' : 'ítems'} en la comanda</p>
+            <p className="text-lg font-bold tabular-nums text-brand-400">{fmtPEN(total)}</p>
+          </div>
+          <button
+            type="button"
+            aria-label="Enviar comanda"
+            disabled={cart.length === 0 || enviando || envioIncierto || Boolean(itemFueraDeRango)}
+            onClick={() => void enviarComanda()}
+            className="min-h-12 min-w-40 touch-manipulation rounded-xl bg-brand-500 px-4 py-3 text-sm font-semibold text-surface-950 transition hover:bg-brand-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {enviando ? 'Enviando…' : 'Enviar comanda'}
+          </button>
+        </div>
+        {envioIncierto && <button type="button" onClick={onVolver} className="mx-auto mt-2 block min-h-11 rounded-lg px-3 text-xs text-zinc-300 underline">Volver a mesas y revisar antes de reenviar</button>}
       </div>
     </div>
   )

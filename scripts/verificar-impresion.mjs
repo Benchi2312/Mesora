@@ -35,6 +35,18 @@ function iniciarVite() {
   })
 }
 
+async function explorarDemoSinGuia(page) {
+  const panel = page.locator('[data-guia-panel]')
+  await panel.waitFor({ state: 'visible' })
+  const explorar = panel.getByRole('button', { name: 'Explorar por mi cuenta' })
+  if (await explorar.count()) {
+    await explorar.click()
+  } else {
+    await panel.getByRole('button', { name: 'Minimizar guía' }).click()
+  }
+  await panel.waitFor({ state: 'detached' })
+}
+
 async function esperarServidor() {
   const inicio = Date.now()
   while (Date.now() - inicio < 60000) {
@@ -61,13 +73,17 @@ try {
       window.__mesoraPrintCalls++
       window.dispatchEvent(new Event('afterprint'))
     }
+    Object.defineProperty(window, 'AudioContext', {
+      configurable: true,
+      value: class {
+        state = 'suspended'
+        async resume() { throw new Error('El navegador bloqueó el audio') }
+      },
+    })
   })
 
   await page.goto(`${URL}/demo/cocina`, { waitUntil: 'networkidle', timeout: 45000 })
-  const explorar = page.getByRole('button', { name: 'Explorar por mi cuenta' })
-  if (await explorar.count()) await explorar.first().click()
-  const minimizar = page.getByRole('button', { name: 'Minimizar guía' })
-  if (await minimizar.count()) await minimizar.first().click()
+  await explorarDemoSinGuia(page)
 
   // networkidle no espera las consultas asíncronas de Cocina ni el fin de su
   // estado de carga. Espera el primer control del selector como señal funcional.
@@ -76,6 +92,12 @@ try {
     await page.getByRole('button', { name: /^Cocina/ }).count() === 1 &&
     await page.getByRole('button', { name: /^Bar/ }).count() === 1 &&
     await page.getByRole('button', { name: /^Otros/ }).count() === 1)
+  const estadoSonido = page.locator('[data-estado-sonido]')
+  await estadoSonido.getByText('Sonido desactivado.', { exact: true }).waitFor()
+  check('Cocina informa que el sonido inicia desactivado', await page.getByRole('button', { name: 'Activar sonido' }).getAttribute('aria-pressed') === 'false')
+  await page.getByRole('button', { name: 'Activar sonido' }).click()
+  await estadoSonido.getByText('El navegador no permitió el sonido. Actívalo de nuevo cuando estés listo.', { exact: true }).waitFor()
+  check('el bloqueo del navegador se explica sin activar un estado falso', await page.getByRole('button', { name: 'Activar sonido' }).getAttribute('aria-pressed') === 'false')
 
   // El demo inicia vacío. Sembramos una mesa con un ítem de cocina y otro de
   // bar mediante el API local real; así ambas estaciones usan una comanda.
@@ -142,10 +164,7 @@ try {
     return pedido.data
   })
   await page.goto(`${URL}/demo/cocina`, { waitUntil: 'networkidle', timeout: 45000 })
-  const explorarCocina = page.getByRole('button', { name: 'Explorar por mi cuenta' })
-  if (await explorarCocina.count()) await explorarCocina.first().click()
-  const minimizarCocina = page.getByRole('button', { name: 'Minimizar guía' })
-  if (await minimizarCocina.count()) await minimizarCocina.first().click()
+  await explorarDemoSinGuia(page)
 
   const pedidosAntes = await page.evaluate(async () => {
     const { getApi } = await import('/src/lib/api.ts')
@@ -240,7 +259,7 @@ try {
       return { data: null, error: 'TypeError: Failed to fetch' }
     }
   })
-  const registrar = dialog.getByRole('button', { name: 'Registrar impresión' })
+  const registrar = dialog.getByRole('button', { name: 'Registrar solicitud de impresión' })
   await registrar.evaluate((button) => {
     button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -286,25 +305,45 @@ try {
 
   await page.getByRole('button', { name: /^Bar/ }).click()
   check('la comanda de Barra solo impresora no aparece en el tablero KDS', await page.locator('[data-comanda-kds="' + pedidoMixto.id + '"]').count() === 0)
+  const avisoBarraManual = page.locator('[data-estacion-solo-ticketera="bar"]')
+  await avisoBarraManual.waitFor({ state: 'visible' })
+  await avisoBarraManual.getByText('Barra trabaja solo con ticketera', { exact: true }).waitFor({ state: 'visible' })
+  await avisoBarraManual.getByText('No hay pantalla KDS configurada.', { exact: true }).waitFor({ state: 'visible' })
+  const comprobacionBarraManual = {
+    texto: await avisoBarraManual.innerText(),
+    titulo: await avisoBarraManual.getByText('Barra trabaja solo con ticketera', { exact: true }).count(),
+    sinKdsConfigurado: await avisoBarraManual.getByText('No hay pantalla KDS configurada.', { exact: true }).count(),
+    pendientes: await avisoBarraManual.getByText('1 comanda pendiente de impresión.', { exact: true }).count(),
+    limitePapel: await avisoBarraManual.getByText('La impresión se realiza manualmente desde el navegador. Mesora no puede confirmar si salió papel.', { exact: true }).count(),
+    regionesKds: await page.getByRole('region', { name: 'KDS de Barra' }).count(),
+  }
+  check('Barra solo ticketera explica que no tiene KDS y requiere impresión manual',
+    comprobacionBarraManual.titulo === 1 && comprobacionBarraManual.sinKdsConfigurado === 1 &&
+    comprobacionBarraManual.pendientes === 1 && comprobacionBarraManual.limitePapel === 1 &&
+    comprobacionBarraManual.regionesKds === 0, JSON.stringify(comprobacionBarraManual))
+  check('la cola de Barra muestra el contador singular correcto',
+    await page.getByRole('region', { name: 'Cola de impresión manual de Barra' }).getByText('1 pendiente', { exact: true }).count() === 1)
+  check('la acción de la cola indica abrir la impresión manual',
+    await page.locator('button[data-imprimir-salida="' + pedidoMixto.salidaBarra.entrega_id + '"]').innerText() === 'Abrir impresión manual')
   await page.locator('button[data-imprimir-salida="' + pedidoMixto.salidaBarra.entrega_id + '"]').click()
-  dialog = page.getByRole('dialog', { name: 'Comanda \u00b7 Bar' })
+  dialog = page.getByRole('dialog', { name: 'Comanda \u00b7 Barra' })
   await dialog.waitFor()
   ticket = dialog.locator('.comanda-print')
   const ticketBar = await ticket.innerText()
-  check('Bar imprime solo sus productos y muestra el ancho y la copia configurados',
+  check('Barra imprime solo sus productos y muestra el ancho y la copia configurados',
     pedidoMixto.bar.every((nombre) => ticketBar.includes(nombre)) &&
     pedidoMixto.cocina.every((nombre) => !ticketBar.includes(nombre)) &&
     ticketBar.includes('2 \u00d7') && ticketBar.includes('Con hielo') &&
     await ticket.getAttribute('data-paper-width') === '58' &&
     (await dialog.innerText()).includes('1 copia'))
   check('el ticket conserva el nombre de la impresora manual', (await dialog.innerText()).includes('Impresora Barra QA'))
-  await comprobarSalidaA4('Bar con ancho guardado de 58 mm en impresora A4', 58)
+  await comprobarSalidaA4('Barra con ancho guardado de 58 mm en impresora A4', 58)
   check('al abrir la salida manual no se imprime automáticamente', await page.evaluate(() => window.__mesoraPrintCalls === 2))
-  await dialog.getByRole('button', { name: 'Registrar impresi\u00f3n' }).click()
+  await dialog.getByRole('button', { name: 'Registrar solicitud de impresi\u00f3n' }).click()
   await dialog.getByRole('button', { name: 'Imprimir' }).waitFor()
   await dialog.getByRole('button', { name: 'Imprimir' }).click()
   await dialog.getByRole('button', { name: 'S\u00ed, sali\u00f3' }).click()
-  check('Bar abre el diálogo solamente tras la acción explícita', await page.evaluate(() => window.__mesoraPrintCalls === 3))
+  check('Barra abre el diálogo solamente tras la acción explícita', await page.evaluate(() => window.__mesoraPrintCalls === 3))
   await dialog.getByText(/Impresi.*confirmada por el usuario/).waitFor()
   await dialog.getByRole('button', { name: 'Cerrar' }).last().click()
   await page.locator('details summary').click()
@@ -327,7 +366,7 @@ try {
     const estado = JSON.parse(localStorage.getItem('mesora.demo.datos.v2') || '{}')
     return (estado.auditLogs || []).find((log) => log.entidad_id === pedidoId && log.accion === 'comanda_reimprimir')
   }, pedidoMixto.id)
-  check('Bar registra el motivo de reimpresión para una salida histórica', auditoriaReimpresionBarra?.detalle?.motivo === 'La copia salió cortada')
+  check('Barra registra el motivo de reimpresión para una salida histórica', auditoriaReimpresionBarra?.detalle?.motivo === 'La copia salió cortada')
 
 
   await page.setViewportSize({ width: 360, height: 640 })
@@ -345,6 +384,80 @@ try {
     return (await getApi().getPedidosActivos('r-demo')).data?.length ?? -1
   })
   check('imprimir y reimprimir no crea pedidos ni comandas', pedidosDespues === pedidosAntes, `${pedidosAntes} → ${pedidosDespues}`)
+
+  const comandaBarraKds = await page.evaluate(async (mesaNombre) => {
+    const { getApi, apiMode } = await import('/src/lib/api.ts')
+    const api = getApi()
+    const [config, mesas, productos] = await Promise.all([
+      api.getConfiguracionOperativa('r-demo'),
+      api.getMesas('r-demo'),
+      api.getProductos('r-demo'),
+    ])
+    if (config.error || !config.data || mesas.error || productos.error) throw new Error('No se pudo preparar el escenario local de Barra con KDS')
+    const configuracionConKdsBarra = {
+      ...config.data,
+      estaciones: config.data.estaciones.map((estacion) => estacion.codigo !== 'bar' ? estacion : ({
+        ...estacion,
+        destinos: estacion.destinos.map((destino) => destino.tipo === 'kds' && destino.grupo === 'principal' ? { ...destino, activo: true } : destino),
+      })),
+    }
+    const actorAnterior = apiMode.operadorId
+    apiMode.operadorId = 'u-admin'
+    const guardada = await api.guardarConfiguracionOperativa('r-demo', configuracionConKdsBarra)
+    apiMode.operadorId = 'u-mesero-1'
+    try {
+      if (guardada.error) throw new Error(guardada.error)
+      const mesa = mesas.data?.find((fila) => fila.nombre === mesaNombre)
+      const bebida = productos.data?.find((fila) => fila.nombre === 'Bebida QA impresión')
+      if (!mesa || !bebida) throw new Error('No se encontró la mesa o bebida QA')
+      const pedido = await api.crearPedido('r-demo', mesa.id, [{
+        producto_id: bebida.id,
+        nombre_producto: bebida.nombre,
+        cantidad: 1,
+        precio_unitario: bebida.precio,
+        nota: 'Escenario KDS Barra',
+      }])
+      if (pedido.error || !pedido.data) throw new Error(pedido.error ?? 'No se creó la comanda QA de Barra KDS')
+      return pedido.data
+    } finally {
+      apiMode.operadorId = actorAnterior
+    }
+  }, pedidoMixto.mesa)
+  const rutaNuevaComandaBarra = await page.evaluate(async (pedidoId) => {
+    const { getApi } = await import('/src/lib/api.ts')
+    const resultado = await getApi().getPedidosActivos('r-demo')
+    const pedido = resultado.data?.find((fila) => fila.id === pedidoId)
+    return { error: resultado.error, destinos: pedido?.rutasPorEstacion?.bar?.destinos ?? [] }
+  }, comandaBarraKds)
+  check('el snapshot nuevo de Barra incluye el destino KDS',
+    !rutaNuevaComandaBarra.error && rutaNuevaComandaBarra.destinos.includes('kds'), JSON.stringify(rutaNuevaComandaBarra))
+  await page.goto(`${URL}/demo/cocina`, { waitUntil: 'networkidle', timeout: 45000 })
+  await explorarDemoSinGuia(page)
+  await page.getByRole('button', { name: /^Barra/ }).waitFor({ state: 'visible' })
+  await page.getByRole('button', { name: /^Barra/ }).click()
+  const kdsBarra = page.getByRole('region', { name: 'KDS de Barra' })
+  await kdsBarra.waitFor({ state: 'visible' })
+  const nuevaComandaBarra = kdsBarra.locator(`[data-comanda-kds="${comandaBarraKds}"]`)
+  await nuevaComandaBarra.waitFor({ state: 'visible' })
+  // La región KDS puede aparecer antes de terminar el siguiente ciclo de
+  // lectura tras cambiar la estación. Esperamos el contenido que prueba que
+  // la nueva comanda y sus estados ya llegaron a la interfaz.
+  await kdsBarra.getByRole('heading', { name: 'Pendientes' }).waitFor({ state: 'visible' })
+  await kdsBarra.getByRole('heading', { name: 'En preparación' }).waitFor({ state: 'visible' })
+  await kdsBarra.getByRole('heading', { name: 'Listos' }).waitFor({ state: 'visible' })
+  check('Barra con KDS muestra estados operativos y una comanda nueva',
+    await kdsBarra.getByRole('heading', { name: 'Pendientes' }).count() === 1 &&
+    await kdsBarra.getByRole('heading', { name: 'En preparación' }).count() === 1 &&
+    await kdsBarra.getByRole('heading', { name: 'Listos' }).count() === 1 &&
+    await kdsBarra.locator(`[data-comanda-kds="${comandaBarraKds}"]`).count() === 1)
+  check('Barra con KDS explica cada etapa de preparación',
+    await kdsBarra.getByText('Aún no empieza', { exact: true }).count() === 1 &&
+    await kdsBarra.getByText('Se está preparando', { exact: true }).count() === 1 &&
+    await kdsBarra.getByText('Preparación terminada', { exact: true }).count() === 1)
+  check('el snapshot anterior de Barra sigue solo en impresión manual',
+    await kdsBarra.locator(`[data-comanda-kds="${pedidoMixto.id}"]`).count() === 0 &&
+    await page.locator('[data-salida-impresion]').count() > 0)
+  check('Barra con KDS no abre impresión automáticamente', await page.evaluate(() => window.__mesoraPrintCalls === 0))
   check('la vista de impresión no genera errores de JavaScript', erroresPagina.length === 0, erroresPagina.join(' | '))
   await context.close()
 } catch (error) {

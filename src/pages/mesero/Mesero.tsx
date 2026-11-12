@@ -31,7 +31,7 @@ export default function Mesero() {
   }
 
   function comandaEnviada() {
-    setFlash('Comanda enviada a cocina.')
+    setFlash('Comanda enviada.')
     // Si la mesa ya tenía pedidos, el mesero sigue en la mesa para poder cobrar o
     // sumar otra comanda; si estaba libre, vuelve al mapa (la mesa ya está ocupada).
     setVista(origen === 'mesaOcupada' ? 'mesaOcupada' : 'mesas')
@@ -52,10 +52,10 @@ export default function Mesero() {
 
   return (
     <div>
-      <PageHeader
+      {vista === 'mesas' && <PageHeader
         titulo={restaurante?.nombre ?? 'Mesero'}
         descripcion="Toma de pedidos y cierre de cuentas"
-      />
+      />}
 
       {flash && (
         <div className="mb-4 rounded-lg border border-ok-500/40 bg-ok-500/10 px-4 py-2.5 text-sm text-ok-500">

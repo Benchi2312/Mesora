@@ -57,22 +57,25 @@ function IconoImpresora({ className = 'h-5 w-5' }: { className?: string }) {
   )
 }
 
-const COLUMNAS: { estado: EstadoPedido; titulo: string; boton: string; color: string }[] = [
+const COLUMNAS: { estado: EstadoPedido; titulo: string; ayuda: string; boton: string; color: string }[] = [
   {
     estado: 'pendiente',
     titulo: 'Pendientes',
+    ayuda: 'Aún no empieza',
     boton: 'Empezar preparación',
     color: 'bg-warn-500',
   },
   {
     estado: 'en_preparacion',
     titulo: 'En preparación',
+    ayuda: 'Se está preparando',
     boton: 'Marcar listo',
     color: 'bg-brand-500',
   },
   {
     estado: 'listo',
     titulo: 'Listos',
+    ayuda: 'Preparación terminada',
     boton: 'Entregar',
     color: 'bg-ok-500',
   },
@@ -81,6 +84,10 @@ const COLUMNAS: { estado: EstadoPedido; titulo: string; boton: string; color: st
 function etiquetaEstacion(nombre: string, codigo: EstacionComanda): string {
   if (codigo === 'bar' && nombre === 'Bar') return 'Barra'
   return nombre
+}
+
+function nombreVisibleEstacion(codigo: EstacionComanda): string {
+  return codigo === 'bar' ? 'Barra' : NOMBRES_ESTACION_COMANDA[codigo]
 }
 
 function estacionesParaMostrar(
@@ -125,6 +132,7 @@ export default function Cocina() {
   const [meseros, setMeseros] = useState<MeseroResumen[]>([])
   const [estacion, setEstacion] = useState<EstacionComanda>('cocina')
   const [sonidoActivo, setSonidoActivo] = useState(false)
+  const [estadoSonido, setEstadoSonido] = useState<'desactivado' | 'activo' | 'bloqueado' | 'no-disponible'>('desactivado')
   const [avisoNuevo, setAvisoNuevo] = useState('')
   const audioContext = useRef<AudioContext | null>(null)
   const pedidosConocidos = useRef<Set<string> | null>(null)
@@ -254,22 +262,25 @@ export default function Cocina() {
     } catch {
       setAvisoNuevo('El navegador bloqueó el sonido. Pulsa “Activar sonido” otra vez.')
       setSonidoActivo(false)
+      setEstadoSonido('bloqueado')
     }
   }
 
   async function alternarSonido() {
     if (sonidoActivo) {
       setSonidoActivo(false)
+      setEstadoSonido('desactivado')
       setAvisoNuevo('Aviso sonoro desactivado.')
       return
     }
     try {
       const ContextoAudio = window.AudioContext
-      if (!ContextoAudio) { setAvisoNuevo('Este navegador no admite avisos sonoros.'); return }
+      if (!ContextoAudio) { setAvisoNuevo('Este navegador no admite avisos sonoros.'); setEstadoSonido('no-disponible'); return }
       const contexto = audioContext.current ?? new ContextoAudio()
       audioContext.current = contexto
       if (contexto.state === 'suspended') await contexto.resume()
       setSonidoActivo(true)
+      setEstadoSonido('activo')
       setAvisoNuevo('Aviso sonoro activado para esta estación en este dispositivo.')
       // Tono de confirmación: verifica el volumen y desbloquea el audio del navegador.
       const oscilador = contexto.createOscillator()
@@ -281,6 +292,7 @@ export default function Cocina() {
       oscilador.start(); oscilador.stop(contexto.currentTime + 0.13)
     } catch {
       setSonidoActivo(false)
+      setEstadoSonido('bloqueado')
       setAvisoNuevo('No se pudo activar el sonido. Revisa los permisos del navegador y vuelve a intentarlo.')
     }
   }
@@ -325,6 +337,7 @@ export default function Cocina() {
   const activos = pedidosPorEstacion[estacion]
   const salidasManuales = impresionesPorEstacion[estacion]
   const salidasPendientes = salidasManuales.filter(({ salida }) => salida.estado !== 'confirmada')
+  const comandasPendientesImpresion = new Set(salidasPendientes.map(({ pedido }) => pedido.id)).size
   const salidasConfirmadas = salidasManuales.filter(({ salida }) => salida.estado === 'confirmada')
   const configuracionEstacion = estacionesOperativas.find((fila) => fila.codigo === estacion)
   const tieneKds = Boolean(configuracionEstacion?.activo && configuracionEstacion.destinos.some((destino) => destino.activo && destino.grupo === 'principal' && destino.tipo === 'kds')) || pedidos.some((p) => p.rutasPorEstacion?.[estacion]?.destinos.includes('kds') || p.rutasPorEstacion?.[estacion]?.legado)
@@ -333,8 +346,15 @@ export default function Cocina() {
 
   if (cargando)
     return (
-      <div className="flex justify-center py-16">
-        <Spinner />
+      <div>
+        <PageHeader
+          titulo="Estaciones de preparación"
+          descripcion="Cocina, Barra y Otros: cada estación recibe sus comandas según la configuración del restaurante."
+        />
+        <div role="status" aria-live="polite" className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-zinc-400">
+          <Spinner />
+          <span>Cargando comandas y destinos de impresión…</span>
+        </div>
       </div>
     )
 
@@ -346,9 +366,18 @@ export default function Cocina() {
       />
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-surface-700 bg-surface-900 px-4 py-3">
-        <div><p className="font-semibold text-zinc-200">Aviso de nuevas comandas</p><p className="text-sm text-zinc-500">Se activa por separado en cada dispositivo. Requiere permitir audio en el navegador.</p></div>
-        <button type="button" aria-pressed={sonidoActivo} onClick={() => void alternarSonido()} className={`btn min-h-11 px-4 ${sonidoActivo ? 'btn-primary' : 'btn-outline'}`}>
-          {sonidoActivo ? '♪ Sonido activado' : 'Activar sonido'}
+        <div className="min-w-0">
+          <p className="font-semibold text-zinc-200">Aviso de nuevas comandas</p>
+          <p className="text-sm text-zinc-500">Se configura por separado en cada dispositivo. El navegador puede bloquear el audio hasta que lo actives.</p>
+          <p className="mt-1 text-xs text-zinc-400" data-estado-sonido>
+            {estadoSonido === 'activo' ? 'Sonido activo en este dispositivo.'
+              : estadoSonido === 'bloqueado' ? 'El navegador no permitió el sonido. Actívalo de nuevo cuando estés listo.'
+                : estadoSonido === 'no-disponible' ? 'Este navegador no admite avisos sonoros.'
+                  : 'Sonido desactivado.'}
+          </p>
+        </div>
+        <button type="button" aria-pressed={sonidoActivo} onClick={() => void alternarSonido()} className={`btn min-h-11 shrink-0 px-4 ${sonidoActivo ? 'btn-primary' : 'btn-outline'}`}>
+          {sonidoActivo ? '♪ Sonido activo' : 'Activar sonido'}
         </button>
       </div>
       <p role="status" aria-live="polite" className="sr-only">{avisoNuevo}</p>
@@ -360,24 +389,31 @@ export default function Cocina() {
       )}
 
       {/* Selector táctil de estación */}
-      {estacionesVisibles.length > 0 ? <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {estacionesVisibles.length > 0 ? <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3" role="group" aria-label="Seleccionar estación">
         {estacionesVisibles.map((estacionOperativa) => {
           const destino = estacionOperativa.codigo
           const destinosPrincipales = estacionOperativa.destinos.filter((d) => d.activo && d.grupo === 'principal')
           const soloImpresora = destinosPrincipales.length > 0 && destinosPrincipales.every((d) => d.tipo === 'impresora')
+          const tieneKdsEstacion = destinosPrincipales.some((d) => d.tipo === 'kds') || pedidos.some((pedido) => pedido.rutasPorEstacion?.[destino]?.destinos.includes('kds') || pedido.rutasPorEstacion?.[destino]?.legado)
+          const tieneImpresoraEstacion = destinosPrincipales.some((d) => d.tipo === 'impresora') || pedidos.some((pedido) => pedido.rutasPorEstacion?.[destino]?.destinos.includes('impresora'))
+          const salidasPendientesEstacion = impresionesPorEstacion[destino].filter(({ salida }) => salida.estado !== 'confirmada').length
           return (
           <button
             key={destino}
             type="button"
             onClick={() => setEstacion(destino)}
             aria-pressed={estacion === destino}
-            className={`flex min-h-14 touch-manipulation items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-base font-semibold transition active:scale-[0.98] ${estacion === destino ? 'border-brand-500 bg-brand-500/15 text-brand-400 shadow-sm shadow-brand-500/10' : 'border-surface-700 bg-surface-800 text-zinc-300 hover:border-surface-500'}`}
+            className={`flex min-h-20 touch-manipulation flex-col items-start justify-center gap-2 rounded-xl border-2 px-4 py-3 text-left transition active:scale-[0.98] ${estacion === destino ? 'border-brand-500 bg-brand-500/15 text-brand-400 shadow-sm shadow-brand-500/10' : 'border-surface-700 bg-surface-800 text-zinc-300 hover:border-surface-500'}`}
           >
-            {destino === 'cocina' ? <IconoOlla /> : destino === 'bar' ? <IconoVaso /> : <IconoNota />}
-            {etiquetaEstacion(estacionOperativa.nombre, destino)}
-            <span className="rounded-full border border-surface-600 px-2.5 py-0.5 text-sm tabular-nums" title="Comandas KDS">KDS {pedidosPorEstacion[destino].length}</span>
-            {impresionesPorEstacion[destino].length > 0 && <span className="rounded-full border border-warn-500/40 px-2 py-0.5 text-xs text-warn-400" title="Salidas pendientes de impresión">Imprimir {impresionesPorEstacion[destino].length}</span>}
-            {soloImpresora && <span className="rounded-full border border-warn-500/40 px-2 py-0.5 text-xs text-warn-400">Manual</span>}
+            <span className="flex w-full items-center gap-2 text-base font-semibold">
+              {destino === 'cocina' ? <IconoOlla /> : destino === 'bar' ? <IconoVaso /> : <IconoNota />}
+              <span className="truncate">{etiquetaEstacion(estacionOperativa.nombre, destino)}</span>
+            </span>
+            <span className="flex flex-wrap gap-x-3 gap-y-1 pl-7 text-xs font-normal text-zinc-400">
+              {tieneKdsEstacion && <span>{pedidosPorEstacion[destino].length} {pedidosPorEstacion[destino].length === 1 ? 'comanda en pantalla' : 'comandas en pantalla de preparación'}</span>}
+              {tieneImpresoraEstacion && <span>{salidasPendientesEstacion} {salidasPendientesEstacion === 1 ? 'salida de impresión pendiente' : 'salidas de impresión pendientes'}</span>}
+              {soloImpresora && <span>Ticketera manual</span>}
+            </span>
           </button>
           )
         })}
@@ -386,13 +422,20 @@ export default function Cocina() {
       {tieneKds && activos.length === 0 && (
         <EstadoVacio
           icono={estacion === 'cocina' ? <IconoOlla className="h-6 w-6" /> : estacion === 'bar' ? <IconoVaso className="h-6 w-6" /> : <IconoNota className="h-6 w-6" />}
-          titulo={`No hay comandas en ${NOMBRES_ESTACION_COMANDA[estacion].toLowerCase()}`}
-          descripcion={`Cuando un mesero envíe una comanda para ${NOMBRES_ESTACION_COMANDA[estacion].toLowerCase()}, aparecerá aquí.`}
+          titulo={`No hay comandas en ${nombreVisibleEstacion(estacion).toLowerCase()}`}
+          descripcion={`Cuando un mesero envíe una comanda para ${nombreVisibleEstacion(estacion).toLowerCase()}, aparecerá aquí.`}
         />
       )}
 
-      {tieneKds ? <section aria-label={`KDS de ${NOMBRES_ESTACION_COMANDA[estacion]}`}>
-      <div className="mb-3 flex items-center justify-between"><h2 className="text-lg font-semibold text-zinc-100">KDS · {NOMBRES_ESTACION_COMANDA[estacion]}</h2><span className="text-xs text-zinc-500">Estados de esta estación</span></div>
+      {!tieneKds && tieneImpresora && <section className="mb-5 rounded-xl border border-warn-500/30 bg-warn-500/5 p-4" data-estacion-solo-ticketera={estacion} aria-label={`${nombreVisibleEstacion(estacion)} trabaja solo con ticketera`}>
+        <h2 className="font-semibold text-zinc-100">{nombreVisibleEstacion(estacion)} trabaja solo con ticketera</h2>
+        <p className="mt-1 text-sm text-zinc-300">No hay pantalla KDS configurada.</p>
+        <p className="mt-2 text-sm font-medium text-zinc-200">{comandasPendientesImpresion} {comandasPendientesImpresion === 1 ? 'comanda pendiente' : 'comandas pendientes'} de impresión.</p>
+        <p className="mt-1 text-xs text-zinc-400">La impresión se realiza manualmente desde el navegador. Mesora no puede confirmar si salió papel.</p>
+      </section>}
+
+      {tieneKds ? <section aria-label={`KDS de ${nombreVisibleEstacion(estacion)}`}>
+      <div className="mb-3 flex items-center justify-between"><h2 className="text-lg font-semibold text-zinc-100">KDS · {nombreVisibleEstacion(estacion)}</h2><span className="text-xs text-zinc-500">Estados de esta estación</span></div>
       <div className="grid gap-5 md:grid-cols-3">
         {COLUMNAS.map((col) => {
           const lista = porEstado(col.estado)
@@ -402,10 +445,13 @@ export default function Cocina() {
               className="card p-4 sm:p-5"
             >
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-zinc-300">
-                  <span className={`h-2 w-2 rounded-full ${col.color}`} />
-                  {col.titulo}
-                </h2>
+                <div>
+                  <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-zinc-300">
+                    <span className={`h-2 w-2 rounded-full ${col.color}`} />
+                    {col.titulo}
+                  </h2>
+                  <p className="mt-1 pl-4 text-xs normal-case tracking-normal text-zinc-500">{col.ayuda}</p>
+                </div>
                 <span className="rounded-full border border-surface-700 px-2 py-0.5 text-xs text-zinc-400">
                   {lista.length}
                 </span>
@@ -432,12 +478,12 @@ export default function Cocina() {
            )
          })}
        </div>
-      </section> : tieneImpresora ? <div className="mb-6 rounded-xl border border-surface-700 bg-surface-900 p-4 text-sm text-zinc-400">Esta estación trabaja con impresión manual. Las salidas pendientes aparecen en la cola de abajo; no hay un KDS configurado.</div> : null}
+      </section> : null}
 
-      {tieneImpresora && <section className="mt-6 rounded-2xl border border-warn-500/20 bg-surface-900 p-4 sm:p-5" aria-label={`Cola de impresión manual de ${NOMBRES_ESTACION_COMANDA[estacion]}`}>
+      {tieneImpresora && <section className="mt-6 rounded-2xl border border-warn-500/20 bg-surface-900 p-4 sm:p-5" aria-label={`Cola de impresión manual de ${nombreVisibleEstacion(estacion)}`}>
         <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
-          <div><h2 className="text-lg font-semibold text-zinc-100">Salida de impresión manual · {NOMBRES_ESTACION_COMANDA[estacion]}</h2><p className="mt-1 text-sm text-zinc-500">La impresora no se detecta automáticamente. Abre cada salida y pulsa Imprimir para usar el diálogo del navegador.</p></div>
-          <span className="rounded-full border border-warn-500/30 px-3 py-1 text-xs text-warn-300">{salidasPendientes.length} pendientes</span>
+          <div><h2 className="text-lg font-semibold text-zinc-100">Cola de impresión manual · {nombreVisibleEstacion(estacion)}</h2><p className="mt-1 text-sm text-zinc-500">La impresora no se detecta automáticamente. Abre cada salida y pulsa Imprimir en el navegador. Mesora no puede confirmar si salió papel.</p></div>
+          <span className="rounded-full border border-warn-500/30 px-3 py-1 text-xs text-warn-300">{salidasPendientes.length} {salidasPendientes.length === 1 ? 'pendiente' : 'pendientes'}</span>
         </div>
         {salidasPendientes.length === 0 ? <p className="py-5 text-center text-sm text-zinc-500">No hay salidas pendientes de impresión.</p> : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {salidasPendientes.map(({ pedido, salida }) => <TarjetaSalidaManual
@@ -507,13 +553,14 @@ function TarjetaComanda({
   onImprimir?: () => void
 }) {
   const tiempo = useElapsed(p.created_at)
+  const tiempoProlongado = Date.now() - Date.parse(p.created_at) >= 15 * 60_000
   const total = p.items.reduce((a, it) => a + it.cantidad * it.precio_unitario, 0)
 
   return (
     <div className="rounded-xl border border-surface-700 bg-surface-800 p-4" data-comanda-kds={p.id}>
       <div className="flex items-center justify-between gap-2">
         <p className="text-lg font-bold tracking-tight text-zinc-100">{mesaNombre}</p>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-surface-600 bg-surface-900 px-3 py-1 text-sm tabular-nums text-brand-400">
+        <span className={`inline-flex items-center gap-1.5 rounded-full border bg-surface-900 px-3 py-1 text-sm tabular-nums ${tiempoProlongado ? 'border-warn-500/50 text-warn-300' : 'border-surface-600 text-brand-400'}`} aria-label={`Tiempo en cola: ${tiempo}${tiempoProlongado ? ', tiempo prolongado' : ''}`}>
           <IconoReloj />
           {tiempo}
         </span>
@@ -521,6 +568,7 @@ function TarjetaComanda({
       <p className="mt-0.5 text-sm text-zinc-500">
         {meseroNombre ? `${meseroNombre} · ` : ''}Hace {tiempo}
       </p>
+      {tiempoProlongado && <p className="mt-1 text-xs font-medium text-warn-300">Tiempo prolongado · revisa esta comanda</p>}
 
       <ul className="mt-3 divide-y divide-surface-700/60 text-base">
         {p.items.map((it: ItemResumen) => (
@@ -606,12 +654,12 @@ function TarjetaSalidaManual({
       <span className="rounded-full border border-warn-500/30 bg-warn-500/10 px-2.5 py-1 text-xs text-warn-300">{etiquetaEstadoSalida(salida.estado)}</span>
     </div>
     <p className="mt-3 flex items-center gap-2 text-sm font-medium text-zinc-300"><IconoImpresora />{salida.nombre}</p>
-    <p className="mt-1 text-xs text-zinc-500">{NOMBRES_ESTACION_COMANDA[estacion]} · papel {salida.papel_mm ?? 'sin ancho guardado'} mm · {salida.copias} {salida.copias === 1 ? 'copia' : 'copias'} · configuración v{salida.configuracion_version}</p>
+    <p className="mt-1 text-xs text-zinc-500">{nombreVisibleEstacion(estacion)} · papel {salida.papel_mm ?? 'sin ancho guardado'} mm · {salida.copias} {salida.copias === 1 ? 'copia' : 'copias'} · configuración v{salida.configuracion_version}</p>
     <ul className="mt-3 space-y-1 border-t border-surface-700 pt-3 text-sm text-zinc-300">
       {items.map((item) => <li key={item.id}><span className="font-semibold text-brand-400">{item.cantidad}×</span> {item.nombre_producto}{item.nota ? <span className="block pl-6 text-xs text-warn-400">{item.nota}</span> : null}</li>)}
     </ul>
     <button type="button" className={`btn ${salida.estado === 'confirmada' ? 'btn-outline' : 'btn-primary'} mt-4 min-h-12 w-full`} data-imprimir-salida={salida.entrega_id} data-reimprimir-salida={salida.estado === 'confirmada' ? salida.entrega_id : undefined} onClick={onImprimir}>
-      {salida.estado === 'confirmada' ? 'Reimprimir' : salida.estado === 'fallida' ? 'Reintentar impresión' : salida.estado === 'enviada' ? 'Revisar impresión' : 'Preparar impresión'}
+      {salida.estado === 'confirmada' ? 'Reimprimir' : salida.estado === 'fallida' ? 'Abrir impresión manual para reintentar' : salida.estado === 'enviada' ? 'Abrir vista de impresión' : 'Abrir impresión manual'}
     </button>
   </article>
 }
