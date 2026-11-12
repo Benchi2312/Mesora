@@ -18,7 +18,7 @@ import { confirmarCierreCaja } from '../../domain/security/confirmaciones'
  * domain/cashier/caja.ts
  * (misma función que usa el backend), así que la pantalla no inventa números.
  */
-export default function CajaTab() {
+export default function CajaTab({ adminExperience = false }: { adminExperience?: boolean } = {}) {
   const { restaurante, usuario } = useCurrentContext()
   const rid = restaurante?.id
 
@@ -95,6 +95,7 @@ export default function CajaTab() {
   const montoInicial = parseMonto(inicial)
   const montoDeclarado = parseMonto(declarado)
   const totalPendiente = porCobrar.reduce((acc, m) => acc + m.total, 0)
+  const cajaCerrada = !turno && turnos.some((t) => Boolean(t.fecha_cierre))
 
   async function abrir() {
     if (!rid || !usuario) return
@@ -165,16 +166,16 @@ export default function CajaTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className={adminExperience ? 'flex flex-col gap-5' : 'space-y-6'}>
       {error && (
-        <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
+        <div role="alert" className={`aviso border-danger-500/40 bg-danger-500/10 text-danger-500 ${adminExperience ? 'order-0' : ''}`}>
           {error}
           <button type="button" onClick={() => { setCargando(true); void cargar() }} className="ml-3 underline">Actualizar caja</button>
         </div>
       )}
 
       {porCobrar.length > 0 && (
-        <section aria-label="Precuentas de mesas" className="card p-4">
+        <section aria-label="Precuentas de mesas" className={`card p-4 ${adminExperience ? 'order-4 sm:p-5' : ''}`}>
           <h2 className="font-semibold text-zinc-100">Precuentas</h2>
           <p className="mt-1 text-sm text-zinc-400">Consulta e imprime el consumo pendiente de cada mesa antes de cobrar.</p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -187,9 +188,17 @@ export default function CajaTab() {
         </section>
       )}
 
-      <section aria-label="Cobrar mesas" className="card p-4">
-        <h2 className="font-semibold text-zinc-100">Cobrar una mesa</h2>
-        <p className="mt-1 text-sm text-zinc-400">Cierra la cuenta y entrega el recibo interno de Mesora. La facturación electrónica se realiza en el sistema del restaurante.</p>
+      <section aria-label="Cobrar mesas" className={`card p-4 ${adminExperience ? 'order-3 overflow-hidden border-brand-500/20 sm:p-5' : ''}`}>
+        {adminExperience ? <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-zinc-100">Cobrar una mesa</h2>
+            <p className="mt-1 text-sm text-zinc-400">Cierra la cuenta y entrega el recibo interno de Mesora. La facturación electrónica se realiza en el sistema del restaurante.</p>
+          </div>
+          <span className="chip chip-neutral">{porCobrar.length} {porCobrar.length === 1 ? 'mesa pendiente' : 'mesas pendientes'}</span>
+        </div> : <>
+          <h2 className="font-semibold text-zinc-100">Cobrar una mesa</h2>
+          <p className="mt-1 text-sm text-zinc-400">Cierra la cuenta y entrega el recibo interno de Mesora. La facturación electrónica se realiza en el sistema del restaurante.</p>
+        </>}
         {errorPermisoCobro && <p className="mt-2 text-sm text-amber-300" role="alert">No se pudieron confirmar tus permisos de cobro. Actualiza esta página antes de cobrar.</p>}
         {!errorPermisoCobro && !puedeCobrar && <p className="mt-2 text-sm text-amber-300">Tu cuenta no está autorizada para cobrar. Pide al administrador que revise Configuración operativa.</p>}
         {puedeCobrar && <div className="mt-3 flex flex-wrap gap-2">
@@ -206,7 +215,7 @@ export default function CajaTab() {
       {turno && porCobrar.length > 0 && (
         <div
           role="status"
-          className="aviso border-warn-500/40 bg-warn-500/10 text-warn-500"
+          className={`aviso border-warn-500/40 bg-warn-500/10 text-warn-500 ${adminExperience ? 'order-2' : ''}`}
         >
           <div className="flex items-start gap-2.5">
             <IconoInfo className="mt-0.5 h-4 w-4 shrink-0" />
@@ -236,8 +245,15 @@ export default function CajaTab() {
       )}
 
       {!turno ? (
-        <div className="card p-5 sm:p-6">
-          <h2 className="text-lg font-bold tracking-tight text-zinc-100">Abrir caja</h2>
+        <div className={`card p-5 sm:p-6 ${adminExperience ? 'order-1 overflow-hidden border-brand-500/20 bg-[linear-gradient(135deg,rgba(255,149,0,0.07),transparent_55%)]' : ''}`}>
+          {adminExperience && <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Estado de caja</p>
+              <h2 className="mt-1 text-lg font-bold tracking-tight text-zinc-100">{cajaCerrada ? 'Caja cerrada' : 'Sin turno abierto'}</h2>
+            </div>
+            <span className={`chip ${cajaCerrada ? 'chip-neutral' : 'chip-warn'}`}>{cajaCerrada ? 'Cerrada' : 'Lista para abrir'}</span>
+          </div>}
+          <h2 className="text-lg font-bold tracking-tight text-zinc-100">{adminExperience ? 'Abrir un turno' : 'Abrir caja'}</h2>
           <p className="mt-0.5 mb-5 text-sm text-zinc-500">
             Registra el efectivo con el que arranca el turno. Es la base del arqueo.
           </p>
@@ -270,7 +286,7 @@ export default function CajaTab() {
         </div>
       ) : (
         <>
-          <div className="card p-5 sm:p-6">
+          <div className={`card p-5 sm:p-6 ${adminExperience ? 'order-1 overflow-hidden border-ok-500/20' : ''}`}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-bold tracking-tight text-zinc-100">Turno abierto</h2>
@@ -366,12 +382,16 @@ export default function CajaTab() {
         </>
       )}
 
-      <div className="card p-5 sm:p-6">
-        <h2 className="titulo-seccion mb-4 text-xs font-semibold">Historial de turnos</h2>
+      <div className={`card p-5 sm:p-6 ${adminExperience ? 'order-5' : ''}`}>
+        {adminExperience ? <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+          <h2 className="text-base font-semibold text-zinc-100">Historial de turnos</h2>
+          <p className="text-xs text-zinc-500">Aperturas, cierres y diferencias registradas</p>
+        </div> : <h2 className="titulo-seccion mb-4 text-xs font-semibold">Historial de turnos</h2>}
         {turnos.length === 0 ? (
           <EstadoVacio titulo="Todavía no hay turnos registrados." className="py-8" />
         ) : (
-          <div className="-mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0">
+          <>
+          <div className={adminExperience ? '-mx-5 hidden overflow-x-auto px-5 sm:mx-0 sm:px-0 md:block' : '-mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0'}>
             <table className="w-full min-w-[34rem] text-sm">
               <thead>
                 <tr className="border-b border-surface-700 text-left text-xs uppercase tracking-widest text-zinc-500">
@@ -411,6 +431,27 @@ export default function CajaTab() {
               </tbody>
             </table>
           </div>
+          {adminExperience && <ul className="grid gap-3 md:hidden">
+            {turnos.map((t) => (
+              <li key={t.id} className="rounded-xl border border-surface-800 bg-surface-950/50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Apertura</p>
+                    <p className="mt-1 text-sm font-semibold text-zinc-100">{fmtFecha(t.fecha_apertura)}</p>
+                  </div>
+                  <span className={`chip ${t.fecha_cierre ? 'chip-neutral' : 'chip-ok'}`}>{t.fecha_cierre ? 'Cerrado' : 'Abierto'}</span>
+                </div>
+                <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-surface-800 pt-3 text-sm">
+                  <div><dt className="text-xs text-zinc-500">Cierre</dt><dd className="mt-1 text-zinc-300">{t.fecha_cierre ? fmtFecha(t.fecha_cierre) : 'En curso'}</dd></div>
+                  <div><dt className="text-xs text-zinc-500">Inicial</dt><dd className="mt-1 tabular-nums text-zinc-300">{fmtPEN(t.monto_inicial)}</dd></div>
+                  <div><dt className="text-xs text-zinc-500">Esperado</dt><dd className="mt-1 tabular-nums text-zinc-300">{t.monto_esperado == null ? '—' : fmtPEN(t.monto_esperado)}</dd></div>
+                  <div><dt className="text-xs text-zinc-500">Declarado</dt><dd className="mt-1 tabular-nums text-zinc-300">{t.monto_declarado == null ? '—' : fmtPEN(t.monto_declarado)}</dd></div>
+                  <div className="col-span-2"><dt className="text-xs text-zinc-500">Diferencia</dt><dd className={`mt-1 font-semibold tabular-nums ${t.diferencia == null ? 'text-zinc-500' : t.diferencia === 0 ? 'text-ok-500' : 'text-danger-500'}`}>{t.diferencia == null ? '—' : fmtPEN(t.diferencia)}</dd></div>
+                </dl>
+              </li>
+            ))}
+          </ul>}
+          </>
         )}
       </div>
 

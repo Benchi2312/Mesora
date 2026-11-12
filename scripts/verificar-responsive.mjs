@@ -351,7 +351,7 @@ async function correrDemoRutas(browser, vp) {
   const ctx = await browser.newContext({ viewport: { width: vp.w, height: vp.h } })
   const page = await ctx.newPage()
   const roles = [
-    { ruta: 'admin', enlace: 'Admin', titulo: 'Panel de administración' },
+    { ruta: 'admin', enlace: 'Admin', titulo: 'Resumen de ventas' },
     { ruta: 'mesero', enlace: 'Mesero', titulo: 'Restaurante Demo' },
     { ruta: 'cocina', enlace: 'Cocina', titulo: 'Estaciones de preparación' },
     { ruta: 'cajero', enlace: 'Cajero', titulo: 'Caja' },
@@ -406,7 +406,7 @@ async function correrGuiaCompletada(browser, vp) {
     await page.addInitScript((guardado) => localStorage.setItem('mesora.demo.guia.v2', JSON.stringify(guardado)), progreso)
     await page.goto(`${URL}/demo/admin`, { waitUntil: 'networkidle', timeout: 45000 })
     await page.locator('[data-guia-minimizada]').waitFor({ state: 'visible', timeout: 15000 })
-    const dashboard = page.getByRole('heading', { level: 1, name: 'Panel de administración', exact: true })
+    const dashboard = page.getByRole('heading', { level: 1, name: 'Resumen de ventas', exact: true })
     check(`recorrido completo inicia minimizado ${vp.nombre}`,
       await page.getByRole('dialog', { name: 'Recorrido guiado del demo' }).count() === 0 && await dashboard.isVisible())
     await page.locator('[data-guia-minimizada]').click()
@@ -500,9 +500,16 @@ async function correrPantalla(browser, vp, pantalla) {
     // La primera pantalla del demo abre el recorrido; se cierra para medir el
     // layout real sin la guía encima.
     const explorar = page.getByRole('button', { name: 'Explorar por mi cuenta' })
-    if (await explorar.count()) await explorar.first().click()
+    const panelGuia = page.getByRole('dialog', { name: 'Recorrido guiado del demo' })
+    if (await explorar.count()) {
+      await explorar.first().click()
+      await panelGuia.waitFor({ state: 'hidden' })
+    }
     const cerrar = page.getByRole('button', { name: 'Minimizar guía' })
-    if (await cerrar.count()) await cerrar.first().click()
+    if (await cerrar.count()) {
+      await cerrar.first().click()
+      await panelGuia.waitFor({ state: 'hidden' })
+    }
 
     if (pantalla.tabs) {
       const adminMovil = pantalla.ruta === '/demo/admin' && vp.w < 1024
@@ -576,16 +583,25 @@ async function correrNavegacionAdmin(browser, vp) {
     await page.goto(`${URL}/demo/admin`, { waitUntil: 'networkidle', timeout: 45000 })
     etapa = 'cerrar guía inicial'
     const explorar = page.getByRole('button', { name: 'Explorar por mi cuenta' })
-    if (await explorar.count()) await explorar.first().click()
+    const panelGuia = page.getByRole('dialog', { name: 'Recorrido guiado del demo' })
+    if (await explorar.count()) {
+      await explorar.first().click()
+      await panelGuia.waitFor({ state: 'hidden' })
+    }
     etapa = 'validar encabezado directo'
-    const encabezado = page.getByRole('heading', { level: 1, name: 'Panel de administración', exact: true })
+    const encabezado = page.getByRole('heading', { level: 1, name: 'Resumen de ventas', exact: true })
     await encabezado.waitFor({ state: 'visible', timeout: 15000 })
     check(`URL directa /demo/admin ${vp.nombre}`, new globalThis.URL(page.url()).pathname === '/demo/admin' && await encabezado.isVisible())
 
     etapa = 'recargar Admin'
     await page.reload({ waitUntil: 'networkidle', timeout: 45000 })
-    await page.getByRole('heading', { level: 1, name: 'Panel de administración', exact: true }).waitFor({ state: 'visible', timeout: 15000 })
+    await page.getByRole('heading', { level: 1, name: 'Resumen de ventas', exact: true }).waitFor({ state: 'visible', timeout: 15000 })
     check(`recarga directa de Admin ${vp.nombre}`, new globalThis.URL(page.url()).pathname === '/demo/admin' && await page.locator('[data-admin-active-section="dashboard"]').count() === 1)
+    etapa = 'cerrar guía tras recargar Admin'
+    await panelGuia.waitFor({ state: 'visible', timeout: 15000 })
+    const explorarTrasRecarga = panelGuia.getByRole('button', { name: 'Explorar por mi cuenta', exact: true })
+    if (await explorarTrasRecarga.count()) await explorarTrasRecarga.click()
+    await panelGuia.waitFor({ state: 'hidden' })
 
     if (vp.w < 1024) {
       etapa = 'abrir drawer'
@@ -625,6 +641,15 @@ async function correrNavegacionAdmin(browser, vp) {
       check(`sección Admin ${tab} activa ${vp.nombre}`,
         await page.locator(`[data-admin-active-section="${id}"]`).count() === 1 && ruta.pathname === '/demo/admin')
       if (vp.w < 1024) await page.locator('.admin-drawer[role="dialog"]').waitFor({ state: 'hidden' })
+      if (tab === 'Cobros') {
+        etapa = 'probar acceso de Cobros a Caja'
+        const irACaja = page.getByRole('button', { name: 'Ir a Caja', exact: true })
+        await irACaja.waitFor({ state: 'visible' })
+        await irACaja.click({ noWaitAfter: true })
+        await page.locator('[data-admin-active-section="caja"]').waitFor({ state: 'attached' })
+        check(`Cobros lleva a Caja desde Admin ${vp.nombre}`,
+          await page.locator('[data-admin-active-section="caja"]').count() === 1 && await page.getByRole('heading', { level: 1, name: 'Caja del turno' }).isVisible())
+      }
     }
 
     if (vp.w === 390 || vp.w === 1280) {
@@ -632,12 +657,12 @@ async function correrNavegacionAdmin(browser, vp) {
       await iniciarSesion(page, 'nuevo@mirestaurante.pe')
       etapa = 'abrir directamente /admin'
       await page.goto(`${URL}/admin`, { waitUntil: 'networkidle', timeout: 45000 })
-      await page.getByRole('heading', { level: 1, name: 'Panel de administración', exact: true }).waitFor({ state: 'visible', timeout: 15000 })
+      await page.getByRole('heading', { level: 1, name: 'Resumen de ventas', exact: true }).waitFor({ state: 'visible', timeout: 15000 })
       check(`/admin protegido abre con sesión válida ${vp.nombre}`,
         new globalThis.URL(page.url()).pathname === '/admin' && await page.locator('[data-admin-active-section="dashboard"]').count() === 1)
       etapa = 'recargar /admin autenticado'
       await page.reload({ waitUntil: 'networkidle', timeout: 45000 })
-      await page.getByRole('heading', { level: 1, name: 'Panel de administración', exact: true }).waitFor({ state: 'visible', timeout: 15000 })
+      await page.getByRole('heading', { level: 1, name: 'Resumen de ventas', exact: true }).waitFor({ state: 'visible', timeout: 15000 })
       check(`/admin sobrevive recarga autenticada ${vp.nombre}`,
         new globalThis.URL(page.url()).pathname === '/admin' && await page.locator('[data-admin-active-section="dashboard"]').count() === 1)
     }

@@ -101,6 +101,15 @@ export default function Admin() {
   const botonCerrarRef = useRef<HTMLButtonElement>(null)
   const dialogoRef = useRef<HTMLElement>(null)
   const nombreRestaurante = restaurante?.nombre ?? 'Restaurante activo'
+  const encabezadoPorSeccion: Partial<Record<SeccionTab, { titulo: string; descripcion: string }>> = {
+    dashboard: { titulo: 'Resumen de ventas', descripcion: 'Revisa los resultados reales del periodo y cómo se distribuyen las ventas.' },
+    caja: { titulo: 'Caja del turno', descripcion: 'Consulta el estado del turno, cobra mesas autorizadas y revisa el arqueo.' },
+    cobros: { titulo: 'Cobros y recibos internos', descripcion: 'Consulta lo cobrado y anulado; las cuentas pendientes se atienden desde Caja.' },
+  }
+  const encabezado = encabezadoPorSeccion[seccion] ?? {
+    titulo: 'Panel de administración',
+    descripcion: 'Gestiona las ventas, las mesas, el menú y el equipo de tu restaurante.',
+  }
 
   // «Hazlo por mí» puede pedir una pestaña concreta (p. ej. Mesas y zonas o
   // Menú) para abrir ahí el formulario con datos sugeridos.
@@ -223,18 +232,15 @@ export default function Admin() {
           </div>
         )}
 
-        <PageHeader
-          titulo="Panel de administración"
-          descripcion="Gestiona las ventas, las mesas, el menú y el equipo de tu restaurante."
-        />
+        <PageHeader titulo={encabezado.titulo} descripcion={encabezado.descripcion} />
 
         <AvisoSuscripcion />
 
         <div data-admin-active-section={seccion}>
           {seccion === 'dashboard' && <DashboardTab />}
           {seccion === 'ventas' && <VentasTab />}
-          {seccion === 'caja' && <CajaTab />}
-          {seccion === 'cobros' && <CobrosTab />}
+          {seccion === 'caja' && <CajaTab adminExperience />}
+          {seccion === 'cobros' && <CobrosTab onVerCaja={() => seleccionarSeccion('caja')} />}
           {seccion === 'mesas' && <MesasZonasTab />}
           {seccion === 'menu' && <MenuTab />}
           {seccion === 'personal' && <PersonalTab />}
