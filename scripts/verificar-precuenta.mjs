@@ -48,6 +48,22 @@ try {
       const minimizar = page.getByRole('button', { name: 'Minimizar guía' })
       if (await minimizar.count()) await minimizar.click()
     }
+    async function navegarACajaAdmin() {
+      if (width < 1024) {
+        const abrirMenu = page.getByRole('button', { name: 'Abrir menú de administración' })
+        await expect(abrirMenu).toBeVisible()
+        await abrirMenu.click()
+
+        const drawer = page.getByRole('dialog', { name: 'Navegación de administración' })
+        await expect(drawer).toBeVisible()
+        await drawer.getByRole('button', { name: 'Caja', exact: true }).click()
+        await expect(drawer).toHaveCount(0)
+      } else {
+        await page.getByRole('navigation', { name: 'Secciones de administración' })
+          .getByRole('button', { name: 'Caja', exact: true }).click()
+      }
+      await expect(page.locator('[data-admin-active-section="caja"]')).toBeVisible()
+    }
     console.log(`Precuenta QA: preparando datos ${width}px`)
     await visitar('/demo/admin')
     await page.evaluate(async () => {
@@ -153,7 +169,7 @@ try {
     await page.getByRole('button', { name: /^Precuenta Mesa precuenta QA/ }).click()
     await expect(page.getByTestId('precuenta-total')).toHaveText(/56[,.]00/)
     await visitar('/demo/admin')
-    await page.getByRole('button', { name: 'Caja', exact: true }).click()
+    await navegarACajaAdmin()
     await page.getByRole('button', { name: /^Precuenta Mesa precuenta QA/ }).click()
     await expect(page.getByTestId('precuenta-total')).toHaveText(/56[,.]00/)
     // El flujo de cobro sigue operativo después de consultar la precuenta.
