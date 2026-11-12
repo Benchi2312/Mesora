@@ -51,6 +51,8 @@ const { getApi, esModoLocal, apiMode, enDemo, reiniciarDemoDatos } = await servi
 const { localSeed, restablecerDatosLocal, cargarDatosLocal, localCredenciales, verificarCredencialLocal, PASSWORD_DE_PRUEBA } =
   await servidor.ssrLoadModule('/src/lib/localSeed.ts')
 const { mockZonas, mockRestaurante } = await servidor.ssrLoadModule('/src/lib/mockData.ts')
+const { firmaComanda, guardarSolicitud, leerSolicitud, limpiarSolicitud } =
+  await servidor.ssrLoadModule('/src/lib/pedidoIdempotencia.ts')
 // Motor del recorrido guiado del demo: logica pura, se verifica sin navegador.
 const {
   observar,
@@ -244,6 +246,24 @@ check('esModoLocal()', esModoLocal() === true)
 check('login admin desde caja vuelve a /admin', rutaDespuesDeLogin('admin_restaurante', '/cajero') === '/admin')
 check('login cajero desde caja conserva /cajero', rutaDespuesDeLogin('cajero', '/cajero') === '/cajero')
 check('crearPedido exige que la mesa sea del restaurante', (await api.crearPedido(RID, 'm-inexistente', [pedir(prod('p-1'), 1)]).then((r) => !!r.error)))
+const memoriaSolicitud = new Map()
+const storageSolicitud = {
+  getItem: (clave) => memoriaSolicitud.get(clave) ?? null,
+  setItem: (clave, valor) => void memoriaSolicitud.set(clave, valor),
+  removeItem: (clave) => void memoriaSolicitud.delete(clave),
+}
+const firmaOriginal = await firmaComanda([{ producto_id: 'p-1', cantidad: 1, nota: '' }])
+const firmaCambiada = await firmaComanda([{ producto_id: 'p-1', cantidad: 2, nota: '' }])
+const solicitudQA = { id: crypto.randomUUID(), restauranteId: RID, usuarioId: meseroFlujo.id, mesaId: MESA, firma: firmaOriginal, caducaAt: Date.now() + 3600000 }
+guardarSolicitud(storageSolicitud, solicitudQA)
+check('la clave pendiente sobrevive al remonte y se limita a restaurante, actor y mesa',
+  leerSolicitud(storageSolicitud, RID, meseroFlujo.id, MESA)?.id === solicitudQA.id &&
+  leerSolicitud(storageSolicitud, RID, meseroFlujo.id, 'm-7') === null &&
+  leerSolicitud(storageSolicitud, 'r-otro', meseroFlujo.id, MESA) === null &&
+  leerSolicitud(storageSolicitud, RID, 'u-otro', MESA) === null)
+check('un cambio de cantidad produce firma diferente antes del reintento', firmaOriginal !== firmaCambiada)
+limpiarSolicitud(storageSolicitud, solicitudQA)
+check('la clave se limpia tras respuesta confirmada', leerSolicitud(storageSolicitud, RID, meseroFlujo.id, MESA) === null)
 
 titulo('0.1 · Resúmenes de confirmación y errores comprensibles')
 const resumenesSensibles = [
@@ -262,9 +282,18 @@ check('un error de RLS se muestra como indicación para el local', mensajeOperac
 
 // ---------------------------------------------------------------------------
 titulo('1 · Dos comandas a la misma mesa antes de cobrar')
-const comandaA = await api.crearPedido(RID, MESA, [pedir(prod('p-1'), 2, 'sin cebolla')])
+const claveComandaA = crypto.randomUUID()
+const contenidoComandaA = [pedir(prod('p-1'), 2, 'sin cebolla')]
+const [comandaA, reintentoConcurrente] = await Promise.all([
+  api.crearPedido(RID, MESA, contenidoComandaA, claveComandaA),
+  api.crearPedido(RID, MESA, contenidoComandaA, claveComandaA),
+])
 check('1a · se crea la primera comanda', !comandaA.error, comandaA.error ?? '')
 const idA = comandaA.data
+check('1a.1 · dos envíos simultáneos devuelven el mismo pedido', reintentoConcurrente.data === idA && !reintentoConcurrente.error)
+check('1a.2 · no duplica ítems ni rutas', localSeed.items.filter((it) => it.pedido_id === idA).length === 1 && localSeed.entregasComanda.filter((e) => e.pedido_id === idA).length === 1)
+const conflictoComandaA = await api.crearPedido(RID, MESA, [pedir(prod('p-1'), 3, 'sin cebolla')], claveComandaA)
+check('1a.3 · misma clave con contenido distinto se rechaza', conflictoComandaA.error?.includes('no coincide con la comanda original'))
 
 const trasUna = await api.getPedidosDeMesa(RID, MESA)
 check('1b · la mesa muestra 1 comanda abierta', trasUna.data.length === 1, `vio ${trasUna.data.length}`)
@@ -273,6 +302,8 @@ const comandaB = await api.crearPedido(RID, MESA, [pedir(prod('p-8'), 3)])
 check('1c · se crea la segunda comanda en la MISMA mesa', !comandaB.error, comandaB.error ?? '')
 const idB = comandaB.data
 check('1d · las dos comandas son distintas', !!idA && !!idB && idA !== idB)
+check('1d.1 · la nueva comanda de la misma mesa usa otra clave',
+  localSeed.pedidos.find((p) => p.id === idA)?.solicitud_id !== localSeed.pedidos.find((p) => p.id === idB)?.solicitud_id)
 
 const trasDos = await api.getPedidosDeMesa(RID, MESA)
 check(

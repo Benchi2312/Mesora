@@ -4,6 +4,7 @@ import { useCurrentContext } from '../../lib/useCurrentContext'
 import type { CategoriaProducto, Mesa, Producto } from '../../types/database'
 import { fmtPEN } from '../../lib/format'
 import { Spinner } from '../../components/LoadingScreen'
+import { firmaComanda, guardarSolicitud, leerSolicitud, limpiarSolicitud, type SolicitudPendiente } from '../../lib/pedidoIdempotencia'
 
 const IMG_DEFAULT = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80'
 
@@ -48,11 +49,26 @@ export default function MenuPicker({
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [envioIncierto, setEnvioIncierto] = useState(false)
+  const [solicitudPendiente, setSolicitudPendiente] = useState<SolicitudPendiente | null>(null)
+  const [reintento, setReintento] = useState(false)
+  const [almacenamientoDisponible, setAlmacenamientoDisponible] = useState(true)
   const [intentoCarga, setIntentoCarga] = useState(0)
   const [exito, setExito] = useState(false)
   /** Aviso no bloqueante (tope de cantidad, etc.). */
   const [aviso, setAviso] = useState<string | null>(null)
   const envioEnCurso = useRef(false)
+
+  useEffect(() => {
+    if (!restaurante || !usuario) return
+    try {
+      const pendiente = leerSolicitud(sessionStorage, restaurante.id, usuario.id, mesa.id)
+      setSolicitudPendiente(pendiente)
+      setEnvioIncierto(Boolean(pendiente))
+    } catch {
+      setAlmacenamientoDisponible(false)
+      setError('No se pudo acceder al almacenamiento de esta pestaña. Actívalo para enviar una comanda de forma segura.')
+    }
+  }, [restaurante?.id, usuario?.id, mesa.id])
 
   useEffect(() => {
     const rid = restaurante?.id
@@ -145,7 +161,7 @@ export default function MenuPicker({
   const itemFueraDeRango = cart.find((it) => it.cantidad > CANTIDAD_MAXIMA)
 
   async function enviarComanda() {
-    if (!restaurante || !usuario || cart.length === 0 || envioEnCurso.current) return
+    if (!restaurante || !usuario || cart.length === 0 || envioEnCurso.current || !almacenamientoDisponible) return
     // Se valida antes de tocar la red: un envío con un ítem fuera de rango
     // wastea un round-trip y vuelve con un error genérico del servidor.
     if (itemFueraDeRango) {
@@ -167,26 +183,62 @@ export default function MenuPicker({
 
     let pedidoId: string | null = null
     let apiErr: string | null = null
+    let solicitud: SolicitudPendiente | null = null
+    let respuestaIncierta = false
     try {
-      const resultado = await getApi().crearPedido(restaurante.id, mesa.id, items)
+      const firma = await firmaComanda(items)
+      const anterior = leerSolicitud(sessionStorage, restaurante.id, usuario.id, mesa.id)
+      if (anterior && anterior.caducaAt <= Date.now()) {
+        setError('La solicitud pendiente caducó. Revisa la mesa antes de empezar una comanda nueva.')
+        return
+      }
+      if (anterior && anterior.firma !== firma) {
+        setError('La solicitud cambió y no coincide con la comanda original.')
+        return
+      }
+      const preparada: SolicitudPendiente = anterior ?? {
+        id: crypto.randomUUID(), restauranteId: restaurante.id, usuarioId: usuario.id,
+        mesaId: mesa.id, firma, caducaAt: Date.now() + 24 * 60 * 60 * 1000,
+      }
+      if (!anterior) guardarSolicitud(sessionStorage, preparada)
+      solicitud = preparada
+      setSolicitudPendiente(solicitud)
+      setReintento(Boolean(anterior))
+      const resultado = await getApi().crearPedido(restaurante.id, mesa.id, items, solicitud.id)
       pedidoId = resultado.data
       apiErr = resultado.error
     } catch {
-      setEnvioIncierto(true)
-      apiErr = 'No se pudo confirmar el envío. Revisa las comandas antes de volver a intentarlo.'
-    }
-
-    setEnviando(false)
-    if (apiErr || !pedidoId) {
-      if (esFalloDeRed(apiErr)) {
+      if (solicitud) {
         setEnvioIncierto(true)
-        setError('No se pudo confirmar el envío. Vuelve a mesas y revisa la comanda antes de reenviarla.')
+        respuestaIncierta = true
+        apiErr = 'No se pudo confirmar la respuesta. Puedes reintentar de forma segura.'
+      } else {
+        setAlmacenamientoDisponible(false)
+        apiErr = 'No se pudo preparar la solicitud segura. Revisa el almacenamiento de esta pestaña.'
+      }
+    } finally {
+      setEnviando(false)
+      envioEnCurso.current = false
+    }
+    if (apiErr || !pedidoId) {
+      if (respuestaIncierta || !apiErr || esFalloDeRed(apiErr)) {
+        setEnvioIncierto(true)
+        setError('No se pudo confirmar la respuesta. Puedes reintentar de forma segura.')
         return
       }
-      envioEnCurso.current = false
-      setError(apiErr ?? 'No se pudo enviar la comanda')
+      if (apiErr?.includes('no coincide con la comanda original')) {
+        setError('La solicitud cambió y no coincide con la comanda original.')
+      } else {
+        // Incluso un error HTTP puede llegar después de un commit. La clave
+        // queda retenida hasta respuesta confirmada o revisión explícita.
+        if (solicitud) setEnvioIncierto(true)
+        setError(apiErr ?? 'No se pudo confirmar la respuesta. Puedes reintentar de forma segura.')
+      }
       return
     }
+    if (solicitud) try { limpiarSolicitud(sessionStorage, solicitud) } catch { /* el reintento futuro sigue protegido por la RPC */ }
+    setSolicitudPendiente(null)
+    setEnvioIncierto(false)
     setExito(true)
     setTimeout(onComandaEnviada, 1200)
   }
@@ -205,7 +257,7 @@ export default function MenuPicker({
         <span className="grid h-14 w-14 place-items-center rounded-full border border-ok-500 bg-ok-500/20 text-2xl font-bold text-ok-500">
           ✓
         </span>
-        <p className="text-lg font-semibold text-zinc-100">Comanda enviada</p>
+        <p className="text-lg font-semibold text-zinc-100">{reintento ? 'La comanda ya fue registrada. Revisa la mesa antes de intentar otra vez.' : 'Comanda enviada'}</p>
         <p className="text-sm text-zinc-400">Mesa {mesa.nombre}</p>
       </div>
     )
@@ -235,6 +287,16 @@ export default function MenuPicker({
           </div>
         )}
       </div>
+      {solicitudPendiente && (
+        <div role="status" className="mb-4 rounded-xl border border-warn-500/40 bg-warn-500/10 p-3 text-sm text-warn-400">
+          {solicitudPendiente.caducaAt <= Date.now()
+            ? 'La solicitud pendiente caducó. Revisa la mesa antes de empezar otra comanda.'
+            : 'Hay un envío sin confirmar para esta mesa. Reconstruye la misma comanda y reintenta de forma segura.'}
+          <button type="button" onClick={() => { limpiarSolicitud(sessionStorage, solicitudPendiente); setSolicitudPendiente(null); setEnvioIncierto(false); setError(null) }} className="ml-2 min-h-11 underline">
+            Ya revisé la mesa; empezar comanda nueva
+          </button>
+        </div>
+      )}
 
       <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         {/* Menú */}
@@ -408,15 +470,15 @@ export default function MenuPicker({
             <button
               type="button"
               data-guia="enviar-comanda"
-              disabled={cart.length === 0 || enviando || envioIncierto || Boolean(itemFueraDeRango)}
+              disabled={cart.length === 0 || enviando || !almacenamientoDisponible || Boolean(itemFueraDeRango) || Boolean(solicitudPendiente && solicitudPendiente.caducaAt <= Date.now())}
               onClick={() => void enviarComanda()}
               className="mt-4 hidden min-h-14 w-full touch-manipulation rounded-xl bg-brand-500 py-3.5 text-base font-semibold text-surface-950 transition hover:bg-brand-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 lg:flex lg:items-center lg:justify-center"
             >
-              {enviando ? 'Enviando…' : 'Enviar comanda'}
+              {enviando ? 'Enviando comanda…' : envioIncierto ? 'Reintentar envío de forma segura' : 'Enviar comanda'}
             </button>
             {envioIncierto && (
               <button type="button" onClick={onVolver} className="mt-2 min-h-11 w-full rounded-xl border border-surface-700 px-4 text-sm text-zinc-300">
-                Volver a mesas y revisar antes de reenviar
+                Volver a mesas y revisar
               </button>
             )}
           </div>
@@ -432,14 +494,14 @@ export default function MenuPicker({
           <button
             type="button"
             aria-label="Enviar comanda"
-            disabled={cart.length === 0 || enviando || envioIncierto || Boolean(itemFueraDeRango)}
+            disabled={cart.length === 0 || enviando || !almacenamientoDisponible || Boolean(itemFueraDeRango) || Boolean(solicitudPendiente && solicitudPendiente.caducaAt <= Date.now())}
             onClick={() => void enviarComanda()}
             className="min-h-12 min-w-40 touch-manipulation rounded-xl bg-brand-500 px-4 py-3 text-sm font-semibold text-surface-950 transition hover:bg-brand-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {enviando ? 'Enviando…' : 'Enviar comanda'}
+            {enviando ? 'Enviando comanda…' : envioIncierto ? 'Reintentar envío' : 'Enviar comanda'}
           </button>
         </div>
-        {envioIncierto && <button type="button" onClick={onVolver} className="mx-auto mt-2 block min-h-11 rounded-lg px-3 text-xs text-zinc-300 underline">Volver a mesas y revisar antes de reenviar</button>}
+        {envioIncierto && <button type="button" onClick={onVolver} className="mx-auto mt-2 block min-h-11 rounded-lg px-3 text-xs text-zinc-300 underline">Volver a mesas y revisar</button>}
       </div>
     </div>
   )
