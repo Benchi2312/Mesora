@@ -11,7 +11,7 @@ import {
   type PuntoSerie,
 } from '../../domain/reporting/estadisticas'
 import type { PresetRango } from '../../domain/reporting/estadisticas'
-import { Spinner } from '../../components/LoadingScreen'
+import SuperAdminCarga from './SuperAdminCarga'
 import EstadoVacio from '../../components/EstadoVacio'
 
 const numero = (n: number) => n.toLocaleString('es-PE')
@@ -125,16 +125,11 @@ export default function SuperAdminEstadisticas() {
     [datos, criterio],
   )
 
-  if (cargando && !datos)
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner />
-      </div>
-    )
+  if (cargando && !datos) return <SuperAdminCarga recurso="las estadísticas" />
 
   if (error)
     return (
-      <div className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
+      <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
         No se pudieron cargar las estadísticas. {error}
       </div>
     )

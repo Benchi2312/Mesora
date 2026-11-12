@@ -3,7 +3,7 @@ import { getApi } from '../../lib/api'
 import type { ConfiguracionGlobal } from '../../types/database'
 import { fmtFecha } from '../../lib/format'
 import type { DatosConfiguracionGlobal } from '../../domain/restaurant/configuracion'
-import { Spinner } from '../../components/LoadingScreen'
+import SuperAdminCarga from './SuperAdminCarga'
 import { Campo } from '../../components/ui'
 
 export default function SuperAdminConfiguracion() {
@@ -60,16 +60,11 @@ export default function SuperAdminConfiguracion() {
     setAviso('Configuración guardada. Los cambios ya están vigentes.')
   }
 
-  if (cargando)
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner />
-      </div>
-    )
+  if (cargando) return <SuperAdminCarga recurso="la configuración" />
 
   if (error)
     return (
-      <div className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
+      <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
         No se pudo cargar la configuración. {error}
       </div>
     )

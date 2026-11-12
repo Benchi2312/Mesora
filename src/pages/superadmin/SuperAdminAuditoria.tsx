@@ -14,7 +14,7 @@ import {
   hayFiltrosAuditoria,
 } from '../../domain/platform/auditoria'
 import type { CategoriaAuditoria, CriteriosAuditoria } from '../../domain/platform/auditoria'
-import { Spinner } from '../../components/LoadingScreen'
+import SuperAdminCarga from './SuperAdminCarga'
 import EstadoVacio from '../../components/EstadoVacio'
 
 const COLOR_CATEGORIA: Record<CategoriaAuditoria, string> = {
@@ -69,16 +69,11 @@ export default function SuperAdminAuditoria() {
     })
   }
 
-  if (cargando)
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner />
-      </div>
-    )
+  if (cargando) return <SuperAdminCarga recurso="el registro de auditoría" />
 
   if (error)
     return (
-      <div className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
+      <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
         No se pudo cargar la auditoría. {error}
       </div>
     )
@@ -90,7 +85,7 @@ export default function SuperAdminAuditoria() {
         y sobre qué. Nadie puede editar ni borrar estas filas.
       </p>
 
-      <div className="mb-5 flex flex-wrap items-center gap-3">
+      <div className="sa-controls mb-5 flex flex-wrap items-center gap-3">
         <input
           type="search"
           className="input min-h-11 w-full sm:max-w-xs"
@@ -153,9 +148,9 @@ export default function SuperAdminAuditoria() {
           descripcion="Ajusta los filtros o límpialos para volver a ver el registro."
         />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-surface-800 bg-surface-900 shadow-sm shadow-black/30">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+        <div className="sa-table-shell overflow-hidden rounded-2xl border border-surface-800 bg-surface-900 shadow-sm shadow-black/30">
+          <div className="sa-table-scroll overflow-x-auto">
+            <table className="sa-mobile-table sa-table-auditoria w-full text-sm">
               <thead>
                 <tr className="border-b border-surface-700 bg-surface-800/60 text-left text-xs uppercase tracking-widest text-zinc-400">
                   <th className="px-4 py-3.5 font-semibold">Fecha</th>
