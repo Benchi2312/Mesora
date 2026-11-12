@@ -139,6 +139,8 @@ const {
 const { calcularAlertas, DIAS_POR_VENCER, DIAS_NUEVO } = await servidor.ssrLoadModule(
   '/src/lib/notificaciones.ts',
 )
+const { calcularResumenSuscripciones, calcularElementosAtencion, buscarCentroOperativo } =
+  await servidor.ssrLoadModule('/src/domain/platform/centroOperativo.ts')
 // Lógica pura de la configuración global.
 const {
   validarConfiguracionGlobal,
@@ -2941,6 +2943,57 @@ check(
   puras25.some((a) => a.tipo === 'restaurante_por_vencer' && a.referencia_id === 'px-vence' && a.nivel === 'advertencia' && a.id.startsWith('porvencer-')) &&
     puras25.some((a) => a.tipo === 'restaurante_vencido' && a.referencia_id === 'px-caducado' && a.nivel === 'critico' && a.id.startsWith('venc-')),
   puras25.map((a) => `${a.tipo}:${a.referencia_id}`).join(', '),
+)
+const ahoraCentro25 = new Date('2026-11-12T12:00:00-05:00')
+const restaurantesCentro25 = [
+  { id: 'op-activa', nombre: 'Activa', suscripcion_activa: true, fecha_vencimiento: '2026-11-16T23:59:00-05:00', plan_id: 'plan-a', created_at: '2026-11-12T09:00:00-05:00' },
+  { id: 'op-fecha-invalida', nombre: 'Fecha no disponible', suscripcion_activa: true, fecha_vencimiento: 'fecha-invalida', plan_id: null, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'op-vencida', nombre: 'Vencida', suscripcion_activa: true, fecha_vencimiento: '2026-11-10T23:59:00-05:00', plan_id: null, created_at: '2026-01-01T00:00:00Z' },
+  { id: 'op-suspendida', nombre: 'Suspendida', suscripcion_activa: false, fecha_vencimiento: null, plan_id: null, created_at: '2026-01-01T00:00:00Z' },
+]
+const resumenCentro25 = calcularResumenSuscripciones(restaurantesCentro25, [{ id: 'plan-a', nombre: 'Plan A' }], ahoraCentro25)
+check(
+  '25g2 · resumen de suscripciones separa vigentes, vencidas, suspendidas y ventanas de vencimiento',
+  resumenCentro25.activas === 2 && resumenCentro25.hasta7Dias === 1 && resumenCentro25.dias8a15 === 0 &&
+    resumenCentro25.vencidas === 1 && resumenCentro25.suspendidas === 1 &&
+    resumenCentro25.porPlan.some((p) => p.nombre === 'Plan A' && p.cantidad === 1) &&
+    resumenCentro25.porPlan.some((p) => p.nombre === 'Sin plan asignado' && p.cantidad === 3),
+)
+check(
+  '25g2b · fecha de vencimiento no interpretable mantiene solo el estado activo registrado, sin atribuir ventana de vencimiento',
+  resumenCentro25.activas === 2 && resumenCentro25.hasta7Dias === 1 && resumenCentro25.dias8a15 === 0 && resumenCentro25.dias16a30 === 0,
+)
+const atencionCentro25 = calcularElementosAtencion({
+  restaurantes: restaurantesCentro25,
+  administradores: [{ id: 'op-admin', activo: true, restaurante_id: 'op-activa' }],
+  tickets: [{ id: 'op-ticket', codigo: 'TK-OP', asunto: 'Urgente sin responsable', prioridad: 'urgente', estado: 'abierto', responsable_id: null, responsable: null, restaurante_id: 'op-activa', created_at: '2026-11-12T10:00:00Z' }],
+  ultimoAccesoPorUsuario: { 'op-admin': null },
+  ahora: ahoraCentro25,
+})
+check(
+  '25g3 · atención reúne vencimiento, suspensión, administrador ausente, falta de acceso reciente y ticket urgente sin responsable',
+  atencionCentro25.some((e) => e.id === 'rest-por-vencer-op-activa') &&
+    atencionCentro25.some((e) => e.id === 'rest-vencido-op-vencida') &&
+    atencionCentro25.some((e) => e.id === 'rest-suspendido-op-suspendida') &&
+    atencionCentro25.some((e) => e.id === 'rest-sin-admin-op-vencida') &&
+    atencionCentro25.some((e) => e.id === 'rest-sin-acceso-op-activa') &&
+    atencionCentro25.some((e) => e.id === 'ticket-atencion-op-ticket' && e.prioridad === 'critica'),
+  atencionCentro25.map((e) => e.id).join(', '),
+)
+check(
+  '25g4 · búsqueda global no sensible a mayúsculas ni acentos y agrupa resultados reales',
+  (() => {
+    const encontrados = buscarCentroOperativo({
+      termino: 'CAFE',
+      restaurantes: [{ ...restaurantesCentro25[0], nombre: 'Café Central', ruc: '20123456789' }],
+      administradores: [{ id: 'op-admin', nombre: 'María Café', email: 'maria@cafe.pe' }],
+      usuarios: [{ id: 'op-user', nombre: 'José Café', email: 'jose@cafe.pe' }],
+      tickets: [{ id: 'op-ticket', codigo: 'TK-CAFE', asunto: 'Consulta de Café', prioridad: 'media', estado: 'abierto', responsable_id: null, responsable: null, restaurante_id: 'op-activa', created_at: '2026-11-12T10:00:00Z' }],
+    })
+    return encontrados.restaurantes.length === 1 && encontrados.administradores.length === 1 &&
+      encontrados.usuarios.length === 1 && encontrados.tickets.length === 1 &&
+      buscarCentroOperativo({ termino: '  ', restaurantes: [], administradores: [], usuarios: [], tickets: [] }).tickets.length === 0
+  })(),
 )
 check(
   '25h · filtrarAuditoria por categoría y búsqueda',

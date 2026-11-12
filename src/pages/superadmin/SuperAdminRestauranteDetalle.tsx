@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getApi } from '../../lib/api'
-import type { AdminRestaurante, UsuarioPlataforma } from '../../lib/api'
+import type { AdminRestaurante, UltimosAccesos, UsuarioPlataforma } from '../../lib/api'
 import { fmtFecha, fmtFechaVencimiento } from '../../lib/format'
 import { fechaEnPeru, finDeDiaEnPeru } from '../../domain/restaurant/fechasSuscripcion'
 import { rolLabel } from '../../domain/security/roles'
 import { diasParaVencimiento, estadoOperativo, venceEnDias } from '../../domain/restaurant/restaurantes'
-import type { Restaurante } from '../../types/database'
+import type { Restaurante, SoporteTicket } from '../../types/database'
+import type { EstadisticasGlobales } from '../../domain/reporting/estadisticas'
 import SuperAdminCarga from './SuperAdminCarga'
 import EstadoVacio from '../../components/EstadoVacio'
 import { Campo, ConfirmDialog, IconoLapiz, Modal, PieAcciones } from '../../components/ui'
 import { ChipOperativo, ChipSuscripcion, ChipUsuario } from './Chips'
+import { rangoDePreset } from '../../domain/reporting/estadisticas'
 
 type FormEdicion = {
   nombre: string
@@ -22,11 +24,26 @@ type FormEdicion = {
 
 type Evento = { id: string; fecha: string; tipo: 'restaurante' | 'usuario'; texto: string }
 
+function DatoOperativo({ etiqueta, valor }: { etiqueta: string; valor: string | number }) {
+  return (
+    <div className="rounded-xl border border-surface-800 p-3">
+      <p className="text-xs text-zinc-500">{etiqueta}</p>
+      <p className="mt-1 break-words text-lg font-bold text-zinc-100">{valor}</p>
+    </div>
+  )
+}
+
 export default function SuperAdminRestauranteDetalle() {
   const { rid } = useParams<{ rid: string }>()
   const [restaurantes, setRestaurantes] = useState<Restaurante[]>([])
   const [admins, setAdmins] = useState<AdminRestaurante[]>([])
   const [usuarios, setUsuarios] = useState<UsuarioPlataforma[]>([])
+  const [tickets, setTickets] = useState<SoporteTicket[]>([])
+  const [ultimoAcceso, setUltimoAcceso] = useState<UltimosAccesos>({})
+  const [actividadPeriodo, setActividadPeriodo] = useState<EstadisticasGlobales | null>(null)
+  const [errorAccesos, setErrorAccesos] = useState<string | null>(null)
+  const [errorTickets, setErrorTickets] = useState<string | null>(null)
+  const [errorEstadisticas, setErrorEstadisticas] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -58,10 +75,14 @@ export default function SuperAdminRestauranteDetalle() {
 
   const cargar = useCallback(async () => {
     const api = getApi()
-    const [rRes, aRes, uRes] = await Promise.all([
+    const { desde, hasta } = rangoDePreset('30d')
+    const [rRes, aRes, uRes, tRes, accessRes, statsRes] = await Promise.all([
       api.getRestaurantes(),
       api.getAdministradores(),
       api.getUsuariosPlataforma(),
+      api.getTickets(),
+      api.getUltimosAccesos(),
+      api.getEstadisticasGlobales(desde, hasta),
     ])
     if (rRes.error || aRes.error || uRes.error) {
       setError(rRes.error ?? aRes.error ?? uRes.error ?? 'Error al cargar el restaurante')
@@ -70,6 +91,12 @@ export default function SuperAdminRestauranteDetalle() {
     setRestaurantes(rRes.data ?? [])
     setAdmins(aRes.data ?? [])
     setUsuarios(uRes.data ?? [])
+    setTickets(tRes.data ?? [])
+    setUltimoAcceso(accessRes.data ?? {})
+    setActividadPeriodo(statsRes.data ?? null)
+    setErrorTickets(tRes.error)
+    setErrorAccesos(accessRes.error)
+    setErrorEstadisticas(statsRes.error)
     setError(null)
   }, [])
 
@@ -83,6 +110,12 @@ export default function SuperAdminRestauranteDetalle() {
   const perfilAdmin = perfilId ? usuarios.find((u) => u.id === perfilId) ?? null : null
   const usuariosDel = rid ? usuarios.filter((u) => u.restaurante_id === rid) : []
   const candidatosAdmin = usuariosDel.filter((u) => u.activo && u.rol !== 'admin_restaurante')
+  const ticketsAbiertos = rid ? tickets.filter((ticket) => ticket.restaurante_id === rid && (ticket.estado === 'abierto' || ticket.estado === 'en_progreso')) : []
+  const ultimoAccesoRestaurante = usuariosDel
+    .map((usuario) => ultimoAcceso[usuario.id])
+    .filter((fecha): fecha is string => !!fecha)
+    .sort((a, b) => b.localeCompare(a))[0] ?? null
+  const actividadRestaurante = rid ? actividadPeriodo?.ranking.find((fila) => fila.restauranteId === rid) ?? null : null
 
   useEffect(() => {
     if (r) setFormVence(r.fecha_vencimiento ? fechaEnPeru(r.fecha_vencimiento) : '')
@@ -201,7 +234,8 @@ export default function SuperAdminRestauranteDetalle() {
   if (error)
     return (
       <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
-        No se pudo cargar el restaurante. {error}
+        <p>No se pudo cargar el restaurante. {error}</p>
+        <button type="button" onClick={() => { setError(null); setCargando(true); void cargar().catch((e: unknown) => setError(e instanceof Error ? e.message : 'No se pudo cargar el restaurante.')).finally(() => setCargando(false)) }} className="btn btn-outline mt-3 min-h-11 px-4">Reintentar</button>
       </div>
     )
 
@@ -261,9 +295,55 @@ export default function SuperAdminRestauranteDetalle() {
         {[r.email_contacto, r.telefono].filter(Boolean).join(' · ') || 'Sin datos de contacto'}
       </p>
 
+      <nav className="mt-4 flex flex-wrap gap-2" aria-label={`Accesos rápidos para ${r.nombre}`}>
+        <Link to="/super-admin/usuarios" className="btn btn-outline min-h-10 px-3 text-sm">Usuarios</Link>
+        <Link to="/super-admin/suscripciones" className="btn btn-outline min-h-10 px-3 text-sm">Suscripción</Link>
+        <Link to="/super-admin/soporte" className="btn btn-outline min-h-10 px-3 text-sm">Soporte</Link>
+        <Link to="/super-admin/auditoria" className="btn btn-outline min-h-10 px-3 text-sm">Auditoría</Link>
+      </nav>
+
       {editOk && <div className="aviso mt-4 border-ok-500/30 bg-ok-500/10 text-ok-500">{editOk}</div>}
       {subOk && <div className="aviso mt-4 border-ok-500/30 bg-ok-500/10 text-ok-500">{subOk}</div>}
       {adminOk && <div className="aviso mt-4 border-ok-500/30 bg-ok-500/10 text-ok-500">{adminOk}</div>}
+
+      <section className="card mt-5 p-5" aria-labelledby="resumen-restaurante-operativo">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h3 id="resumen-restaurante-operativo" className="text-sm font-bold uppercase tracking-widest text-zinc-400">Resumen operativo · últimos 30 días</h3>
+            <p className="mt-1 text-xs text-zinc-500">Pedidos y ventas son actividad de este restaurante cliente, no ingresos de Mesora.</p>
+          </div>
+          <Link to={`/super-admin/estadisticas`} className="text-xs font-semibold text-brand-400 hover:text-brand-300">Estadísticas globales</Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+          <DatoOperativo etiqueta="Usuarios activos" valor={usuariosDel.filter((u) => u.activo).length} />
+          <DatoOperativo etiqueta="Usuarios inactivos" valor={usuariosDel.filter((u) => !u.activo).length} />
+          <DatoOperativo etiqueta="Pedidos" valor={actividadPeriodo ? (actividadRestaurante?.pedidos ?? 0).toLocaleString('es-PE') : 'No disponible'} />
+          <DatoOperativo etiqueta="Ventas del restaurante" valor={actividadPeriodo ? `S/ ${(actividadRestaurante?.ventas ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'No disponible'} />
+          <DatoOperativo etiqueta="Tickets abiertos" valor={ticketsAbiertos.length} />
+        </div>
+        <div className="mt-4 grid gap-3 border-t border-surface-800 pt-4 sm:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Último acceso conocido</p>
+            <p className="mt-1 text-sm text-zinc-200">{errorAccesos ? 'No disponible' : ultimoAccesoRestaurante ? fmtFecha(ultimoAccesoRestaurante) : 'Sin acceso registrado en Auth'}</p>
+            <p className="mt-1 text-xs text-zinc-500">Se basa en el último inicio de sesión conocido de sus usuarios.</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Administrador principal</p>
+            <p className="mt-1 text-sm text-zinc-200">{adminsDel.find((admin) => admin.activo)?.nombre ?? 'Sin administrador activo'}</p>
+            {errorEstadisticas && <p className="mt-1 text-xs text-warn-400">No se pudieron consultar las métricas agregadas: {errorEstadisticas}</p>}
+            {errorTickets && <p className="mt-1 text-xs text-warn-400">No se pudieron consultar los tickets abiertos: {errorTickets}</p>}
+          </div>
+        </div>
+        {ticketsAbiertos.length > 0 && <div className="mt-4 border-t border-surface-800 pt-4">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Tickets abiertos</h4>
+          <ul className="mt-2 divide-y divide-surface-800">
+            {ticketsAbiertos.slice(0, 5).map((ticket) => <li key={ticket.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <p className="min-w-0 truncate text-sm text-zinc-200">{ticket.codigo} · {ticket.asunto}</p>
+              <Link to={`/super-admin/soporte?ticket=${encodeURIComponent(ticket.id)}`} className="btn btn-outline min-h-10 px-3 text-xs">Ver ticket</Link>
+            </li>)}
+          </ul>
+        </div>}
+      </section>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <section className="card p-5">
@@ -530,8 +610,9 @@ export default function SuperAdminRestauranteDetalle() {
 
         <section className="card p-5">
           <h3 className="mb-4 text-sm font-bold uppercase tracking-widest text-zinc-400">
-            Actividad básica
+            Altas recientes
           </h3>
+          <p className="-mt-2 mb-4 text-xs text-zinc-500">Registros de creación de cuentas; no equivalen a uso operativo.</p>
           {eventos.length === 0 ? (
             <p className="text-sm text-zinc-500">Sin información de actividad disponible.</p>
           ) : (

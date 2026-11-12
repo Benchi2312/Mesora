@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { getApi } from '../../lib/api'
 import type { AuditLog, Restaurante, Rol } from '../../types/database'
 import { fmtFecha } from '../../lib/format'
@@ -32,6 +33,7 @@ export default function SuperAdminAuditoria() {
   const [error, setError] = useState<string | null>(null)
   const [criterios, setCriterios] = useState<CriteriosAuditoria>(CRITERIOS_AUDITORIA_VACIOS)
   const [detalles, setDetalles] = useState<Set<string>>(new Set())
+  const [intentoCarga, setIntentoCarga] = useState(0)
 
   const cargar = useCallback(async () => {
     const api = getApi()
@@ -47,8 +49,8 @@ export default function SuperAdminAuditoria() {
 
   useEffect(() => {
     setCargando(true)
-    void cargar().finally(() => setCargando(false))
-  }, [cargar])
+    void cargar().catch((e: unknown) => setError(e instanceof Error ? e.message : 'No se pudo cargar la auditoría.')).finally(() => setCargando(false))
+  }, [cargar, intentoCarga])
 
   const filtrados = useMemo(() => filtrarAuditoria(logs, criterios), [logs, criterios])
   const conFiltros = hayFiltrosAuditoria(criterios)
@@ -74,7 +76,8 @@ export default function SuperAdminAuditoria() {
   if (error)
     return (
       <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
-        No se pudo cargar la auditoría. {error}
+        <p>No se pudo cargar la auditoría. {error}</p>
+        <button type="button" onClick={() => { setError(null); setCargando(true); setIntentoCarga((n) => n + 1) }} className="btn btn-outline mt-3 min-h-11 px-4">Reintentar</button>
       </div>
     )
 
@@ -189,13 +192,13 @@ export default function SuperAdminAuditoria() {
                           </span>
                         </td>
                         <td className="px-4 py-3.5">
-                          <p className="font-semibold text-zinc-200">{l.actor_nombre ?? '—'}</p>
+                          {l.actor_id ? <Link to={`/super-admin/usuarios?usuario=${encodeURIComponent(l.actor_id)}`} className="font-semibold text-zinc-200 underline-offset-2 hover:text-brand-400 hover:underline">{l.actor_nombre ?? 'Sin nombre'}</Link> : <p className="font-semibold text-zinc-200">{l.actor_nombre ?? '—'}</p>}
                           <p className="text-xs text-zinc-500">
                             {l.actor_rol ? rolLabel(l.actor_rol as Rol) : 'Sin sesión'}
                           </p>
                         </td>
                         <td className="px-4 py-3.5 text-zinc-300">
-                          {nombreRestaurante(l.restaurante_id) ?? '—'}
+                          {l.restaurante_id ? <Link to={`/super-admin/restaurantes/${l.restaurante_id}`} className="underline-offset-2 hover:text-brand-400 hover:underline">{nombreRestaurante(l.restaurante_id) ?? 'Ver restaurante'}</Link> : '—'}
                         </td>
                         <td className="px-4 py-3.5">
                           <div className="flex justify-end">

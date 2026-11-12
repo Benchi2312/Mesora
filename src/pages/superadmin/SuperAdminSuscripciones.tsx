@@ -19,6 +19,7 @@ import SuperAdminCarga from './SuperAdminCarga'
 import EstadoVacio from '../../components/EstadoVacio'
 import { Campo, Modal, PieAcciones } from '../../components/ui'
 import { ChipSuscripcion } from './Chips'
+import { calcularResumenSuscripciones } from '../../domain/platform/centroOperativo'
 
 type TipoAccion = 'renovar' | 'cambiar_plan' | 'suspender' | 'reactivar' | 'historial'
 
@@ -26,6 +27,15 @@ type TipoAccion = 'renovar' | 'cambiar_plan' | 'suspender' | 'reactivar' | 'hist
 function fechaInput(dias: number): string {
   const d = new Date(Date.now() + dias * 86_400_000)
   return fechaEnPeru(d)
+}
+
+function ResumenSuscripcion({ etiqueta, valor, tono }: { etiqueta: string; valor: number; tono: string }) {
+  return (
+    <div className="card min-w-0 p-4">
+      <p className="text-xs font-medium text-zinc-500">{etiqueta}</p>
+      <p className={`mt-1 text-2xl font-extrabold ${tono}`}>{valor}</p>
+    </div>
+  )
 }
 
 const ESTADOS: { valor: 'todos' | 'activa' | 'por_vencer' | 'vencida' | 'suspendida'; texto: string }[] = [
@@ -42,8 +52,10 @@ export default function SuperAdminSuscripciones() {
   const [restaurantes, setRestaurantes] = useState<Restaurante[]>([])
   const [admins, setAdmins] = useState<AdminRestaurante[]>([])
   const [planes, setPlanes] = useState<Plan[]>([])
+  const [errorPlanes, setErrorPlanes] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [intentoCarga, setIntentoCarga] = useState(0)
 
   const [criterios, setCriterios] = useState<CriteriosSuscripciones>(CRITERIOS_SUSCRIPCIONES_VACIOS)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -72,19 +84,21 @@ export default function SuperAdminSuscripciones() {
     setRestaurantes(rRes.data ?? [])
     setAdmins(aRes.data ?? [])
     setPlanes(pRes.data ?? [])
+    setErrorPlanes(pRes.error)
     setError(null)
   }, [])
 
   useEffect(() => {
     setCargando(true)
-    void cargar().finally(() => setCargando(false))
-  }, [cargar])
+    void cargar().catch((e: unknown) => setError(e instanceof Error ? e.message : 'No se pudieron cargar las suscripciones.')).finally(() => setCargando(false))
+  }, [cargar, intentoCarga])
 
   const filtrados = useMemo(
     () => filtrarSuscripciones(restaurantes, criterios, admins),
     [restaurantes, criterios, admins],
   )
   const conFiltros = hayFiltrosSuscripciones(criterios)
+  const resumenOperativo = useMemo(() => calcularResumenSuscripciones(restaurantes, planes), [restaurantes, planes])
 
   function cambiar<K extends keyof CriteriosSuscripciones>(campo: K, valor: CriteriosSuscripciones[K]) {
     setCriterios((c) => ({ ...c, [campo]: valor }))
@@ -166,12 +180,38 @@ export default function SuperAdminSuscripciones() {
   if (error)
     return (
       <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
-        No se pudieron cargar las suscripciones. {error}
+        <p>No se pudieron cargar las suscripciones. {error}</p>
+        <button type="button" onClick={() => { setError(null); setCargando(true); setIntentoCarga((n) => n + 1) }} className="btn btn-outline mt-3 min-h-11 px-4">Reintentar</button>
       </div>
     )
 
   return (
     <div>
+      <section className="mb-6" aria-labelledby="resumen-suscripciones-titulo">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 id="resumen-suscripciones-titulo" className="text-sm font-bold uppercase tracking-widest text-zinc-300">Estado de suscripciones</h2>
+            <p className="mt-1 text-xs text-zinc-500">Conteos calculados con el estado y la fecha de vencimiento registrados.</p>
+          </div>
+          <span className="text-xs text-zinc-500">{restaurantes.length} restaurantes</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          <ResumenSuscripcion etiqueta="Activas" valor={resumenOperativo.activas} tono="text-ok-500" />
+          <ResumenSuscripcion etiqueta="Vencen ≤ 7 días" valor={resumenOperativo.hasta7Dias} tono="text-warn-400" />
+          <ResumenSuscripcion etiqueta="Vencen en 8–15 días" valor={resumenOperativo.dias8a15} tono="text-warn-400" />
+          <ResumenSuscripcion etiqueta="Vencen en 16–30 días" valor={resumenOperativo.dias16a30} tono="text-warn-400" />
+          <ResumenSuscripcion etiqueta="Vencidas" valor={resumenOperativo.vencidas} tono="text-danger-500" />
+          <ResumenSuscripcion etiqueta="Suspendidas" valor={resumenOperativo.suspendidas} tono="text-zinc-300" />
+        </div>
+        {errorPlanes ? <p className="mt-3 text-xs text-warn-400">No se pudo cargar el catálogo de planes; la distribución no está disponible. {errorPlanes}</p> : resumenOperativo.porPlan.length > 0 && (
+          <div className="mt-3 rounded-xl border border-surface-800 px-4 py-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Distribución por plan registrado</h3>
+            <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-2">
+              {resumenOperativo.porPlan.map((plan) => <li key={plan.planId ?? 'sin-plan'} className="text-sm text-zinc-300"><span className="font-semibold text-zinc-100">{plan.cantidad}</span> · {plan.nombre}</li>)}
+            </ul>
+          </div>
+        )}
+      </section>
       <div className="sa-controls mb-5 flex flex-wrap items-center gap-3">
         <input
           type="search"

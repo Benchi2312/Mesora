@@ -822,6 +822,24 @@ async function correrSuperAdminResponsive(browser, vp) {
     try {
       await iniciarSesion(page, 'superadmin@mesora.pe')
       await page.goto(URL + '/super-admin', { waitUntil: 'networkidle' })
+      await page.getByRole('heading', { name: 'Búsqueda rápida' }).waitFor({ state: 'visible' })
+      await page.getByRole('heading', { name: 'Requiere atención' }).waitFor({ state: 'visible' })
+      const busquedaCentro = page.getByRole('searchbox', { name: 'Buscar en la plataforma' })
+      await busquedaCentro.fill('Restaurante Demo')
+      const resultadoRestaurante = page.getByRole('link', { name: /Restaurante Demo/ }).first()
+      await resultadoRestaurante.waitFor({ state: 'visible' })
+      check('superadmin ' + vp.nombre + ' · búsqueda rápida agrupa y enlaza restaurante', (await resultadoRestaurante.getAttribute('href') ?? '').startsWith('/super-admin/restaurantes/'))
+      await resultadoRestaurante.click()
+      await page.getByRole('heading', { name: 'Resumen operativo · últimos 30 días' }).waitFor({ state: 'visible' })
+      check('superadmin ' + vp.nombre + ' · el resultado abre detalle operativo del restaurante', await page.getByRole('heading', { name: 'Restaurante Demo' }).count() > 0)
+      await page.goto(URL + '/super-admin', { waitUntil: 'networkidle' })
+      await busquedaCentro.fill('Carlos Nuevo')
+      const resultadoAdmin = page.getByRole('region', { name: /Administradores:/ }).getByRole('link').first()
+      await resultadoAdmin.waitFor({ state: 'visible' })
+      check('superadmin ' + vp.nombre + ' · búsqueda de administrador abre perfil identificable', (await resultadoAdmin.getAttribute('href') ?? '').includes('/super-admin/usuarios?usuario='))
+      await resultadoAdmin.click()
+      await page.getByRole('heading', { name: 'Detalle del usuario' }).waitFor({ state: 'visible' })
+      await page.goto(URL + '/super-admin', { waitUntil: 'networkidle' })
       const secciones = [
         { label: 'Dashboard', ruta: '/super-admin' },
         { label: 'Restaurantes', ruta: '/super-admin/restaurantes' },
@@ -868,6 +886,14 @@ async function correrSuperAdminResponsive(browser, vp) {
         await enlace.click()
         await page.waitForURL((url) => url.pathname === seccion.ruta)
         await page.getByRole('heading', { level: 1 }).first().waitFor({ state: 'visible' })
+        if (seccion.ruta === '/super-admin/suscripciones') {
+          await page.getByRole('heading', { name: 'Estado de suscripciones' }).waitFor({ state: 'visible' })
+          check('superadmin ' + vp.nombre + ' · resumen de vencimientos visible', await page.getByText('Vencen ≤ 7 días').count() === 1)
+        }
+        if (seccion.ruta === '/super-admin/soporte') {
+          await page.getByRole('heading', { name: 'Estado de soporte' }).waitFor({ state: 'visible' })
+          check('superadmin ' + vp.nombre + ' · resumen de tickets visible', await page.getByText('Urgentes abiertos', { exact: true }).count() === 1)
+        }
         let navegacionActiva
         let cantidadNavegacionActiva = 0
         if (esMovilOTablet) {

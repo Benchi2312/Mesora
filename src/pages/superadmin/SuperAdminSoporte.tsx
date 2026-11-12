@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { getApi } from '../../lib/api'
 import type { SoporteTicket, TicketEstado, TicketPrioridad, Restaurante } from '../../types/database'
 import { fmtFecha } from '../../lib/format'
@@ -53,13 +54,27 @@ type TicketEditando = {
   responsable: string
 }
 
+function ResumenSoporte({ etiqueta, valor, alerta = false }: { etiqueta: string; valor: number; alerta?: boolean }) {
+  return (
+    <div className="card min-w-0 p-4">
+      <p className="text-xs font-medium text-zinc-500">{etiqueta}</p>
+      <p className={`mt-1 text-2xl font-extrabold ${alerta ? 'text-danger-500' : 'text-zinc-100'}`}>{valor}</p>
+    </div>
+  )
+}
+
 function BandejaTickets() {
   const { usuario } = useCurrentContext()
+  const [searchParams] = useSearchParams()
+  const ticketQuery = searchParams.get('ticket')
+  const busquedaQuery = searchParams.get('busqueda') ?? ''
+  const ticketQueryAbierto = useRef<string | null>(null)
   const [tickets, setTickets] = useState<SoporteTicket[]>([])
   const [restaurantes, setRestaurantes] = useState<Restaurante[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [criterios, setCriterios] = useState<CriteriosTickets>(CRITERIOS_TICKETS_VACIOS)
+  const [intentoCarga, setIntentoCarga] = useState(0)
+  const [criterios, setCriterios] = useState<CriteriosTickets>(() => ({ ...CRITERIOS_TICKETS_VACIOS, busqueda: busquedaQuery }))
   const [aviso, setAviso] = useState<string | null>(null)
 
   const [editando, setEditando] = useState<TicketEditando | null>(null)
@@ -80,8 +95,12 @@ function BandejaTickets() {
 
   useEffect(() => {
     setCargando(true)
-    void cargar().finally(() => setCargando(false))
-  }, [cargar])
+    void cargar().catch((e: unknown) => setError(e instanceof Error ? e.message : 'No se pudieron cargar los tickets.')).finally(() => setCargando(false))
+  }, [cargar, intentoCarga])
+
+  useEffect(() => {
+    if (busquedaQuery) setCriterios((c) => c.busqueda === busquedaQuery ? c : { ...c, busqueda: busquedaQuery })
+  }, [busquedaQuery])
 
   const nombreRestaurante = (rid: string | null) =>
     restaurantes.find((r) => r.id === rid)?.nombre ?? null
@@ -91,6 +110,11 @@ function BandejaTickets() {
     [tickets, criterios],
   )
   const conFiltros = hayFiltrosTickets(criterios)
+  const abiertos = tickets.filter((ticket) => ticketAbierto(ticket.estado))
+  const urgentes = abiertos.filter((ticket) => ticket.prioridad === 'urgente')
+  const enProgreso = tickets.filter((ticket) => ticket.estado === 'en_progreso')
+  const sinResponsable = abiertos.filter((ticket) => !ticket.responsable_id && !ticket.responsable?.trim())
+  const recientes = [...tickets].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5)
 
   function cambiar<K extends keyof CriteriosTickets>(campo: K, valor: CriteriosTickets[K]) {
     setCriterios((c) => ({ ...c, [campo]: valor }))
@@ -105,6 +129,14 @@ function BandejaTickets() {
       responsable: t.responsable ?? '',
     })
   }
+
+  useEffect(() => {
+    if (cargando || !ticketQuery || ticketQueryAbierto.current === ticketQuery) return
+    const coincidencia = tickets.find((ticket) => ticket.id === ticketQuery)
+    if (!coincidencia) return
+    ticketQueryAbierto.current = ticketQuery
+    abrirEdicion(coincidencia)
+  }, [cargando, ticketQuery, tickets])
 
   async function guardarEdicion() {
     if (!editando) return
@@ -130,12 +162,40 @@ function BandejaTickets() {
   if (error)
     return (
       <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
-        No se pudieron cargar los tickets. {error}
+        <p>No se pudieron cargar los tickets. {error}</p>
+        <button type="button" onClick={() => { setError(null); setCargando(true); setIntentoCarga((n) => n + 1) }} className="btn btn-outline mt-3 min-h-11 px-4">Reintentar</button>
       </div>
     )
 
   return (
     <div>
+      <section className="mb-6" aria-labelledby="resumen-soporte-titulo">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 id="resumen-soporte-titulo" className="text-sm font-bold uppercase tracking-widest text-zinc-300">Estado de soporte</h2>
+            <p className="mt-1 text-xs text-zinc-500">Vista general de los tickets recibidos por los restaurantes.</p>
+          </div>
+          <span className="text-xs text-zinc-500">{tickets.length} tickets registrados</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <ResumenSoporte etiqueta="Abiertos" valor={abiertos.length} />
+          <ResumenSoporte etiqueta="Urgentes abiertos" valor={urgentes.length} alerta={urgentes.length > 0} />
+          <ResumenSoporte etiqueta="En progreso" valor={enProgreso.length} />
+          <ResumenSoporte etiqueta="Sin responsable" valor={sinResponsable.length} alerta={sinResponsable.length > 0} />
+        </div>
+        {recientes.length > 0 && <div className="mt-4 rounded-xl border border-surface-800 p-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Tickets recientes</h3>
+          <ul className="mt-2 divide-y divide-surface-800">
+            {recientes.map((ticket) => <li key={ticket.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-zinc-200">{ticket.codigo} · {ticket.asunto}</p>
+                <p className="text-xs text-zinc-500">{nombreRestaurante(ticket.restaurante_id) ?? 'Sin restaurante'} · {fmtFecha(ticket.created_at)}</p>
+              </div>
+              <button type="button" onClick={() => abrirEdicion(ticket)} className="btn btn-outline min-h-10 px-3 text-xs">Abrir</button>
+            </li>)}
+          </ul>
+        </div>}
+      </section>
       <div className="sa-controls mb-5 flex flex-wrap items-center gap-3">
         <input
           type="search"
