@@ -1056,6 +1056,7 @@ async function correrSuperAdminResponsive(browser, vp) {
         const dialogo = page.getByRole('dialog', { name: 'Men\u00fa de superadministraci\u00f3n' })
         await dialogo.waitFor({ state: 'visible' })
         check('superadmin ' + vp.nombre + ' \u00b7 drawer anuncia estado abierto', await botonMenu.getAttribute('aria-expanded') === 'true')
+        await dialogo.locator(':focus').waitFor({ state: 'visible' })
         check('superadmin ' + vp.nombre + ' \u00b7 foco inicial queda en el men\u00fa', await dialogo.locator(':focus').count() === 1)
         await page.keyboard.press('Escape')
         await dialogo.waitFor({ state: 'hidden' })
