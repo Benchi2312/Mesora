@@ -505,9 +505,50 @@ async function correrPantalla(browser, vp, pantalla) {
     if (await cerrar.count()) await cerrar.first().click()
 
     if (pantalla.tabs) {
+      const adminMovil = pantalla.ruta === '/demo/admin' && vp.w < 1024
+      if (adminMovil) {
+        const abrir = page.locator('.admin-menu-trigger')
+        await abrir.click()
+        await page.locator('.admin-drawer[role="dialog"]').waitFor({ state: 'visible' })
+        await page.keyboard.press('Escape')
+        await page.locator('.admin-drawer[role="dialog"]').waitFor({ state: 'hidden' })
+        check(`menú Admin móvil cierra con Escape ${vp.nombre}`, await abrir.getAttribute('aria-expanded') === 'false')
+      }
       for (const tab of pantalla.tabs) {
-        await page.getByRole('button', { name: tab, exact: true }).first().click()
-        await page.waitForTimeout(350)
+        if (adminMovil) {
+          await page.locator('.admin-menu-trigger').click()
+          await page.locator('.admin-drawer[role="dialog"]').waitFor({ state: 'visible' })
+        }
+        const navSeccion = page.locator(adminMovil ? '.admin-drawer' : '.admin-sidebar')
+          .getByRole('button', { name: tab, exact: true })
+        await navSeccion.scrollIntoViewIfNeeded()
+        await navSeccion.click()
+        await page.locator('[data-admin-active-section]').waitFor({ state: 'visible' })
+        if (pantalla.ruta === '/demo/admin') {
+          const idPorTab = {
+            Dashboard: 'dashboard',
+            Ventas: 'ventas',
+            Caja: 'caja',
+            Cobros: 'cobros',
+            'Mesas y zonas': 'mesas',
+            'Menú': 'menu',
+            Personal: 'personal',
+            'Datos del local': 'configuracion',
+            'Configuración operativa': 'configuracion-operativa',
+            'Impresión automática': 'agentes-impresion',
+            'Auditoría': 'auditoria',
+            Soporte: 'soporte',
+          }
+          const esperado = idPorTab[tab]
+          await page.waitForFunction((id) => document.querySelector('[data-admin-active-section]')?.getAttribute('data-admin-active-section') === id, esperado)
+          check(`Admin muestra contenido de ${tab} ${vp.nombre}`,
+            await page.locator('[data-admin-active-section]').getAttribute('data-admin-active-section') === esperado)
+          check(`navegar por ${tab} conserva URL ${vp.nombre}`,
+            new globalThis.URL(page.url()).pathname === '/demo/admin')
+          if (adminMovil) {
+            await page.locator('.admin-drawer[role="dialog"]').waitFor({ state: 'hidden' })
+          }
+        }
         await medir(page, vp, `${vp.nombre}_${pantalla.nombre}_${tab.replace(/\s+/g, '-').toLowerCase()}`)
       }
     } else {
@@ -519,6 +560,92 @@ async function correrPantalla(browser, vp, pantalla) {
     fallos++
     checks++
     console.log(`  FALLA ${pantalla.nombre} ${vp.nombre} — ${String(e).slice(0, 200)}`)
+  } finally {
+    await ctx.close()
+  }
+}
+
+async function correrNavegacionAdmin(browser, vp) {
+  const ctx = await browser.newContext({ viewport: { width: vp.w, height: vp.h } })
+  const page = await ctx.newPage()
+  page.setDefaultTimeout(8000)
+  const errores = []
+  page.on('pageerror', (e) => errores.push(String(e).slice(0, 160)))
+  let etapa = 'abrir ruta directa'
+  try {
+    await page.goto(`${URL}/demo/admin`, { waitUntil: 'networkidle', timeout: 45000 })
+    etapa = 'cerrar guía inicial'
+    const explorar = page.getByRole('button', { name: 'Explorar por mi cuenta' })
+    if (await explorar.count()) await explorar.first().click()
+    etapa = 'validar encabezado directo'
+    const encabezado = page.getByRole('heading', { level: 1, name: 'Panel de administración', exact: true })
+    await encabezado.waitFor({ state: 'visible', timeout: 15000 })
+    check(`URL directa /demo/admin ${vp.nombre}`, new globalThis.URL(page.url()).pathname === '/demo/admin' && await encabezado.isVisible())
+
+    etapa = 'recargar Admin'
+    await page.reload({ waitUntil: 'networkidle', timeout: 45000 })
+    await page.getByRole('heading', { level: 1, name: 'Panel de administración', exact: true }).waitFor({ state: 'visible', timeout: 15000 })
+    check(`recarga directa de Admin ${vp.nombre}`, new globalThis.URL(page.url()).pathname === '/demo/admin' && await page.locator('[data-admin-active-section="dashboard"]').count() === 1)
+
+    if (vp.w < 1024) {
+      etapa = 'abrir drawer'
+      const abrir = page.locator('.admin-menu-trigger')
+      await abrir.click()
+      const drawer = page.locator('.admin-drawer[role="dialog"]')
+      await drawer.waitFor({ state: 'visible' })
+      check(`drawer Admin disponible ${vp.nombre}`, await abrir.getAttribute('aria-expanded') === 'true')
+      check(`drawer Admin anuncia modalidad de diálogo ${vp.nombre}`,
+        await drawer.getAttribute('aria-modal') === 'true' && Boolean(await drawer.getAttribute('aria-label')))
+      etapa = 'cerrar drawer con botón'
+      await page.locator('.admin-drawer-close').click()
+      await drawer.waitFor({ state: 'hidden' })
+      check(`drawer Admin cierra con botón visible ${vp.nombre}`, await abrir.getAttribute('aria-expanded') === 'false')
+    }
+
+    for (const tab of PANTALLAS.find((pantalla) => pantalla.ruta === '/demo/admin').tabs) {
+      if (vp.w < 1024) {
+        etapa = `abrir drawer para ${tab}`
+        await page.locator('.admin-menu-trigger').click()
+        await page.locator('.admin-drawer[role="dialog"]').waitFor({ state: 'visible' })
+      }
+      etapa = `abrir sección ${tab}`
+      const navSeccion = page.locator(vp.w < 1024 ? '.admin-drawer' : '.admin-sidebar')
+        .getByRole('button', { name: tab, exact: true })
+      await navSeccion.scrollIntoViewIfNeeded()
+      await navSeccion.click()
+      etapa = `medir sección ${tab}`
+      await medir(page, vp, `${vp.nombre}_admin_final_${tab.replace(/\s+/g, '-').toLowerCase()}`)
+      const ruta = new globalThis.URL(page.url())
+      const id = {
+        Dashboard: 'dashboard', Ventas: 'ventas', Caja: 'caja', Cobros: 'cobros',
+        'Mesas y zonas': 'mesas', 'Menú': 'menu', Personal: 'personal',
+        'Datos del local': 'configuracion', 'Configuración operativa': 'configuracion-operativa',
+        'Impresión automática': 'agentes-impresion', 'Auditoría': 'auditoria', Soporte: 'soporte',
+      }[tab]
+      check(`sección Admin ${tab} activa ${vp.nombre}`,
+        await page.locator(`[data-admin-active-section="${id}"]`).count() === 1 && ruta.pathname === '/demo/admin')
+      if (vp.w < 1024) await page.locator('.admin-drawer[role="dialog"]').waitFor({ state: 'hidden' })
+    }
+
+    if (vp.w === 390 || vp.w === 1280) {
+      etapa = 'iniciar sesión de administrador local'
+      await iniciarSesion(page, 'nuevo@mirestaurante.pe')
+      etapa = 'abrir directamente /admin'
+      await page.goto(`${URL}/admin`, { waitUntil: 'networkidle', timeout: 45000 })
+      await page.getByRole('heading', { level: 1, name: 'Panel de administración', exact: true }).waitFor({ state: 'visible', timeout: 15000 })
+      check(`/admin protegido abre con sesión válida ${vp.nombre}`,
+        new globalThis.URL(page.url()).pathname === '/admin' && await page.locator('[data-admin-active-section="dashboard"]').count() === 1)
+      etapa = 'recargar /admin autenticado'
+      await page.reload({ waitUntil: 'networkidle', timeout: 45000 })
+      await page.getByRole('heading', { level: 1, name: 'Panel de administración', exact: true }).waitFor({ state: 'visible', timeout: 15000 })
+      check(`/admin sobrevive recarga autenticada ${vp.nombre}`,
+        new globalThis.URL(page.url()).pathname === '/admin' && await page.locator('[data-admin-active-section="dashboard"]').count() === 1)
+    }
+    check(`sin errores JS en Admin ${vp.nombre}`, errores.length === 0, errores.join(' | '))
+  } catch (e) {
+    fallos++
+    checks++
+    console.log(`  FALLA navegación Admin ${vp.nombre} en ${etapa} — ${String(e).split('\n')[0].slice(0, 220)}`)
   } finally {
     await ctx.close()
   }
@@ -710,9 +837,24 @@ async function run() {
       await correrAnulacionUltimoItem(browser)
     } else if (process.argv.includes('--solo-landing')) {
       await correrLandingResponsive(browser)
+    } else if (process.argv.includes('--solo-admin-nav')) {
+      for (const vp of [
+        { w: 390, h: 844, nombre: '390x844' },
+        { w: 768, h: 1024, nombre: '768x1024' },
+        { w: 1024, h: 768, nombre: '1024x768' },
+        { w: 1280, h: 800, nombre: '1280x800' },
+        { w: 1440, h: 900, nombre: '1440x900' },
+      ]) await correrNavegacionAdmin(browser, vp)
     } else {
       await correrLandingResponsive(browser)
       await correrAnulacionUltimoItem(browser)
+      for (const vp of [
+        { w: 390, h: 844, nombre: '390x844' },
+        { w: 768, h: 1024, nombre: '768x1024' },
+        { w: 1024, h: 768, nombre: '1024x768' },
+        { w: 1280, h: 800, nombre: '1280x800' },
+        { w: 1440, h: 900, nombre: '1440x900' },
+      ]) await correrNavegacionAdmin(browser, vp)
       for (const vp of [{ w: 1280, h: 800, nombre: '1280x800' }, { w: 390, h: 844, nombre: '390x844' }]) {
         await correrDemoRutas(browser, vp)
         await correrGuiaCompletada(browser, vp)
@@ -738,7 +880,9 @@ async function run() {
   }
 
   console.log(`\n${'-'.repeat(60)}`)
-  const cobertura = process.argv.includes('--solo-guia-categoria')
+  const cobertura = process.argv.includes('--solo-admin-nav')
+    ? 'navegaciÃ³n Admin en 390, 768, 1024, 1280 y 1440 px'
+    : process.argv.includes('--solo-guia-categoria')
     ? 'recorrido guiado de categoría en 390x844'
     : process.argv.includes('--solo-demo-rutas-guia')
       ? 'rutas del demo y guía completada en escritorio y 390x844'
