@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { getApi } from '../../lib/api'
 import { contarPorNivel, type AlertaAdministrativa, type NivelAlerta } from '../../domain/platform/notificaciones'
 import { fmtFecha } from '../../lib/format'
-import { Spinner } from '../../components/LoadingScreen'
+import SuperAdminCarga from './SuperAdminCarga'
 import EstadoVacio from '../../components/EstadoVacio'
 
 const NIVELES: { nivel: NivelAlerta; titulo: string; descripcion: string }[] = [
@@ -58,16 +58,11 @@ export default function SuperAdminNotificaciones() {
 
   const porNivel = useMemo(() => contarPorNivel(alertas), [alertas])
 
-  if (cargando)
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner />
-      </div>
-    )
+  if (cargando) return <SuperAdminCarga recurso="las notificaciones" />
 
   if (error)
     return (
-      <div className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
+      <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
         No se pudieron cargar las alertas. {error}
       </div>
     )

@@ -1,0 +1,426 @@
+.superadmin-shell {
+  display: grid;
+  grid-template-columns: 15.5rem minmax(0, 1fr);
+  align-items: start;
+  gap: 1.75rem;
+  min-width: 0;
+}
+.superadmin-main { min-width: 0; }
+.sa-sidebar {
+  position: sticky;
+  top: 5.5rem;
+  max-height: calc(100dvh - 6.5rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  border: 1px solid var(--color-surface-700);
+  border-radius: 1rem;
+  background: var(--color-surface-900);
+  padding: 0.9rem 0.7rem;
+}
+.sa-sidebar-heading {
+  padding: 0.45rem 0.65rem 1rem;
+  border-bottom: 1px solid var(--color-surface-800);
+  margin-bottom: 0.85rem;
+}
+.sa-sidebar-eyebrow {
+  color: var(--color-brand-400);
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+.sa-sidebar-title {
+  margin-top: 0.35rem;
+  color: #f4f4f5;
+  font-size: 0.95rem;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+}
+.sa-sidebar-description {
+  margin-top: 0.2rem;
+  color: #71717a;
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+.sa-navigation { display: grid; gap: 1rem; min-width: 0; }
+.sa-nav-group { display: grid; gap: 0.35rem; min-width: 0; }
+.sa-nav-group-label {
+  padding: 0 0.7rem;
+  color: #71717a;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+.sa-nav-group-links { display: grid; gap: 0.2rem; }
+.sa-nav-link {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 2.65rem;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.7rem;
+  padding: 0.55rem 0.7rem;
+  color: #a1a1aa;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-decoration: none;
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease;
+}
+.sa-nav-link:hover {
+  border-color: var(--color-surface-700);
+  background: var(--color-surface-800);
+  color: #f4f4f5;
+}
+.sa-nav-link:focus-visible,
+.sa-mobile-menu-button:focus-visible,
+.sa-drawer-close:focus-visible,
+.sa-drawer-backdrop:focus-visible {
+  outline: 2px solid var(--color-brand-400);
+  outline-offset: 2px;
+}
+.sa-nav-link.is-active {
+  border-color: color-mix(in srgb, var(--color-brand-500) 42%, transparent);
+  background: color-mix(in srgb, var(--color-brand-500) 12%, var(--color-surface-900));
+  color: var(--color-brand-400);
+}
+.sa-nav-indicator {
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--color-surface-600);
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+.sa-nav-link.is-active .sa-nav-indicator {
+  background: var(--color-brand-500);
+  box-shadow: 0 0 0 0.22rem color-mix(in srgb, var(--color-brand-500) 15%, transparent);
+}
+.sa-mobile-toolbar, .sa-drawer-layer { display: none; }
+.superadmin-content { min-width: 0; }
+.superadmin-content .card { min-width: 0; }
+.superadmin-content .input { min-width: 0; }
+.superadmin-content [role='alert'].aviso { line-height: 1.55; }
+.sa-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; }
+.sa-controls input[type='search'] { flex: 1 1 15rem; min-width: 0; }
+.sa-controls select { max-width: 100%; }
+.sa-table-shell { min-width: 0; }
+.sa-mobile-table { width: 100%; }
+.sa-loading {
+  display: grid;
+  gap: 1.15rem;
+  min-width: 0;
+  border: 1px solid var(--color-surface-800);
+  border-radius: 1rem;
+  background: var(--color-surface-900);
+  padding: 1.1rem;
+}
+.sa-loading-label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #a1a1aa;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.sa-loading-label::before {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--color-brand-500);
+  content: '';
+  animation: sa-pulse 1.15s ease-in-out infinite alternate;
+}
+.sa-loading-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+.sa-loading-card, .sa-loading-line {
+  overflow: hidden;
+  border-radius: 0.65rem;
+  background: linear-gradient(100deg, var(--color-surface-800) 20%, var(--color-surface-700) 48%, var(--color-surface-800) 76%);
+  background-size: 220% 100%;
+  animation: sa-shimmer 1.4s ease-in-out infinite;
+}
+.sa-loading-card { height: 4.3rem; }
+.sa-loading-lines { display: grid; gap: 0.55rem; }
+.sa-loading-line { width: 100%; height: 0.65rem; }
+.sa-loading-line:nth-child(2) { width: 84%; }
+.sa-loading-line:nth-child(3) { width: 67%; }
+@keyframes sa-shimmer { to { background-position-x: -220%; } }
+@keyframes sa-pulse { to { opacity: 0.35; } }
+
+@media (max-width: 1023px) {
+  .superadmin-shell { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .sa-sidebar { display: none; }
+  .sa-mobile-toolbar {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 0 0 1rem;
+    border: 1px solid var(--color-surface-800);
+    border-radius: 0.85rem;
+    background: var(--color-surface-900);
+    padding: 0.45rem 0.55rem;
+  }
+  .sa-mobile-menu-button {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    gap: 0.55rem;
+    border: 1px solid var(--color-surface-700);
+    border-radius: 0.65rem;
+    background: var(--color-surface-800);
+    padding: 0.5rem 0.75rem;
+    color: #f4f4f5;
+    font-size: 0.8125rem;
+    font-weight: 650;
+  }
+  .sa-mobile-menu-button svg, .sa-drawer-close svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+  .sa-mobile-current {
+    overflow: hidden;
+    color: var(--color-brand-400);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sa-drawer-layer { position: fixed; z-index: 50; inset: 4rem 0 0; display: block; }
+  .sa-drawer-backdrop {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    border: 0;
+    background: rgb(0 0 0 / 0.9);
+  }
+  .sa-mobile-drawer {
+    position: absolute;
+    inset: 0 auto 0 0;
+    display: flex;
+    width: min(88vw, 21rem);
+    flex-direction: column;
+    overflow: hidden;
+    border-right: 1px solid var(--color-surface-700);
+    background: var(--color-surface-900);
+    box-shadow: 1.2rem 0 3rem rgb(0 0 0 / 0.35);
+    animation: sa-drawer-in 180ms ease-out both;
+  }
+  .sa-drawer-heading {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid var(--color-surface-800);
+    padding: 1rem 1rem 0.85rem 1.2rem;
+  }
+  .sa-drawer-close {
+    display: grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 1px solid var(--color-surface-700);
+    border-radius: 0.7rem;
+    background: var(--color-surface-800);
+    color: #d4d4d8;
+  }
+  .sa-drawer-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0.9rem; }
+  .sa-drawer-scroll .sa-navigation { gap: 1.15rem; }
+  .superadmin-main > .mb-8 { margin-bottom: 1.25rem; }
+  .superadmin-main .card { border-radius: 0.95rem; }
+  .sa-controls { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+  .sa-controls input[type='search'], .sa-controls select, .sa-controls > button { width: 100%; max-width: none; }
+  .sa-controls > span { margin-left: 0; }
+  .sa-table-shell {
+    overflow: visible !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .sa-table-scroll { overflow: visible !important; }
+  .sa-mobile-table, .sa-mobile-table tbody { display: grid; min-width: 0; gap: 0.8rem; }
+  .sa-mobile-table thead { display: none; }
+  .sa-mobile-table tbody tr {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: hidden;
+    border: 1px solid var(--color-surface-700);
+    border-radius: 0.95rem;
+    background: var(--color-surface-900);
+    box-shadow: 0 0.6rem 1.5rem rgb(0 0 0 / 0.14);
+  }
+  .sa-mobile-table tbody tr:has(td[colspan]) { display: block; }
+  .sa-mobile-table td {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.3rem;
+    overflow-wrap: anywhere;
+    border-bottom: 1px solid var(--color-surface-800);
+    padding: 0.75rem !important;
+  }
+  .sa-mobile-table td[data-label]::before {
+    color: #71717a;
+    content: attr(data-label);
+    font-size: 0.625rem;
+    font-weight: 750;
+    letter-spacing: 0.08em;
+    line-height: 1.3;
+    text-transform: uppercase;
+  }
+  .sa-mobile-table td:first-child, .sa-mobile-table td:last-child { grid-column: 1 / -1; }
+  .sa-mobile-table td:first-child { background: color-mix(in srgb, var(--color-surface-800) 48%, transparent); }
+  .sa-mobile-table td:last-child { border-bottom: 0; }
+  .sa-mobile-table td[colspan]::before { display: none; }
+  .sa-mobile-table td[data-label='Acciones'] > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    justify-content: stretch;
+  }
+  .sa-mobile-table td[data-label='Acciones'] .btn, .sa-mobile-table td[data-label='Acciones'] > a {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    white-space: normal;
+    text-align: center;
+  }
+  .sa-table-administradores td:nth-child(6) > div,
+  .sa-table-usuarios td:nth-child(7) > div,
+  .sa-table-suscripciones td:nth-child(6) > div,
+  .sa-table-soporte td:nth-child(8) > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+  .sa-table-administradores td:nth-child(6) .btn,
+  .sa-table-usuarios td:nth-child(7) .btn,
+  .sa-table-suscripciones td:nth-child(6) .btn,
+  .sa-table-soporte td:nth-child(8) .btn,
+  .sa-table-restaurantes td:nth-child(9) > a {
+    width: 100%;
+    min-width: 0;
+    min-height: 2.75rem;
+    justify-content: center;
+    white-space: normal;
+    text-align: center;
+  }
+  .sa-loading-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@keyframes sa-drawer-in {
+  from { opacity: 1; transform: translateX(-0.8rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-nav-link, .sa-mobile-drawer, .sa-loading-label::before, .sa-loading-card, .sa-loading-line {
+    animation: none;
+    transition: none;
+  }
+}
+
+.sa-dashboard-explainer {
+  max-width: 70ch;
+  border-left: 2px solid var(--color-brand-500);
+  border-radius: 0 0.5rem 0.5rem 0;
+  background: color-mix(in srgb, var(--color-brand-500) 7%, var(--color-surface-900));
+  padding: 0.55rem 0.75rem;
+  line-height: 1.5;
+}
+.sa-dashboard-metrics { align-items: stretch; }
+.sa-dashboard-metrics .sa-metric-card { min-height: 6rem; }
+.sa-dashboard-updated { margin-left: 0.55rem; color: #71717a; white-space: nowrap; }
+.superadmin-content .rounded-2xl.border-dashed { max-width: 100%; }
+
+@media (max-width: 1023px) {
+  .sa-mobile-table { display: block; }
+  .sa-mobile-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .sa-mobile-table td:not([colspan])::before {
+    color: #71717a;
+    font-size: 0.625rem;
+    font-weight: 750;
+    letter-spacing: 0.08em;
+    line-height: 1.3;
+    text-transform: uppercase;
+  }
+  .sa-table-restaurantes td:nth-child(1)::before { content: 'Restaurante'; }
+  .sa-table-restaurantes td:nth-child(2)::before { content: 'RUC'; }
+  .sa-table-restaurantes td:nth-child(3)::before { content: 'Teléfono'; }
+  .sa-table-restaurantes td:nth-child(4)::before { content: 'Administrador'; }
+  .sa-table-restaurantes td:nth-child(5)::before { content: 'Estado operativo'; }
+  .sa-table-restaurantes td:nth-child(6)::before { content: 'Suscripción'; }
+  .sa-table-restaurantes td:nth-child(7)::before { content: 'Vencimiento'; }
+  .sa-table-restaurantes td:nth-child(8)::before { content: 'Fecha de registro'; }
+  .sa-table-restaurantes td:nth-child(9)::before { content: 'Detalle'; }
+  .sa-table-administradores td:nth-child(1)::before { content: 'Administrador'; }
+  .sa-table-administradores td:nth-child(2)::before { content: 'Restaurante'; }
+  .sa-table-administradores td:nth-child(3)::before { content: 'Estado'; }
+  .sa-table-administradores td:nth-child(4)::before { content: 'Fecha de alta'; }
+  .sa-table-administradores td:nth-child(5)::before { content: 'Último acceso'; }
+  .sa-table-administradores td:nth-child(6)::before { content: 'Acciones'; }
+  .sa-table-usuarios td:nth-child(1)::before { content: 'Usuario'; }
+  .sa-table-usuarios td:nth-child(2)::before { content: 'Rol'; }
+  .sa-table-usuarios td:nth-child(3)::before { content: 'Restaurante'; }
+  .sa-table-usuarios td:nth-child(4)::before { content: 'Estado'; }
+  .sa-table-usuarios td:nth-child(5)::before { content: 'Fecha de alta'; }
+  .sa-table-usuarios td:nth-child(6)::before { content: 'Último acceso'; }
+  .sa-table-usuarios td:nth-child(7)::before { content: 'Acciones'; }
+  .sa-table-suscripciones td:nth-child(1)::before { content: 'Restaurante'; }
+  .sa-table-suscripciones td:nth-child(2)::before { content: 'Plan'; }
+  .sa-table-suscripciones td:nth-child(3)::before { content: 'Estado'; }
+  .sa-table-suscripciones td:nth-child(4)::before { content: 'Inicio'; }
+  .sa-table-suscripciones td:nth-child(5)::before { content: 'Vencimiento'; }
+  .sa-table-suscripciones td:nth-child(6)::before { content: 'Acciones'; }
+  .sa-table-auditoria td:nth-child(1)::before { content: 'Fecha'; }
+  .sa-table-auditoria td:nth-child(2)::before { content: 'Acción'; }
+  .sa-table-auditoria td:nth-child(3)::before { content: 'Quién'; }
+  .sa-table-auditoria td:nth-child(4)::before { content: 'Restaurante'; }
+  .sa-table-auditoria td:nth-child(5)::before { content: 'Detalle'; }
+  .sa-table-soporte td:nth-child(1)::before { content: 'Código'; }
+  .sa-table-soporte td:nth-child(2)::before { content: 'Asunto'; }
+  .sa-table-soporte td:nth-child(3)::before { content: 'Restaurante'; }
+  .sa-table-soporte td:nth-child(4)::before { content: 'Prioridad'; }
+  .sa-table-soporte td:nth-child(5)::before { content: 'Estado'; }
+  .sa-table-soporte td:nth-child(6)::before { content: 'Responsable'; }
+  .sa-table-soporte td:nth-child(7)::before { content: 'Fecha'; }
+  .sa-table-soporte td:nth-child(8)::before { content: 'Acciones'; }
+  .sa-mobile-table td[colspan]::before { content: none; }
+}
+@media (max-width: 420px) {
+  .sa-dashboard-metrics .sa-metric-card { padding: 0.95rem; }
+  .sa-dashboard-metrics .sa-metric-card > p:nth-child(2) {
+    font-size: clamp(1.35rem, 6vw, 1.65rem);
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+  .sa-mobile-table tbody tr { grid-template-columns: minmax(0, 1fr); }
+  .sa-mobile-table td:first-child,
+  .sa-mobile-table td:last-child { grid-column: 1; }
+  .sa-mobile-table td[data-label='Acciones'] > div,
+  .sa-table-administradores td:nth-child(6) > div,
+  .sa-table-usuarios td:nth-child(7) > div,
+  .sa-table-suscripciones td:nth-child(6) > div,
+  .sa-table-soporte td:nth-child(8) > div { grid-template-columns: minmax(0, 1fr); }
+}
+@media (min-width: 1024px) and (max-width: 1199px) {
+  .sa-dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .sa-dashboard-reports { grid-template-columns: minmax(0, 1fr) !important; }
+}

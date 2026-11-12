@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getApi } from '../../lib/api'
 import type { BandejaComercial as BandejaData, ConsultaComercial } from '../../types/database'
 import { fmtFecha } from '../../lib/format'
-import { Spinner } from '../../components/LoadingScreen'
+import SuperAdminCarga from './SuperAdminCarga'
 import EstadoVacio from '../../components/EstadoVacio'
 
 const ESTADOS: { value: ConsultaComercial['estado']; label: string }[] = [
@@ -64,7 +64,7 @@ export default function BandejaComercial() {
     await cargar()
   }
 
-  if (cargando) return <div className="flex justify-center py-16"><Spinner /></div>
+  if (cargando) return <SuperAdminCarga recurso="las consultas comerciales" />
 
   return (
     <div>
@@ -92,7 +92,7 @@ export default function BandejaComercial() {
           ))}
         </div>
       )}
-      <div className="mb-5 flex flex-wrap gap-3">
+      <div className="sa-controls mb-5 flex flex-wrap gap-3">
         <input type="search" className="input min-h-11 w-full sm:max-w-sm" aria-label="Buscar consultas comerciales"
           placeholder="Buscar restaurante, nombre o correo…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
         <select className="input min-h-11 w-auto" aria-label="Filtrar consultas comerciales" value={filtro}

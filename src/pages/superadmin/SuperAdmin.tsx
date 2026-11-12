@@ -6,7 +6,7 @@ import { fmtFecha, fmtHora } from '../../lib/format'
 import { rolLabel } from '../../domain/security/roles'
 import { suSuscripcionVencida } from '../../store/auth'
 import type { Restaurante } from '../../types/database'
-import { Spinner } from '../../components/LoadingScreen'
+import SuperAdminCarga from './SuperAdminCarga'
 import EstadoVacio from '../../components/EstadoVacio'
 import {
   PRESETS_RANGO,
@@ -39,7 +39,7 @@ function Tarjeta({
   nota?: string
 }) {
   return (
-    <div className="card p-5">
+    <div className="card sa-metric-card p-5">
       <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">{etiqueta}</p>
       <p className={`mt-2 text-3xl font-extrabold ${clase}`}>{valor}</p>
       {nota && <p className="mt-1 text-xs text-zinc-500">{nota}</p>}
@@ -53,6 +53,7 @@ export default function SuperAdmin() {
   const [usuarios, setUsuarios] = useState<UsuarioPlataforma[]>([])
   const [preset, setPreset] = useState<PresetRango>('7d')
   const [estadisticas, setEstadisticas] = useState<EstadisticasGlobales | null>(null)
+  const [cargandoEstadisticas, setCargandoEstadisticas] = useState(true)
   const [errorEstadisticas, setErrorEstadisticas] = useState<string | null>(null)
   const [actualizado, setActualizado] = useState<Date | null>(null)
   const [cargando, setCargando] = useState(true)
@@ -83,6 +84,7 @@ export default function SuperAdmin() {
   useEffect(() => {
     let vigente = true
     const { desde, hasta } = rangoDePreset(preset)
+    setCargandoEstadisticas(true)
     void getApi().getEstadisticasGlobales(desde, hasta).then((res) => {
       if (!vigente) return
       if (res.error) {
@@ -93,20 +95,21 @@ export default function SuperAdmin() {
         setEstadisticas(res.data)
         setActualizado(new Date())
       }
+      setCargandoEstadisticas(false)
+    }).catch((e: unknown) => {
+      if (!vigente) return
+      setErrorEstadisticas(e instanceof Error ? e.message : 'No se pudieron cargar las métricas del periodo.')
+      setEstadisticas(null)
+      setCargandoEstadisticas(false)
     })
     return () => { vigente = false }
   }, [preset])
 
-  if (cargando)
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner />
-      </div>
-    )
+  if (cargando) return <SuperAdminCarga recurso="el resumen de la plataforma" />
 
   if (error)
     return (
-      <div className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
+      <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
         No se pudo cargar el resumen de la plataforma. {error}
       </div>
     )
@@ -147,13 +150,17 @@ export default function SuperAdmin() {
 
   return (
     <div>
-      <section className="card mb-6 space-y-4 p-4 sm:p-5">
+      <section className="card sa-dashboard-pulse mb-6 space-y-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Pulso de la plataforma</h2>
             <p className="mt-1 text-xs text-zinc-500">
               Actividad de los restaurantes clientes; estas ventas no representan ingresos de Mesora.
-              {actualizado && ` · Actualizado ${new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit' }).format(actualizado)} (Lima)`}
+              {actualizado && (
+                <span className="sa-dashboard-updated">
+                  Actualizado {new Intl.DateTimeFormat('es-PE', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit' }).format(actualizado)} (Lima)
+                </span>
+              )}
             </p>
           </div>
           <Link to="/super-admin/estadisticas" className="btn btn-outline min-h-10 px-3 py-2 text-sm">Ver estadísticas</Link>
@@ -168,14 +175,17 @@ export default function SuperAdmin() {
             {etiquetaDia(estadisticas.desde.slice(0, 10))} – {etiquetaDia(estadisticas.hasta.slice(0, 10))}
           </span>}
         </div>
+        {cargandoEstadisticas && !estadisticas && !errorEstadisticas && (
+          <p role="status" aria-live="polite" className="text-sm text-zinc-500">Cargando métricas del periodo…</p>
+        )}
         {errorEstadisticas && <p role="alert" className="text-sm text-danger-400">No se pudieron cargar las métricas del periodo. {errorEstadisticas}</p>}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="sa-dashboard-metrics grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Tarjeta etiqueta="Restaurantes activos" valor={estadisticas ? estadisticas.resumen.restaurantesActivos : '—'} clase="text-ok-500" nota="Con suscripción vigente hoy" />
           <Tarjeta etiqueta="Ventas de clientes" valor={estadisticas ? `S/ ${estadisticas.resumen.ventas.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'} clase="text-brand-400" nota="Cuentas pagadas en el periodo" />
           <Tarjeta etiqueta="Pedidos de clientes" valor={estadisticas ? estadisticas.resumen.pedidos.toLocaleString('es-PE') : '—'} clase="text-zinc-100" nota="Comandas creadas en el periodo" />
           <Tarjeta etiqueta="Restaurantes nuevos" valor={estadisticas ? estadisticas.resumen.restaurantesNuevos : '—'} clase="text-brand-400" nota="Altas dentro del periodo" />
         </div>
-        {estadisticas && <div className="grid gap-4 lg:grid-cols-2">
+        {estadisticas && <div className="sa-dashboard-reports grid gap-4 lg:grid-cols-2">
           <section className="rounded-xl border border-surface-700 bg-surface-900/60 p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Ventas procesadas por clientes</h3>

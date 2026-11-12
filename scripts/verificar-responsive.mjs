@@ -28,6 +28,14 @@ const VIEWPORTS = [
   { w: 1280, h: 800, nombre: '1280x800' },
 ]
 
+const VIEWPORTS_SUPERADMIN = [
+  { w: 390, h: 844, nombre: '390x844' },
+  { w: 768, h: 1024, nombre: '768x1024' },
+  { w: 1024, h: 768, nombre: '1024x768' },
+  { w: 1280, h: 800, nombre: '1280x800' },
+  { w: 1440, h: 900, nombre: '1440x900' },
+]
+
 // Incluye los puntos en que cambia el diseño y el ancho que provocó el
 // solapamiento de la cabecera en tablet. Se revisa la landing por separado
 // para no repetir todas las sesiones operativas en cada uno de estos anchos.
@@ -803,38 +811,101 @@ async function correrSesionesLocales(browser, vp) {
     }
   }
 
-  // Super admin: todas las secciones con datos sembrados.
+
+}
+
+async function correrSuperAdminResponsive(browser, vp) {
+  // Superadmin: navegaci\u00f3n responsive y las diez rutas existentes.
   {
     const ctx = await browser.newContext({ viewport: { width: vp.w, height: vp.h } })
     const page = await ctx.newPage()
     try {
       await iniciarSesion(page, 'superadmin@mesora.pe')
-      await page.goto(`${URL}/super-admin`, { waitUntil: 'networkidle' })
+      await page.goto(URL + '/super-admin', { waitUntil: 'networkidle' })
       const secciones = [
-        'Dashboard',
-        'Restaurantes',
-        'Administradores',
-        'Usuarios',
-        'Suscripciones',
-        'Estadísticas',
-        'Auditoría',
-        'Notificaciones',
-        'Soporte',
-        'Configuración',
+        { label: 'Dashboard', ruta: '/super-admin' },
+        { label: 'Restaurantes', ruta: '/super-admin/restaurantes' },
+        { label: 'Administradores', ruta: '/super-admin/administradores' },
+        { label: 'Usuarios', ruta: '/super-admin/usuarios' },
+        { label: 'Suscripciones', ruta: '/super-admin/suscripciones' },
+        { label: 'Estad\u00edsticas', ruta: '/super-admin/estadisticas' },
+        { label: 'Auditor\u00eda', ruta: '/super-admin/auditoria' },
+        { label: 'Notificaciones', ruta: '/super-admin/notificaciones' },
+        { label: 'Soporte', ruta: '/super-admin/soporte' },
+        { label: 'Configuraci\u00f3n', ruta: '/super-admin/configuracion' },
       ]
+
+      const esMovilOTablet = vp.w < 1024
+      const botonMenu = page.getByRole('button', { name: 'Abrir men\u00fa de superadministraci\u00f3n' })
+      if (esMovilOTablet) {
+        await botonMenu.waitFor({ state: 'visible' })
+        await botonMenu.click()
+        const dialogo = page.getByRole('dialog', { name: 'Men\u00fa de superadministraci\u00f3n' })
+        await dialogo.waitFor({ state: 'visible' })
+        check('superadmin ' + vp.nombre + ' \u00b7 drawer anuncia estado abierto', await botonMenu.getAttribute('aria-expanded') === 'true')
+        check('superadmin ' + vp.nombre + ' \u00b7 foco inicial queda en el men\u00fa', await dialogo.locator(':focus').count() === 1)
+        await page.keyboard.press('Escape')
+        await dialogo.waitFor({ state: 'hidden' })
+        check('superadmin ' + vp.nombre + ' \u00b7 Escape cierra el drawer', await botonMenu.getAttribute('aria-expanded') === 'false')
+        check('superadmin ' + vp.nombre + ' \u00b7 foco vuelve al bot\u00f3n', await botonMenu.evaluate((el) => el === document.activeElement))
+      } else {
+        const barra = page.getByRole('complementary', { name: 'Navegaci\u00f3n de Superadmin' })
+        check('superadmin ' + vp.nombre + ' \u00b7 sidebar visible', await barra.isVisible())
+      }
+
       for (const seccion of secciones) {
-        await page.getByRole('link', { name: seccion, exact: true }).first().click()
-        await page.waitForTimeout(400)
-        await medir(page, vp, `${vp.nombre}_superadmin_${seccion.toLowerCase()}`)
-        if (seccion === 'Configuración') {
-          await page.locator('#cfg-nombre').waitFor({ timeout: 10000 })
+        let enlace
+        if (esMovilOTablet) {
+          if (await botonMenu.getAttribute('aria-expanded') !== 'true') await botonMenu.click()
+          const dialogo = page.getByRole('dialog', { name: 'Men\u00fa de superadministraci\u00f3n' })
+          await dialogo.waitFor({ state: 'visible' })
+          enlace = dialogo.getByRole('link', { name: seccion.label, exact: true })
+        } else {
+          enlace = page.getByRole('complementary', { name: 'Navegaci\u00f3n de Superadmin' })
+            .getByRole('link', { name: seccion.label, exact: true })
+        }
+        await enlace.waitFor({ state: 'visible' })
+        await enlace.click()
+        await page.waitForURL((url) => url.pathname === seccion.ruta)
+        await page.getByRole('heading', { level: 1 }).first().waitFor({ state: 'visible' })
+        let navegacionActiva
+        let cantidadNavegacionActiva = 0
+        if (esMovilOTablet) {
+          await page.getByRole('dialog', { name: 'Men\u00fa de superadministraci\u00f3n' }).waitFor({ state: 'hidden' })
+          check('superadmin ' + vp.nombre + ' \u00b7 drawer cierra al elegir ' + seccion.label,
+            await botonMenu.getAttribute('aria-expanded') === 'false')
+          await botonMenu.click()
+          const dialogo = page.getByRole('dialog', { name: 'Men\u00fa de superadministraci\u00f3n' })
+          await dialogo.waitFor({ state: 'visible' })
+          navegacionActiva = dialogo.locator('[aria-current="page"]').filter({ hasText: seccion.label })
+          await navegacionActiva.waitFor({ state: 'visible' })
+          cantidadNavegacionActiva = await navegacionActiva.count()
+          await page.keyboard.press('Escape')
+          await dialogo.waitFor({ state: 'hidden' })
+        } else {
+          navegacionActiva = page.getByRole('complementary', { name: 'Navegaci\u00f3n de Superadmin' })
+            .locator('[aria-current="page"]').filter({ hasText: seccion.label })
+          await navegacionActiva.waitFor({ state: 'visible' })
+          cantidadNavegacionActiva = await navegacionActiva.count()
+        }
+        check('superadmin ' + vp.nombre + ' \u00b7 ' + seccion.label + ' activa en URL y navegaci\u00f3n',
+          new globalThis.URL(page.url()).pathname === seccion.ruta && cantidadNavegacionActiva === 1)
+        await medir(page, vp, vp.nombre + '_superadmin_' + seccion.label.toLowerCase())
+      }
+
+      // Cubre carga directa y recarga real de cada URL preservada sin ejecutar acciones.
+      if (vp.w === 390) {
+        for (const seccion of secciones) {
+          await page.goto(URL + seccion.ruta, { waitUntil: 'networkidle' })
+          await page.getByRole('heading', { level: 1 }).first().waitFor({ state: 'visible' })
+          check('superadmin ' + vp.nombre + ' \u00b7 abre ruta directa ' + seccion.ruta,
+            new globalThis.URL(page.url()).pathname === seccion.ruta &&
+            await page.getByText('Unexpected Application Error').count() === 0)
           await page.reload({ waitUntil: 'networkidle' })
-          await page.locator('#cfg-nombre').waitFor({ timeout: 10000 })
-          check(
-            `superadmin ${vp.nombre} · Configuración abre y recarga directamente`,
-            new globalThis.URL(page.url()).pathname === '/super-admin/configuracion' &&
-              !(await page.getByText('Unexpected Application Error').count()),
-          )
+          await page.getByRole('heading', { level: 1 }).first().waitFor({ state: 'visible' })
+          check('superadmin ' + vp.nombre + ' \u00b7 recarga ' + seccion.ruta,
+            new globalThis.URL(page.url()).pathname === seccion.ruta &&
+            await page.getByText('Unexpected Application Error').count() === 0)
         }
       }
     } finally {
@@ -862,6 +933,8 @@ async function run() {
       await correrAnulacionUltimoItem(browser)
     } else if (process.argv.includes('--solo-landing')) {
       await correrLandingResponsive(browser)
+    } else if (process.argv.includes('--solo-superadmin-responsive')) {
+      for (const vp of VIEWPORTS_SUPERADMIN) await correrSuperAdminResponsive(browser, vp)
     } else if (process.argv.includes('--solo-admin-nav')) {
       for (const vp of [
         { w: 390, h: 844, nombre: '390x844' },
@@ -896,6 +969,7 @@ async function run() {
           console.log(`  FALLA sesiones locales ${vp.nombre} — ${String(e).split('\n')[0].slice(0, 200)}`)
         }
       }
+      for (const vp of VIEWPORTS_SUPERADMIN) await correrSuperAdminResponsive(browser, vp)
       await correrGuiaCategoria(browser)
     }
   } finally {
@@ -905,7 +979,9 @@ async function run() {
   }
 
   console.log(`\n${'-'.repeat(60)}`)
-  const cobertura = process.argv.includes('--solo-admin-nav')
+  const cobertura = process.argv.includes('--solo-superadmin-responsive')
+    ? 'Superadmin en 390, 768, 1024, 1280 y 1440 px'
+    : process.argv.includes('--solo-admin-nav')
     ? 'navegaciÃ³n Admin en 390, 768, 1024, 1280 y 1440 px'
     : process.argv.includes('--solo-guia-categoria')
     ? 'recorrido guiado de categoría en 390x844'

@@ -15,6 +15,7 @@ import type { CriteriosSuscripciones } from '../../domain/restaurant/suscripcion
 import type { Plan, Restaurante, SuscripcionHistorial } from '../../types/database'
 import { useAuthStore } from '../../store/auth'
 import { Spinner } from '../../components/LoadingScreen'
+import SuperAdminCarga from './SuperAdminCarga'
 import EstadoVacio from '../../components/EstadoVacio'
 import { Campo, Modal, PieAcciones } from '../../components/ui'
 import { ChipSuscripcion } from './Chips'
@@ -160,23 +161,18 @@ export default function SuperAdminSuscripciones() {
     await cargar()
   }
 
-  if (cargando)
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner />
-      </div>
-    )
+  if (cargando) return <SuperAdminCarga recurso="las suscripciones" />
 
   if (error)
     return (
-      <div className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
+      <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
         No se pudieron cargar las suscripciones. {error}
       </div>
     )
 
   return (
     <div>
-      <div className="mb-5 flex flex-wrap items-center gap-3">
+      <div className="sa-controls mb-5 flex flex-wrap items-center gap-3">
         <input
           type="search"
           className="input min-h-11 w-full sm:max-w-xs"
@@ -263,9 +259,9 @@ export default function SuperAdminSuscripciones() {
           descripcion="Ajusta los filtros o límpialos para volver a ver toda la lista."
         />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-surface-800 bg-surface-900 shadow-sm shadow-black/30">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+        <div className="sa-table-shell overflow-hidden rounded-2xl border border-surface-800 bg-surface-900 shadow-sm shadow-black/30">
+          <div className="sa-table-scroll overflow-x-auto">
+            <table className="sa-mobile-table sa-table-suscripciones w-full text-sm">
               <thead>
                 <tr className="border-b border-surface-700 bg-surface-800/60 text-left text-xs uppercase tracking-widest text-zinc-400">
                   <th className="px-4 py-3.5 font-semibold">Restaurante</th>
@@ -457,7 +453,7 @@ export default function SuperAdminSuscripciones() {
             )}
 
             {errorAccion && (
-              <div className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
+              <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
                 {errorAccion}
               </div>
             )}

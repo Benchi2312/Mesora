@@ -7,7 +7,7 @@ import { fechaEnPeru, finDeDiaEnPeru } from '../../domain/restaurant/fechasSuscr
 import { rolLabel } from '../../domain/security/roles'
 import { diasParaVencimiento, estadoOperativo, venceEnDias } from '../../domain/restaurant/restaurantes'
 import type { Restaurante } from '../../types/database'
-import { Spinner } from '../../components/LoadingScreen'
+import SuperAdminCarga from './SuperAdminCarga'
 import EstadoVacio from '../../components/EstadoVacio'
 import { Campo, ConfirmDialog, IconoLapiz, Modal, PieAcciones } from '../../components/ui'
 import { ChipOperativo, ChipSuscripcion, ChipUsuario } from './Chips'
@@ -196,16 +196,11 @@ export default function SuperAdminRestauranteDetalle() {
     await cargar()
   }
 
-  if (cargando)
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner />
-      </div>
-    )
+  if (cargando) return <SuperAdminCarga recurso="el detalle del restaurante" />
 
   if (error)
     return (
-      <div className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
+      <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
         No se pudo cargar el restaurante. {error}
       </div>
     )
@@ -337,7 +332,7 @@ export default function SuperAdminRestauranteDetalle() {
                 />
               </Campo>
               {editError && (
-                <div className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
+                <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
                   {editError}
                 </div>
               )}
@@ -684,7 +679,7 @@ export default function SuperAdminRestauranteDetalle() {
             )}
 
             {adminError && (
-              <div className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
+              <div role="alert" className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
                 {adminError}
               </div>
             )}
