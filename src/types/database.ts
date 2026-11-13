@@ -204,6 +204,12 @@ export type EntregaComanda = {
   clave_idempotencia: string
   numero_entrega: number
   estado: EstadoEntregaComanda
+  /** La cuenta padre fue anulada; permanece histórica y no puede reimprimirse. */
+  cancelada_por_anulacion_cuenta?: boolean
+  cancelada_cuenta_id?: string | null
+  cancelada_at?: string | null
+  cancelada_por?: string | null
+  motivo_cancelacion?: string | null
   error_publico: string | null
   created_at: string
   updated_at: string
@@ -540,6 +546,10 @@ export interface Database {
       pedidos_pendientes_mesa: {
         Args: { p_restaurante_id: string; p_mesa_id: string }
         Returns: { id: string; mesa_id: string; estado: EstadoPedido; created_at: string }[]
+      }
+      pedidos_con_cuenta_anulada: {
+        Args: { p_restaurante_id: string; p_pedido_ids: string[] }
+        Returns: string[]
       }
       mesas_por_cobrar: {
         Args: { p_restaurante_id: string }

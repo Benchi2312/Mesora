@@ -537,6 +537,7 @@ async function correrPantalla(browser, vp, pantalla) {
         }
         const navSeccion = page.locator(adminMovil ? '.admin-drawer' : '.admin-sidebar')
           .getByRole('button', { name: tab, exact: true })
+        await navSeccion.waitFor({ state: 'visible' })
         await navSeccion.scrollIntoViewIfNeeded()
         await navSeccion.click()
         await page.locator('[data-admin-active-section]').waitFor({ state: 'visible' })
@@ -636,6 +637,7 @@ async function correrNavegacionAdmin(browser, vp) {
       etapa = `abrir sección ${tab}`
       const navSeccion = page.locator(vp.w < 1024 ? '.admin-drawer' : '.admin-sidebar')
         .getByRole('button', { name: tab, exact: true })
+      await navSeccion.waitFor({ state: 'visible' })
       await navSeccion.scrollIntoViewIfNeeded()
       await navSeccion.click()
       etapa = `medir sección ${tab}`
