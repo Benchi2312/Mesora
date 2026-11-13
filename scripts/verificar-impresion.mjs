@@ -458,6 +458,65 @@ try {
     await kdsBarra.locator(`[data-comanda-kds="${pedidoMixto.id}"]`).count() === 0 &&
     await page.locator('[data-salida-impresion]').count() > 0)
   check('Barra con KDS no abre impresión automáticamente', await page.evaluate(() => window.__mesoraPrintCalls === 0))
+
+  const salidasAnuladas = await page.evaluate(async () => {
+    const { getApi, apiMode } = await import('/src/lib/api.ts')
+    const api = getApi()
+    const mesa = (await api.getMesas('r-demo')).data?.find((fila) => fila.nombre === 'Mesa QA impresión')
+    const productos = await api.getProductos('r-demo')
+    const plato = productos.data?.find((producto) => producto.nombre === 'Plato QA impresión')
+    const bebida = productos.data?.find((producto) => producto.nombre === 'Bebida QA impresión')
+    if (!mesa || !plato || !bebida) throw new Error('No se encontró el fixture de anulación QA')
+    const actorAnterior = apiMode.operadorId
+    apiMode.operadorId = 'u-mesero-1'
+    const pedidoRes = await api.crearPedido('r-demo', mesa.id, [
+      { producto_id: plato.id, nombre_producto: plato.nombre, cantidad: 1, precio_unitario: plato.precio },
+      { producto_id: bebida.id, nombre_producto: bebida.nombre, cantidad: 1, precio_unitario: bebida.precio },
+    ])
+    if (pedidoRes.error || !pedidoRes.data) throw new Error(pedidoRes.error ?? 'No se creó la comanda QA')
+    const pedidoId = pedidoRes.data
+    apiMode.operadorId = 'u-admin'
+    const cobro = await api.cerrarCuenta('r-demo', mesa.id, [pedidoId], 'efectivo')
+    if (cobro.error || !cobro.data) throw new Error(cobro.error ?? 'No se cerró la cuenta QA')
+    const anulacion = await api.anularCuenta('r-demo', cobro.data.id, 'QA impresión cuenta anulada')
+    if (anulacion.error) throw new Error(anulacion.error)
+    const despues = await api.getPedidosActivos('r-demo')
+    const pedido = despues.data?.find((fila) => fila.id === pedidoId)
+    if (!pedido || !pedido.cuentaAnulada) throw new Error('No se reconoció la cuenta anulada en la cola')
+    const salidas = Object.entries(pedido.rutasPorEstacion ?? {}).flatMap(([estacion, ruta]) =>
+      (ruta?.impresoras ?? []).map((salida) => ({ estacion, ...salida })),
+    )
+    apiMode.operadorId = 'u-cocina'
+    const intento = await api.registrarImpresionSalidaComanda('r-demo', pedidoId, 'bar', salidas.find((salida) => salida.estacion === 'bar')?.entrega_id ?? '', crypto.randomUUID(), null)
+    apiMode.operadorId = actorAnterior
+    return { pedidoId, salidas, errorDirecto: intento.error }
+  })
+  check('la anulación conserva las salidas como historial cancelado',
+    salidasAnuladas.salidas.length === 2 && salidasAnuladas.salidas.every((salida) => salida.estado === 'cancelada' && salida.cancelada_por_anulacion_cuenta))
+  check('un intento directo desde Cocina no registra impresión anulada',
+    Boolean(salidasAnuladas.errorDirecto?.includes('La cuenta fue anulada')))
+  await page.goto(`${URL}/demo/cocina`, { waitUntil: 'networkidle', timeout: 45000 })
+  await explorarDemoSinGuia(page)
+  await page.getByRole('button', { name: /^Cocina/ }).waitFor({ state: 'visible' })
+  await page.getByText(/^Salidas canceladas por anulación de cuenta/).click()
+  for (const salida of salidasAnuladas.salidas.filter((fila) => fila.estacion === 'cocina')) {
+    const tarjeta = page.locator(`[data-salida-impresion="${salida.entrega_id}"]`)
+    await tarjeta.waitFor({ state: 'visible' })
+    check('Cocina muestra la salida con etiqueta de cuenta anulada y sin imprimir',
+      await tarjeta.getByText('Cancelada por anulación de cuenta', { exact: true }).count() === 1 &&
+      await tarjeta.locator('[data-imprimir-salida]').count() === 0 &&
+      await page.locator(`[data-comanda-kds="${salidasAnuladas.pedidoId}"]`).count() === 0)
+  }
+  await page.getByRole('button', { name: /^Barra/ }).click()
+  await page.getByText(/^Salidas canceladas por anulación de cuenta/).click()
+  for (const salida of salidasAnuladas.salidas.filter((fila) => fila.estacion === 'bar')) {
+    const tarjeta = page.locator(`[data-salida-impresion="${salida.entrega_id}"]`)
+    await tarjeta.waitFor({ state: 'visible' })
+    check('Barra muestra la salida anulada sin acción de impresión',
+      await tarjeta.getByText('Cancelada por anulación de cuenta', { exact: true }).count() === 1 &&
+      await tarjeta.locator('[data-imprimir-salida]').count() === 0 &&
+      await page.locator(`[data-comanda-kds="${salidasAnuladas.pedidoId}"]`).count() === 0)
+  }
   check('la vista de impresión no genera errores de JavaScript', erroresPagina.length === 0, erroresPagina.join(' | '))
   await context.close()
 } catch (error) {

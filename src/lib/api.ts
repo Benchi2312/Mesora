@@ -250,6 +250,7 @@ export type RutaComandaEstacion = {
     copias: number
     configuracion_version: number
     estado: EstadoEntregaComanda
+    cancelada_por_anulacion_cuenta?: boolean
   }[]
   estado: EstadoPedido
   /** Comandas creadas antes de la fase de enrutamiento conservan el tablero anterior. */
@@ -412,6 +413,8 @@ export type PedidoConItems = Pedido & {
   anulados: ItemResumen[]
   /** Ruta y estado de trabajo independientes para cada estación de esta comanda. */
   rutasPorEstacion?: RutasComanda
+  /** Cuenta padre anulada: no entra al KDS y sus impresiones se conservan bloqueadas. */
+  cuentaAnulada?: boolean
 }
 
 export type EstadoSalidaImpresion = Extract<EstadoEntregaComanda, 'confirmada' | 'fallida'>
@@ -792,9 +795,10 @@ function rutasLegadasPedido(pedido: Pedido, items: readonly PedidoItem[]): Rutas
 function resolverRutasPedido(
   pedido: Pedido,
   rutas: readonly EstacionEnrutamiento[],
-  entregas: readonly Pick<EntregaComanda, 'id' | 'pedido_id' | 'estacion_id' | 'estacion_codigo' | 'estacion_nombre' | 'destino_nombre' | 'configuracion_destino' | 'configuracion_version' | 'grupo' | 'tipo_destino' | 'estado'>[],
+  entregas: readonly Pick<EntregaComanda, 'id' | 'pedido_id' | 'estacion_id' | 'estacion_codigo' | 'estacion_nombre' | 'destino_nombre' | 'configuracion_destino' | 'configuracion_version' | 'grupo' | 'tipo_destino' | 'estado' | 'cancelada_por_anulacion_cuenta'>[],
   estados: readonly Pick<EstadoComandaPorEstacion, 'pedido_id' | 'estacion_id' | 'estado'>[],
   items: readonly PedidoItem[],
+  cuentaAnulada = false,
 ): RutasComanda {
   const delPedido = entregas.filter((entrega) => entrega.pedido_id === pedido.id && entrega.grupo === 'principal')
   if (delPedido.length === 0) return pedido.ruteo_configurado ? {} : rutasLegadasPedido(pedido, items)
@@ -819,7 +823,8 @@ function resolverRutasPedido(
         papel_mm: ancho,
         copias,
         configuracion_version: entrega.configuracion_version,
-        estado: entrega.estado,
+        estado: cuentaAnulada || entrega.cancelada_por_anulacion_cuenta ? 'cancelada' : entrega.estado,
+        cancelada_por_anulacion_cuenta: cuentaAnulada || entrega.cancelada_por_anulacion_cuenta === true,
       })
     }
     resultado[codigo] = ruta
@@ -996,7 +1001,7 @@ const realApi: DataApi = {
   },
   async getPedidosActivos(rid) {
     const fechaSalidasRecientes = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-    const [pedidosActivosRes, salidasPendientesRes, salidasConfirmadasRes] = await Promise.all([
+    const [pedidosActivosRes, salidasPendientesRes, salidasConfirmadasRes, salidasCanceladasRes] = await Promise.all([
       supabase
       .from('pedidos')
       .select('*')
@@ -1018,9 +1023,18 @@ const realApi: DataApi = {
         .gte('updated_at', fechaSalidasRecientes)
         .order('updated_at', { ascending: false })
         .limit(100),
+      supabase.from('entregas_comanda')
+        .select('pedido_id')
+        .eq('restaurante_id', rid)
+        .eq('grupo', 'principal')
+        .eq('tipo_destino', 'impresora')
+        .eq('cancelada_por_anulacion_cuenta', true)
+        .gte('updated_at', fechaSalidasRecientes)
+        .order('updated_at', { ascending: false })
+        .limit(100),
     ])
     if (pedidosActivosRes.error) return { data: null, error: pedidosActivosRes.error.message }
-    const erroresSalidas = [salidasPendientesRes.error, salidasConfirmadasRes.error].filter(Boolean)
+    const erroresSalidas = [salidasPendientesRes.error, salidasConfirmadasRes.error, salidasCanceladasRes.error].filter(Boolean)
     const errorSalidas = erroresSalidas.find((error) => !faltaEsquemaEnrutamiento(error))
     if (errorSalidas) return { data: null, error: errorSalidas.message }
     const activos = (pedidosActivosRes.data ?? []) as Pedido[]
@@ -1028,6 +1042,7 @@ const realApi: DataApi = {
     const idsConSalida = [...new Set([
       ...(salidasPendientesRes.data ?? []).map((fila) => fila.pedido_id),
       ...(salidasConfirmadasRes.data ?? []).map((fila) => fila.pedido_id),
+      ...(salidasCanceladasRes.data ?? []).map((fila) => fila.pedido_id),
     ])]
       .filter((id) => !idsActivos.has(id))
     let pList = activos
@@ -1044,6 +1059,12 @@ const realApi: DataApi = {
         .sort((a, b) => a.created_at.localeCompare(b.created_at))
     }
     if (pList.length === 0) return { data: [], error: null }
+    const { data: pedidosAnuladosData, error: errorCuentasAnuladas } = await supabase.rpc('pedidos_con_cuenta_anulada', {
+      p_restaurante_id: rid,
+      p_pedido_ids: pList.map((pedido) => pedido.id),
+    })
+    if (errorCuentasAnuladas) return { data: null, error: `No se pudo verificar si alguna cuenta fue anulada. Actualiza la pantalla e inténtalo de nuevo. ${errorCuentasAnuladas.message}` }
+    const pedidosConCuentaAnulada = new Set((pedidosAnuladosData ?? []) as string[])
     const { data: items, error: itErr } = await supabase
       .from('pedido_items')
       .select('id, pedido_id, producto_id, nombre_producto, cantidad, precio_unitario, nota, anulado, es_bebida, estacion')
@@ -1054,7 +1075,7 @@ const realApi: DataApi = {
     if (rutasRes.error) return { data: null, error: rutasRes.error }
     const [entregasRes, estadosRes] = await Promise.all([
       supabase.from('entregas_comanda')
-        .select('id, pedido_id, estacion_id, estacion_codigo, estacion_nombre, destino_nombre, configuracion_destino, configuracion_version, grupo, tipo_destino, estado')
+        .select('id, pedido_id, estacion_id, estacion_codigo, estacion_nombre, destino_nombre, configuracion_destino, configuracion_version, grupo, tipo_destino, estado, cancelada_por_anulacion_cuenta')
         .eq('restaurante_id', rid)
         .in('pedido_id', pList.map((p) => p.id)),
       supabase.from('estado_comanda_estacion')
@@ -1066,7 +1087,7 @@ const realApi: DataApi = {
     const faltaTablaEstado = estadosRes.error && faltaEsquemaEnrutamiento(estadosRes.error)
     if (entregasRes.error && !faltaTablaEntrega) return { data: null, error: entregasRes.error.message }
     if (estadosRes.error && !faltaTablaEstado) return { data: null, error: estadosRes.error.message }
-    const entregas = faltaTablaEntrega ? [] : (entregasRes.data ?? []) as Pick<EntregaComanda, 'id' | 'pedido_id' | 'estacion_id' | 'estacion_codigo' | 'estacion_nombre' | 'destino_nombre' | 'configuracion_destino' | 'configuracion_version' | 'grupo' | 'tipo_destino' | 'estado'>[]
+    const entregas = faltaTablaEntrega ? [] : (entregasRes.data ?? []) as Pick<EntregaComanda, 'id' | 'pedido_id' | 'estacion_id' | 'estacion_codigo' | 'estacion_nombre' | 'destino_nombre' | 'configuracion_destino' | 'configuracion_version' | 'grupo' | 'tipo_destino' | 'estado' | 'cancelada_por_anulacion_cuenta'>[]
     const estados = faltaTablaEstado ? [] : (estadosRes.data ?? []) as Pick<EstadoComandaPorEstacion, 'pedido_id' | 'estacion_id' | 'estado'>[]
 
     // Cocina solo ve lo que hay que preparar: los ítems anulados desaparecen.
@@ -1081,9 +1102,10 @@ const realApi: DataApi = {
         const suyos = todos.filter((it) => it.pedido_id === p.id)
         return {
           ...p,
+          cuentaAnulada: pedidosConCuentaAnulada.has(p.id),
           items: suyos.filter((it) => it.anulado !== true),
           anulados: suyos.filter((it) => it.anulado === true),
-          rutasPorEstacion: resolverRutasPedido(p, rutasRes.data ?? [], entregas, estados, suyos),
+          rutasPorEstacion: resolverRutasPedido(p, rutasRes.data ?? [], entregas, estados, suyos, pedidosConCuentaAnulada.has(p.id)),
         }
       })
       .filter((p) => p.items.length > 0)
@@ -2834,14 +2856,21 @@ function crearApiDesde(
   async getPedidosActivos(rid) {
     await espera()
     const rutas = await this.getEstacionesEnrutamiento(rid)
+    const cuentasAnuladas = new Set(ds.cuentas.filter((cuenta) => cuenta.restaurante_id === rid && cuenta.estado === 'anulada').map((cuenta) => cuenta.id))
+    const pedidosCuentaAnulada = new Set(ds.cuentaPedidos
+      .filter((vinculo) => cuentasAnuladas.has(vinculo.cuenta_id))
+      .map((vinculo) => vinculo.pedido_id))
     const salidasAbiertas = new Set(ds.entregasComanda
       .filter((e) => e.restaurante_id === rid && e.grupo === 'principal' && e.tipo_destino === 'impresora' && ['pendiente', 'enviada', 'fallida'].includes(e.estado))
       .map((e) => e.pedido_id))
     const recientesParaReimpresion = new Set(ds.entregasComanda
       .filter((e) => e.restaurante_id === rid && e.grupo === 'principal' && e.tipo_destino === 'impresora' && e.estado === 'confirmada' && e.updated_at >= new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
       .map((e) => e.pedido_id))
+    const salidasCanceladasPorCuenta = new Set(ds.entregasComanda
+      .filter((e) => e.restaurante_id === rid && e.cancelada_por_anulacion_cuenta === true && e.updated_at >= new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .map((e) => e.pedido_id))
     const activos = ds.pedidos
-      .filter((p) => p.restaurante_id === rid && p.estado !== 'anulado' && (p.estado !== 'entregado' || salidasAbiertas.has(p.id) || recientesParaReimpresion.has(p.id)))
+      .filter((p) => p.restaurante_id === rid && p.estado !== 'anulado' && (p.estado !== 'entregado' || salidasAbiertas.has(p.id) || recientesParaReimpresion.has(p.id) || salidasCanceladasPorCuenta.has(p.id)))
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
     const conItems = activos
       .map((p) => {
@@ -2857,9 +2886,10 @@ function crearApiDesde(
           })
         return {
           ...p,
+          cuentaAnulada: pedidosCuentaAnulada.has(p.id),
           items: suyos.filter((it) => it.anulado !== true),
           anulados: suyos.filter((it) => it.anulado === true),
-          rutasPorEstacion: resolverRutasPedido(p, rutas.data ?? [], ds.entregasComanda, ds.estadosComandaEstacion, suyos),
+          rutasPorEstacion: resolverRutasPedido(p, rutas.data ?? [], ds.entregasComanda, ds.estadosComandaEstacion, suyos, pedidosCuentaAnulada.has(p.id)),
         }
       })
       .filter((p) => p.items.length > 0)
@@ -2932,8 +2962,10 @@ function crearApiDesde(
     await espera(80)
     const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
     if (!actor || !['admin_restaurante', 'mesero', 'cocina'].includes(actor.rol)) return { data: null, error: 'Tu perfil no tiene permiso para imprimir comandas.' }
+    const cuentaAnulada = ds.cuentaPedidos.some((vinculo) => vinculo.pedido_id === pedidoId && ds.cuentas.some((cuenta) => cuenta.id === vinculo.cuenta_id && cuenta.restaurante_id === rid && cuenta.estado === 'anulada'))
+    if (cuentaAnulada) return { data: null, error: 'La cuenta fue anulada. Esta salida de impresión ya no está disponible.' }
     const entrega = ds.entregasComanda.find((e) => e.id === entregaId && e.restaurante_id === rid && e.pedido_id === pedidoId && e.estacion_codigo === estacion && e.grupo === 'principal' && e.tipo_destino === 'impresora')
-    if (!entrega || entrega.estado === 'cancelada') return { data: null, error: 'La salida de impresión ya no está disponible para esta comanda.' }
+    if (!entrega || entrega.estado === 'cancelada' || entrega.cancelada_por_anulacion_cuenta) return { data: null, error: 'La salida de impresión ya no está disponible para esta comanda.' }
     const pedido = ds.pedidos.find((p) => p.id === pedidoId && p.restaurante_id === rid)
     if (!pedido || pedido.estado === 'anulado') return { data: null, error: 'La comanda está anulada o no pertenece a este restaurante.' }
     if (!ds.items.some((it) => it.pedido_id === pedidoId && it.estacion === estacion && it.anulado !== true)) return { data: null, error: 'Esta comanda no tiene productos vigentes para esa estación.' }
@@ -2982,8 +3014,11 @@ function crearApiDesde(
     await espera(80)
     const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
     if (!actor || !['admin_restaurante', 'mesero', 'cocina'].includes(actor.rol)) return { data: null, error: 'Tu perfil no tiene permiso para actualizar esta salida.' }
+    const entregaInicial = ds.entregasComanda.find((e) => e.id === entregaId && e.restaurante_id === rid && e.grupo === 'principal' && e.tipo_destino === 'impresora')
+    const cuentaAnulada = Boolean(entregaInicial && ds.cuentaPedidos.some((vinculo) => vinculo.pedido_id === entregaInicial.pedido_id && ds.cuentas.some((cuenta) => cuenta.id === vinculo.cuenta_id && cuenta.restaurante_id === rid && cuenta.estado === 'anulada')))
+    if (cuentaAnulada) return { data: null, error: 'La cuenta fue anulada. No se puede confirmar ni reintentar esta impresión.' }
     const entrega = ds.entregasComanda.find((e) => e.id === entregaId && e.restaurante_id === rid && e.grupo === 'principal' && e.tipo_destino === 'impresora')
-    if (!entrega || entrega.estado === 'cancelada') return { data: null, error: 'La salida de impresión ya no está disponible.' }
+    if (!entrega || entrega.estado === 'cancelada' || entrega.cancelada_por_anulacion_cuenta) return { data: null, error: 'La salida de impresión ya no está disponible.' }
     const log = ds.auditLogs.find((fila) => fila.detalle?.solicitud_id === solicitudId && fila.detalle?.entrega_id === entregaId && fila.actor_id === actor.id && fila.restaurante_id === rid)
     if (!log || !['comanda_imprimir', 'comanda_reimprimir'].includes(log.accion)) return { data: null, error: 'No se encontró la solicitud de impresión asociada.' }
     if (entrega.solicitud_impresion_id !== solicitudId) return { data: null, error: 'Hay otra solicitud activa. Actualiza la cola antes de confirmar.' }
@@ -3300,6 +3335,12 @@ function crearApiDesde(
     if (cuenta.estado === 'anulada') return { data: cuenta, error: null }
     if (cuenta.estado !== 'pagada') return { data: null, error: 'Solo se puede anular una cuenta cobrada' }
 
+    const pedidosCuenta = ds.cuentaPedidos.filter((vinculo) => vinculo.cuenta_id === cuenta.id).map((vinculo) => vinculo.pedido_id)
+    const salidasCuenta = ds.entregasComanda.filter((salida) => pedidosCuenta.includes(salida.pedido_id) && salida.restaurante_id === rid)
+    if (salidasCuenta.some((salida) => salida.estado === 'enviada' && salida.solicitud_impresion_id)) {
+      return { data: null, error: 'Resuelve la impresión manual en curso antes de anular la cuenta.' }
+    }
+
     // Lo que se devuelve al cliente es el total MÁS la propina (también se
     // cobró). Por cómo arma los pagos `cerrarCuentaDivididaEn`, la suma de las
     // partes es `total + propina + vuelto`, así que no hace falta sumarlas: con
@@ -3310,6 +3351,23 @@ function crearApiDesde(
     cuenta.anulada_por = apiMode.operadorId
     cuenta.motivo_anulacion = motivo.trim()
     cuenta.monto_reembolsado = redondear(cuenta.total + (cuenta.propina ?? 0))
+    for (const salida of salidasCuenta) {
+      const yaMarcada = salida.cancelada_por_anulacion_cuenta === true
+      if (salida.estado === 'pendiente' || salida.estado === 'fallida') salida.estado = 'cancelada'
+      salida.cancelada_por_anulacion_cuenta = true
+      salida.cancelada_cuenta_id = cuenta.id
+      salida.cancelada_at = cuenta.anulada_at
+      salida.cancelada_por = actor.id
+      salida.motivo_cancelacion = cuenta.motivo_anulacion
+      salida.updated_at = cuenta.anulada_at ?? new Date().toISOString()
+      if (!yaMarcada) registrarAuditoria('comanda_salida_cancelada_por_anulacion_cuenta', {
+        restauranteId: rid,
+        entidad: 'entrega_comanda',
+        entidadId: salida.id,
+        descripcion: `Salida de ${salida.estacion_codigo ?? 'estación'} cancelada por anulación de cuenta.`,
+        detalle: { cuenta_id: cuenta.id, pedido_id: salida.pedido_id, entrega_id: salida.id, estacion: salida.estacion_codigo, motivo: cuenta.motivo_anulacion, anulada_at: cuenta.anulada_at },
+      })
+    }
     registrarAuditoria('cuenta_anular', {
       restauranteId: rid,
       entidad: 'cuenta',

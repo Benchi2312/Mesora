@@ -297,6 +297,8 @@ try {
     `)
     const idempotenciaUpgrade = readFileSync(new URL('../supabase/migrations/20261112120000_idempotencia_crear_pedido.sql', import.meta.url), 'utf8')
     await pgUpgrade.exec(idempotenciaUpgrade)
+    const bloqueoImpresionAnuladaUpgrade = readFileSync(new URL('../supabase/migrations/20261113073105_bloquear_impresion_cuenta_anulada.sql', import.meta.url), 'utf8')
+    await pgUpgrade.exec(bloqueoImpresionAnuladaUpgrade)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from public.pedidos where id='00000000-0000-4000-8000-000000000007' and solicitud_id is null and solicitud_items is null")).rows[0].n, 1)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from public.pedido_items where pedido_id='00000000-0000-4000-8000-000000000007'")).rows[0].n, 1)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='pedidos' and column_name in ('solicitud_id','solicitud_items')")).rows[0].n, 2)
@@ -304,6 +306,8 @@ try {
     assert.equal((await pgUpgrade.query("select modalidad_cobro_aplicada from public.configuracion_operativa where restaurante_id='00000000-0000-4000-8000-000000000002'")).rows[0].modalidad_cobro_aplicada, null)
     await pgUpgrade.exec(readFileSync(new URL('../supabase/qa/fase5_kds_salida_manual_rollback.sql', import.meta.url), 'utf8'))
     await pgUpgrade.exec(readFileSync(new URL('../supabase/qa/fase6_agente_impresion_rollback.sql', import.meta.url), 'utf8'))
+    await pgUpgrade.exec(readFileSync(new URL('../supabase/qa/impresion_bloqueada_cuenta_anulada_rollback.sql', import.meta.url), 'utf8'))
+    console.log('SQL QA: salidas pendientes canceladas al anular cuenta; RPC manual/agente bloqueadas, historial, auditoría, aislamiento y carreras de impresión aprobados')
     const columnasFase4 = await pgUpgrade.query(`
       select table_name, column_name, is_nullable from information_schema.columns
        where table_schema = 'public' and (
@@ -317,6 +321,8 @@ try {
     assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='avanzar_comanda_estacion'")).rows[0].n, 1)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='pedidos' and column_name='ruteo_configurado'")).rows[0].n, 1)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('registrar_impresion_salida_comanda','actualizar_estado_salida_comanda')")).rows[0].n, 2)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='entregas_comanda' and column_name='cancelada_por_anulacion_cuenta'")).rows[0].n, 1)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='pedidos_con_cuenta_anulada'")).rows[0].n, 1)
     console.log('SQL QA: migración de idempotencia instalada sobre esquema existente; pedidos históricos intactos')
   } finally { await pgUpgrade.close() }
 } catch (e) {

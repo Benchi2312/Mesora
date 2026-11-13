@@ -304,6 +304,7 @@ export default function Cocina() {
   const pedidosPorEstacion = useMemo(() => {
     const resultado: Record<EstacionComanda, PedidoConItems[]> = { cocina: [], bar: [], otros: [] }
     for (const p of pedidos) {
+      if (p.cuentaAnulada) continue
       for (const destino of ESTACIONES_COMANDA) {
         const ruta = p.rutasPorEstacion?.[destino]
         if (!ruta || (!ruta.legado && !ruta.destinos.includes('kds')) || ruta.estado === 'entregado' || ruta.estado === 'anulado') continue
@@ -322,7 +323,6 @@ export default function Cocina() {
         const ruta = pedido.rutasPorEstacion?.[codigo]
         if (!ruta?.destinos.includes('impresora')) continue
         for (const salida of ruta.impresoras) {
-          if (salida.estado === 'cancelada') continue
           resultado[codigo].push({ pedido, salida })
         }
       }
@@ -336,9 +336,10 @@ export default function Cocina() {
   )
   const activos = pedidosPorEstacion[estacion]
   const salidasManuales = impresionesPorEstacion[estacion]
-  const salidasPendientes = salidasManuales.filter(({ salida }) => salida.estado !== 'confirmada')
+  const salidasCanceladas = salidasManuales.filter(({ salida, pedido }) => salida.cancelada_por_anulacion_cuenta || pedido.cuentaAnulada)
+  const salidasPendientes = salidasManuales.filter(({ salida, pedido }) => !salida.cancelada_por_anulacion_cuenta && !pedido.cuentaAnulada && salida.estado !== 'confirmada' && salida.estado !== 'cancelada')
   const comandasPendientesImpresion = new Set(salidasPendientes.map(({ pedido }) => pedido.id)).size
-  const salidasConfirmadas = salidasManuales.filter(({ salida }) => salida.estado === 'confirmada')
+  const salidasConfirmadas = salidasManuales.filter(({ salida, pedido }) => !salida.cancelada_por_anulacion_cuenta && !pedido.cuentaAnulada && salida.estado === 'confirmada')
   const configuracionEstacion = estacionesOperativas.find((fila) => fila.codigo === estacion)
   const tieneKds = Boolean(configuracionEstacion?.activo && configuracionEstacion.destinos.some((destino) => destino.activo && destino.grupo === 'principal' && destino.tipo === 'kds')) || pedidos.some((p) => p.rutasPorEstacion?.[estacion]?.destinos.includes('kds') || p.rutasPorEstacion?.[estacion]?.legado)
   const tieneImpresora = Boolean(configuracionEstacion?.activo && configuracionEstacion.destinos.some((destino) => destino.activo && destino.grupo === 'principal' && destino.tipo === 'impresora')) || pedidos.some((p) => p.rutasPorEstacion?.[estacion]?.destinos.includes('impresora'))
@@ -396,7 +397,7 @@ export default function Cocina() {
           const soloImpresora = destinosPrincipales.length > 0 && destinosPrincipales.every((d) => d.tipo === 'impresora')
           const tieneKdsEstacion = destinosPrincipales.some((d) => d.tipo === 'kds') || pedidos.some((pedido) => pedido.rutasPorEstacion?.[destino]?.destinos.includes('kds') || pedido.rutasPorEstacion?.[destino]?.legado)
           const tieneImpresoraEstacion = destinosPrincipales.some((d) => d.tipo === 'impresora') || pedidos.some((pedido) => pedido.rutasPorEstacion?.[destino]?.destinos.includes('impresora'))
-          const salidasPendientesEstacion = impresionesPorEstacion[destino].filter(({ salida }) => salida.estado !== 'confirmada').length
+          const salidasPendientesEstacion = impresionesPorEstacion[destino].filter(({ salida, pedido }) => !salida.cancelada_por_anulacion_cuenta && !pedido.cuentaAnulada && salida.estado !== 'confirmada' && salida.estado !== 'cancelada').length
           return (
           <button
             key={destino}
@@ -507,6 +508,20 @@ export default function Cocina() {
               meseroNombre={nombreMesero.get(pedido.mesero_id) ?? 'No asignado'}
               estacion={estacion}
               onImprimir={() => setTicket({ p: pedido, mesaNombre: nombreMesa.get(pedido.mesa_id) ?? '—', meseroNombre: nombreMesero.get(pedido.mesero_id) ?? 'No asignado', estacion, salida, impresoras: [salida] })}
+            />)}
+          </div>
+        </details>}
+        {salidasCanceladas.length > 0 && <details className="mt-4 rounded-xl border border-danger-500/20 bg-surface-950/50 p-3">
+          <summary className="cursor-pointer py-2 text-sm font-semibold text-zinc-300">Salidas canceladas por anulación de cuenta ({salidasCanceladas.length})</summary>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {salidasCanceladas.map(({ pedido, salida }) => <TarjetaSalidaManual
+              key={salida.entrega_id}
+              pedido={pedido}
+              salida={salida}
+              mesaNombre={nombreMesa.get(pedido.mesa_id) ?? '—'}
+              meseroNombre={nombreMesero.get(pedido.mesero_id) ?? 'No asignado'}
+              estacion={estacion}
+              onImprimir={() => undefined}
             />)}
           </div>
         </details>}
@@ -648,18 +663,19 @@ function TarjetaSalidaManual({
 }) {
   const tiempo = useElapsed(pedido.created_at)
   const items = itemsDeEstacion(pedido.items, estacion)
+  const canceladaPorCuenta = salida.cancelada_por_anulacion_cuenta === true || pedido.cuentaAnulada === true
   return <article className="rounded-xl border border-surface-700 bg-surface-800 p-4" data-salida-impresion={salida.entrega_id}>
     <div className="flex items-start justify-between gap-3">
       <div><h3 className="text-lg font-bold text-zinc-100">{mesaNombre}</h3><p className="mt-0.5 text-sm text-zinc-500">{meseroNombre} · hace {tiempo}</p></div>
-      <span className="rounded-full border border-warn-500/30 bg-warn-500/10 px-2.5 py-1 text-xs text-warn-300">{etiquetaEstadoSalida(salida.estado)}</span>
+      <span className={`rounded-full border px-2.5 py-1 text-xs ${canceladaPorCuenta ? 'border-red-500/30 bg-red-500/10 text-red-300' : 'border-warn-500/30 bg-warn-500/10 text-warn-300'}`}>{canceladaPorCuenta ? 'Cancelada por anulación de cuenta' : etiquetaEstadoSalida(salida.estado)}</span>
     </div>
     <p className="mt-3 flex items-center gap-2 text-sm font-medium text-zinc-300"><IconoImpresora />{salida.nombre}</p>
     <p className="mt-1 text-xs text-zinc-500">{nombreVisibleEstacion(estacion)} · papel {salida.papel_mm ?? 'sin ancho guardado'} mm · {salida.copias} {salida.copias === 1 ? 'copia' : 'copias'} · configuración v{salida.configuracion_version}</p>
     <ul className="mt-3 space-y-1 border-t border-surface-700 pt-3 text-sm text-zinc-300">
       {items.map((item) => <li key={item.id}><span className="font-semibold text-brand-400">{item.cantidad}×</span> {item.nombre_producto}{item.nota ? <span className="block pl-6 text-xs text-warn-400">{item.nota}</span> : null}</li>)}
     </ul>
-    <button type="button" className={`btn ${salida.estado === 'confirmada' ? 'btn-outline' : 'btn-primary'} mt-4 min-h-12 w-full`} data-imprimir-salida={salida.entrega_id} data-reimprimir-salida={salida.estado === 'confirmada' ? salida.entrega_id : undefined} onClick={onImprimir}>
+    {!canceladaPorCuenta && <button type="button" className={`btn ${salida.estado === 'confirmada' ? 'btn-outline' : 'btn-primary'} mt-4 min-h-12 w-full`} data-imprimir-salida={salida.entrega_id} data-reimprimir-salida={salida.estado === 'confirmada' ? salida.entrega_id : undefined} onClick={onImprimir}>
       {salida.estado === 'confirmada' ? 'Reimprimir' : salida.estado === 'fallida' ? 'Abrir impresión manual para reintentar' : salida.estado === 'enviada' ? 'Abrir vista de impresión' : 'Abrir impresión manual'}
-    </button>
+    </button>}
   </article>
 }
