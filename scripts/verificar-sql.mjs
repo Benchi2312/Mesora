@@ -30,6 +30,8 @@ try {
   }
   assert.equal((await pg.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 27)
   console.log('SQL QA: tablas, RPC, RLS y pgcrypto instalados')
+  await pg.exec(readFileSync(new URL('../supabase/qa/idempotencia_pedidos_rollback.sql', import.meta.url), 'utf8'))
+  console.log('SQL QA: primer pedido, reintento, conflicto, roles, aislamiento y rollback idempotente aprobados')
   await pg.exec(`
     begin;
     do $$
@@ -283,6 +285,22 @@ try {
     const cobroUpgrade = readFileSync(new URL('../supabase/migrations/20261109075129_validar_modalidad_cobro_restaurante.sql', import.meta.url), 'utf8')
     await pgUpgrade.exec(cobroUpgrade)
     await pgUpgrade.exec(cobroUpgrade)
+    await pgUpgrade.exec(`
+      insert into public.zonas(id,restaurante_id,nombre)
+        values ('00000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000002','Zona histórica');
+      insert into public.mesas(id,restaurante_id,zona_id,nombre)
+        values ('00000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000005','Mesa histórica');
+      insert into public.pedidos(id,restaurante_id,mesa_id,mesero_id)
+        values ('00000000-0000-4000-8000-000000000007','00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-000000000001');
+      insert into public.pedido_items(pedido_id,producto_id,nombre_producto,cantidad,precio_unitario,es_bebida)
+        values ('00000000-0000-4000-8000-000000000007','00000000-0000-4000-8000-000000000004','Bebida existente',1,8,true);
+    `)
+    const idempotenciaUpgrade = readFileSync(new URL('../supabase/migrations/20261112120000_idempotencia_crear_pedido.sql', import.meta.url), 'utf8')
+    await pgUpgrade.exec(idempotenciaUpgrade)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from public.pedidos where id='00000000-0000-4000-8000-000000000007' and solicitud_id is null and solicitud_items is null")).rows[0].n, 1)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from public.pedido_items where pedido_id='00000000-0000-4000-8000-000000000007'")).rows[0].n, 1)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='pedidos' and column_name in ('solicitud_id','solicitud_items')")).rows[0].n, 2)
+    await pgUpgrade.exec(readFileSync(new URL('../supabase/qa/idempotencia_pedidos_rollback.sql', import.meta.url), 'utf8'))
     assert.equal((await pgUpgrade.query("select modalidad_cobro_aplicada from public.configuracion_operativa where restaurante_id='00000000-0000-4000-8000-000000000002'")).rows[0].modalidad_cobro_aplicada, null)
     await pgUpgrade.exec(readFileSync(new URL('../supabase/qa/fase5_kds_salida_manual_rollback.sql', import.meta.url), 'utf8'))
     await pgUpgrade.exec(readFileSync(new URL('../supabase/qa/fase6_agente_impresion_rollback.sql', import.meta.url), 'utf8'))
@@ -299,7 +317,7 @@ try {
     assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='avanzar_comanda_estacion'")).rows[0].n, 1)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='pedidos' and column_name='ruteo_configurado'")).rows[0].n, 1)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('registrar_impresion_salida_comanda','actualizar_estado_salida_comanda')")).rows[0].n, 2)
-    console.log('SQL QA: migraciones Fase 2/3/4/5/6 y modalidad de cobro instaladas en esquema existente; últimas migraciones idempotentes')
+    console.log('SQL QA: migración de idempotencia instalada sobre esquema existente; pedidos históricos intactos')
   } finally { await pgUpgrade.close() }
 } catch (e) {
   console.error(e.message, e.position ? `SQL position ${e.position}` : '', e.detail ?? '', e.hint ?? '', e.where ?? '')

@@ -491,7 +491,7 @@ export interface DataApi {
     solicitudId: string,
     estado: EstadoSalidaImpresion,
   ): Promise<Res<null>>
-  crearPedido(rid: string, mesaId: string, items: ItemComanda[]): Promise<Res<string>>
+  crearPedido(rid: string, mesaId: string, items: ItemComanda[], solicitudId?: string): Promise<Res<string>>
   /**
    * Corrige cantidad y nota de un ítem de una comanda ABIERTA (no cobrada).
    * El precio unitario queda congelado: solo cambia lo que el mesero puede
@@ -1119,10 +1119,11 @@ const realApi: DataApi = {
     })
     return { data: null, error: error?.message ?? null }
   },
-  async crearPedido(rid, mesaId, items) {
+  async crearPedido(rid, mesaId, items, solicitudId) {
     const { data, error } = await supabase.rpc('crear_pedido', {
       p_restaurante_id: rid,
       p_mesa_id: mesaId,
+      p_solicitud_id: solicitudId ?? crypto.randomUUID(),
       // Solo qué producto y cuánto: el precio y el nombre los resuelve la RPC
       // leyendo `productos` (ver supabase/rpc_crear_pedido.sql).
       p_items: items.map((it) => ({ producto_id: it.producto_id, cantidad: it.cantidad, nota: it.nota ?? '' })),
@@ -2993,18 +2994,28 @@ function crearApiDesde(
     persiste()
     return { data: null, error: null }
   },
-  async crearPedido(rid, mesaId, items) {
+  async crearPedido(rid, mesaId, items, solicitudId) {
     const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
     if (acceso) return { data: null, error: acceso }
-    return conLockDeMesa(rid, mesaId, async () => {
+    const clave = solicitudId ?? crypto.randomUUID()
+    const contenido = items.map((it) => ({ producto_id: it.producto_id, cantidad: it.cantidad, nota: it.nota ?? '' }))
+    return conLockClave(`solicitud:${clave}`, () => conLockDeMesa(rid, mesaId, async () => {
     await espera(350)
-    const mesaActual = ds.mesas.find((m) => m.id === mesaId && m.restaurante_id === rid)
-    if (!mesaActual) {
-      return { data: null, error: 'La mesa no pertenece al restaurante' }
-    }
     const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
     if (!actor || !['mesero', 'admin_restaurante'].includes(actor.rol)) {
       return { data: null, error: 'Sin permiso para crear pedidos en este restaurante' }
+    }
+    const existente = ds.pedidos.find((p) => p.solicitud_id === clave)
+    if (existente) {
+      if (existente.restaurante_id !== rid || existente.mesero_id !== actor.id || existente.mesa_id !== mesaId ||
+          JSON.stringify(existente.solicitud_items) !== JSON.stringify(contenido)) {
+        return { data: null, error: 'La solicitud cambió y no coincide con la comanda original.' }
+      }
+      return { data: existente.id, error: null }
+    }
+    const mesaActual = ds.mesas.find((m) => m.id === mesaId && m.restaurante_id === rid)
+    if (!mesaActual) {
+      return { data: null, error: 'La mesa no pertenece al restaurante' }
     }
     if (actor.rol === 'mesero' && mesaActual.mesero_responsable_id && mesaActual.mesero_responsable_id !== actor.id) {
       return { data: null, error: 'Esta mesa está asignada a otro mesero.' }
@@ -3048,6 +3059,8 @@ function crearApiDesde(
       mesa_id: mesaId,
       mesero_id: actor.id,
       estado: 'pendiente',
+      solicitud_id: clave,
+      solicitud_items: contenido,
       ruteo_configurado: true,
       observacion: null,
       created_at: ahora,
@@ -3118,7 +3131,7 @@ function crearApiDesde(
     }
     persiste()
     return { data: id, error: null }
-    })
+    }))
   },
   async editarItem(rid, pedidoId, itemId, cambios) {
     const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)

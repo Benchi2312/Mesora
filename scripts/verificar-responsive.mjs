@@ -926,9 +926,54 @@ async function correrFlujoMeseroMovil(browser) {
     await page.getByRole('button', { name: '+ Agregar otro pedido', exact: true }).click()
     etapa = 'seleccionar producto para el segundo pedido'
     await agregarProducto(setup.comidas[1])
-    etapa = 'enviar segundo pedido'
+    etapa = 'simular respuesta perdida después de crear la segunda comanda'
+    await page.evaluate(async () => {
+      const { getApi } = await import('/src/lib/api.ts')
+      const api = getApi()
+      const crearOriginal = api.crearPedido
+      api.crearPedido = async (...args) => {
+        const resultado = await crearOriginal(...args)
+        api.crearPedido = crearOriginal
+        if (resultado.error) return resultado
+        throw new Error('network timeout: respuesta perdida después del commit')
+      }
+    })
+    etapa = 'pulsar enviar con respuesta de red perdida'
+    await page.getByRole('button', { name: 'Enviar comanda', exact: true }).click()
+    etapa = 'esperar mensaje de respuesta incierta'
+    await page.getByText('No se pudo confirmar la respuesta. Puedes reintentar de forma segura.').waitFor().catch(async (error) => {
+      throw new Error(`${error.message}; pedido=${(await page.locator('[data-mesero-pedido]').innerText()).slice(0, 900)}`)
+    })
+    const pendienteAntesDeRecarga = await page.evaluate(() => Object.keys(sessionStorage).filter((k) => k.startsWith('mesora:comanda-pendiente:')).length)
+    check('un timeout posterior al commit conserva una clave mínima para el reintento', pendienteAntesDeRecarga === 1)
+    etapa = 'recargar durante la solicitud pendiente'
+    await page.reload({ waitUntil: 'networkidle', timeout: 45000 })
+    const guiaTrasTimeout = page.locator('[data-guia-panel]')
+    if (await guiaTrasTimeout.isVisible()) {
+      await guiaTrasTimeout.getByRole('button', { name: 'Explorar por mi cuenta' }).click()
+      await guiaTrasTimeout.waitFor({ state: 'detached' })
+    }
+    const mesaTrasTimeout = page.locator(`button[data-guia-mesa="${setup.mesaId}"]`)
+    await page.waitForFunction((id) => document.querySelector(`button[data-guia-mesa="${id}"]`)?.textContent?.includes('2 comandas'), setup.mesaId, { timeout: 15000 })
+    etapa = 'abrir mesa con solicitud pendiente tras recarga'
+    await mesaTrasTimeout.click()
+    etapa = 'abrir segundo pedido pendiente tras recarga'
+    await page.getByRole('button', { name: '+ Agregar otro pedido', exact: true }).click()
+    etapa = 'rechazar cambio de contenido con la misma clave'
+    await agregarProducto(setup.comidas[0])
+    await page.getByRole('button', { name: 'Enviar comanda', exact: true }).click()
+    await page.getByText('La solicitud cambió y no coincide con la comanda original.').waitFor()
+    check('contenido distinto conserva la clave pendiente sin crear otra comanda',
+      await page.evaluate(() => Object.keys(sessionStorage).filter((k) => k.startsWith('mesora:comanda-pendiente:')).length) === 1)
+    await page.getByRole('button', { name: `Restar ${setup.comidas[0]}` }).click()
+    etapa = 'reconstruir la misma comanda tras recarga'
+    await agregarProducto(setup.comidas[1])
+    check('tras recargar se muestra el reintento seguro de la solicitud pendiente', await page.getByText('Hay un envío sin confirmar para esta mesa.', { exact: false }).isVisible())
+    etapa = 'reintentar con la misma clave tras recarga'
     await page.getByRole('button', { name: 'Enviar comanda', exact: true }).click()
     await page.getByText('2 comandas por cobrar', { exact: true }).waitFor({ timeout: 15000 })
+    check('reintentar con la misma clave conserva dos comandas, sin crear una tercera',
+      (await page.evaluate(() => Object.keys(sessionStorage).filter((k) => k.startsWith('mesora:comanda-pendiente:')).length)) === 0)
     await page.getByText(/46[.,]00/).first().waitFor({ timeout: 15000 })
     const textoCuentaDosComandas = (await page.locator('body').innerText()).replace(/\u00a0/g, ' ')
     const resumenCuentaDosComandas = await page.getByText('2 comandas por cobrar', { exact: true }).locator('..').innerText()
@@ -954,7 +999,7 @@ async function correrFlujoMeseroMovil(browser) {
     checks++
     const textoPantalla = await page.locator('body').innerText().catch(() => '')
     await page.screenshot({ path: join(CAPTURAS, 'mesero-operativo-falla.png'), fullPage: false }).catch(() => {})
-    console.log(`  FALLA flujo operativo de Mesero en ${etapa} — ${String(e).split('\n')[0].slice(0, 220)}; pantalla=${textoPantalla.replace(/\s+/g, ' ').slice(0, 300)}`)
+    console.log(`  FALLA flujo operativo de Mesero en ${etapa} — ${String(e).split('\n')[0].slice(0, 220)}; pantalla=${textoPantalla.replace(/\s+/g, ' ').slice(0, 900)}`)
   } finally {
     await ctx.close()
   }

@@ -121,6 +121,7 @@ const ORDEN = [
   '../migrations/20261109061058_fase6_agente_impresion_automatica.sql',
   '../migrations/20261109075129_validar_modalidad_cobro_restaurante.sql',
   '../migrations/20261111034528_impedir_recobro_tras_anulacion_recibo.sql',
+  '../migrations/20261112120000_idempotencia_crear_pedido.sql',
 ]
 
 const fallos = []

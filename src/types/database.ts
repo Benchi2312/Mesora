@@ -259,6 +259,9 @@ export type Pedido = {
   mesa_id: string
   mesero_id: string
   estado: EstadoPedido
+  /** Nulos únicamente para pedidos anteriores a la migración. */
+  solicitud_id?: string | null
+  solicitud_items?: { producto_id: string; cantidad: number; nota: string }[] | null
   /** true en comandas nuevas posteriores a Fase 5, incluso si se configuraron sin salidas. */
   ruteo_configurado?: boolean
   observacion?: string | null
@@ -667,7 +670,7 @@ export interface Database {
       mesora_commercial_inbox: { Args: Record<string, never>; Returns: unknown }
       mesora_update_commercial_lead: { Args: { p_id: string; p_estado: ConsultaComercial['estado'] }; Returns: void }
       mesora_update_commercial_followup: { Args: { p_id: string; p_responsable: string; p_nota_interna: string; p_proximo_contacto: string | null }; Returns: void }
-      crear_pedido: { Args: { p_restaurante_id: string; p_mesa_id: string; p_items: { producto_id: string; cantidad: number; nota?: string }[] }; Returns: string }
+      crear_pedido: { Args: { p_restaurante_id: string; p_mesa_id: string; p_items: { producto_id: string; cantidad: number; nota?: string }[]; p_solicitud_id?: string }; Returns: string }
       listar_meseros_activos_restaurante: {
         Args: { p_restaurante_id: string }
         Returns: { id: string; nombre: string; activo: boolean; rol: string }[]
