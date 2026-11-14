@@ -123,7 +123,7 @@ const ORDEN = [
   '../migrations/20261111034528_impedir_recobro_tras_anulacion_recibo.sql',
   '../migrations/20261112120000_idempotencia_crear_pedido.sql',
   '../migrations/20261113073105_bloquear_impresion_cuenta_anulada.sql',
-  '../migrations/20261114051725_reconciliar_salidas_cuentas_anuladas.sql',
+  '../migrations/20261114054941_reconciliar_salidas_cuentas_anuladas.sql',
 ]
 
 const fallos = []

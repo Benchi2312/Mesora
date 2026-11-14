@@ -7,7 +7,7 @@ import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto'
 const pg = new PGlite({ extensions: { pgcrypto } })
 
 async function verificarReconciliacionHistorica(db) {
-  const migracion = readFileSync(new URL('../supabase/migrations/20261114051725_reconciliar_salidas_cuentas_anuladas.sql', import.meta.url), 'utf8')
+  const migracion = readFileSync(new URL('../supabase/migrations/20261114054941_reconciliar_salidas_cuentas_anuladas.sql', import.meta.url), 'utf8')
     .replace(/^\s*begin;\s*/i, '')
     .replace(/\s*commit;\s*$/i, '')
   const qa = readFileSync(new URL('../supabase/qa/reconciliar_salidas_cuenta_anulada_rollback.sql', import.meta.url), 'utf8')
@@ -321,7 +321,7 @@ try {
     const bloqueoImpresionAnuladaUpgrade = readFileSync(new URL('../supabase/migrations/20261113073105_bloquear_impresion_cuenta_anulada.sql', import.meta.url), 'utf8')
     await pgUpgrade.exec(bloqueoImpresionAnuladaUpgrade)
     await verificarReconciliacionHistorica(pgUpgrade)
-    const reconciliacionHistoricaUpgrade = readFileSync(new URL('../supabase/migrations/20261114051725_reconciliar_salidas_cuentas_anuladas.sql', import.meta.url), 'utf8')
+    const reconciliacionHistoricaUpgrade = readFileSync(new URL('../supabase/migrations/20261114054941_reconciliar_salidas_cuentas_anuladas.sql', import.meta.url), 'utf8')
     await pgUpgrade.exec(reconciliacionHistoricaUpgrade)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from public.pedidos where id='00000000-0000-4000-8000-000000000007' and solicitud_id is null and solicitud_items is null")).rows[0].n, 1)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from public.pedido_items where pedido_id='00000000-0000-4000-8000-000000000007'")).rows[0].n, 1)
