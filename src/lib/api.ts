@@ -15,7 +15,7 @@ import { computeMetricas, type MetricasAdmin } from '../domain/reporting/metrica
 import { arqueoTurno, errorAlAbrirTurno, errorAlCerrarTurno, redondear } from '../domain/cashier/caja'
 import { completarPartes, resumirPago, type PagoParte } from '../domain/cashier/pagos'
 import { normalizarPoliticaCobro, puedeCobrarConPolitica, validarPoliticaCobro, type PoliticaCobro } from '../domain/cashier/permisosCobro'
-import { MENSAJE_PIN_INCORRECTO, errorAlAnularCobro } from '../domain/security/autorizacion'
+import { MENSAJE_PIN_INCORRECTO, errorAlAnularCobro, errorAlAnularItem } from '../domain/security/autorizacion'
 import { mensajeOperacion } from '../domain/security/mensajeOperacion'
 import { normalizarContenidoUtf8 } from '../domain/platform/normalizarUtf8'
 import type { RolPersonal } from '../domain/security/personal'
@@ -181,7 +181,7 @@ export type ItemComanda = {
 
 export type ItemResumen = Pick<
   PedidoItem,
-  'id' | 'pedido_id' | 'producto_id' | 'nombre_producto' | 'cantidad' | 'precio_unitario' | 'nota' | 'anulado' | 'estacion'
+  'id' | 'pedido_id' | 'producto_id' | 'nombre_producto' | 'cantidad' | 'precio_unitario' | 'nota' | 'anulado' | 'motivo_anulacion' | 'estacion'
 > & { es_bebida?: boolean }
 
 export type ResultadoRegistroImpresion =
@@ -511,7 +511,7 @@ export interface DataApi {
    * `pin`: si el restaurante tiene PIN de autorización, hace falta. Lo valida
    * el servidor (`validar_pin_autorizacion`); sin PIN configurado se ignora.
    */
-  anularItem(rid: string, pedidoId: string, itemId: string, pin?: string | null): Promise<Res<null>>
+  anularItem(rid: string, pedidoId: string, itemId: string, motivo: string, pin?: string | null): Promise<Res<null>>
   /**
    * Anula un cobro ya emitido (admin o cajero; con PIN si el restaurante lo
    * configuró). La cuenta no se borra: queda `anulada` con motivo, autor y
@@ -1162,11 +1162,14 @@ const realApi: DataApi = {
     })
     return { data: null, error: error?.message ?? null }
   },
-  async anularItem(rid, pedidoId, itemId, pin = null) {
+  async anularItem(rid, pedidoId, itemId, motivo, pin = null) {
+    const errorMotivo = errorAlAnularItem(motivo)
+    if (errorMotivo) return { data: null, error: errorMotivo }
     const { error } = await supabase.rpc('anular_item_comanda', {
       p_restaurante_id: rid,
       p_pedido_id: pedidoId,
       p_item_id: itemId,
+      p_motivo: motivo,
       p_pin: pin,
     })
     return { data: null, error: mensajeOperacion(error?.message, 'No se pudo anular el ítem. Actualiza la comanda e inténtalo de nuevo.') }
@@ -3197,34 +3200,41 @@ function crearApiDesde(
     persiste()
     return { data: null, error: null }
   },
-  async anularItem(rid, pedidoId, itemId, pin = null) {
+  async anularItem(rid, pedidoId, itemId, motivo, pin = null) {
     const acceso = errorDeAcceso(ds, rid, apiMode.operadorId)
     if (acceso) return { data: null, error: acceso }
     await espera(250)
     const r = buscarItemComanda(ds, rid, pedidoId, itemId)
     if ('error' in r) return { data: null, error: r.error }
     const { item, pedido } = r
-    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId)
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid && u.activo !== false)
+    if (!actor || !["mesero", "admin_restaurante"].includes(actor.rol)) {
+      return { data: null, error: "Sin permiso para anular ítems de este restaurante" }
+    }
+    const errorMotivo = errorAlAnularItem(motivo)
+    if (errorMotivo) return { data: null, error: errorMotivo }
     const mesaActual = ds.mesas.find((m) => m.id === pedido.mesa_id && m.restaurante_id === rid)
     if (actor?.rol === 'mesero' && ((mesaActual?.mesero_responsable_id && mesaActual.mesero_responsable_id !== actor.id) || (!mesaActual?.mesero_responsable_id && pedido.mesero_id !== actor.id))) {
       return { data: null, error: 'Esta mesa está asignada a otro mesero.' }
-    }
-    // Idempotente: anular dos veces el mismo ítem no es un error.
-    if (item.anulado === true) return { data: null, error: null }
-    if (pedido.estado === 'anulado') return { data: null, error: 'La comanda está anulada' }
-    if (idsPedidosCobradosEn(ds, rid).has(pedidoId)) {
-      return { data: null, error: 'La comanda ya fue cobrada' }
     }
     // Autorización del Admin (ver validar_pin_autorizacion). Va después de los
     // chequeos de la comanda, igual que en el SQL: primero "no puedes", después
     // "falta el PIN".
     const errorPin = errorDePin(ds, rid, pin)
     if (errorPin) return { data: null, error: errorPin }
+    // Idempotente: la segunda solicitud requiere el mismo contexto autorizado,
+    // pero no reemplaza motivo, actor, fecha ni vuelve a auditar.
+    if (item.anulado === true) return { data: null, error: null }
+    if (pedido.estado === 'anulado') return { data: null, error: 'La comanda está anulada' }
+    if (idsPedidosCobradosEn(ds, rid).has(pedidoId)) {
+      return { data: null, error: 'La comanda ya fue cobrada' }
+    }
 
     const ahora = new Date().toISOString()
     item.anulado = true
     item.anulado_por = apiMode.operadorId
     item.anulado_at = ahora
+    item.motivo_anulacion = motivo.trim()
     pedido.updated_at = ahora
     const estacionItem = item.estacion ?? estacionDeProducto({ estacion: item.estacion, es_bebida: item.es_bebida ?? esBebidaEn(ds, rid, item.producto_id) })
     const otrosDeLaEstacion = ds.items.some((otro) =>
@@ -3255,6 +3265,7 @@ function crearApiDesde(
         producto: item.nombre_producto,
         cantidad: item.cantidad,
         precio_unitario: item.precio_unitario,
+        motivo: item.motivo_anulacion,
       },
     })
 

@@ -44,6 +44,14 @@ export function errorAlConfigurarPin(pin: string, confirmacion: string): string 
  * Reglas para anular un cobro. El motivo no es un formality: una boleta anulada
  * sin explicación no sirve ni para el cliente ni para revisar el mes.
  */
+/** Valida el motivo obligatorio de anulación de un ítem. */
+export function errorAlAnularItem(motivo: string): string | null {
+  const limpio = motivo.trim()
+  if (!limpio) return "Escribe el motivo de la anulación."
+  if (limpio.length > 200) return "El motivo no puede superar 200 caracteres."
+  return null
+}
+
 export function errorAlAnularCobro(motivo: string): string | null {
   const limpio = motivo.trim()
   if (!limpio) return 'Escribe el motivo de la anulación.'

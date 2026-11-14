@@ -267,7 +267,7 @@ check('la clave se limpia tras respuesta confirmada', leerSolicitud(storageSolic
 
 titulo('0.1 · Resúmenes de confirmación y errores comprensibles')
 const resumenesSensibles = [
-  confirmarAnulacionItem({ producto: 'Ceviche', cantidad: 2, importe: 'S/ 30.00', mesa: 'Mesa 1', liberaMesa: false, requierePin: true }),
+  confirmarAnulacionItem({ producto: 'Ceviche', cantidad: 2, importe: 'S/ 30.00', mesa: 'Mesa 1', liberaMesa: false, requierePin: true, motivo: 'Pedido duplicado' }),
   confirmarAnulacionCuenta({ boleta: 'B001', total: 'S/ 20.00', propina: 'S/ 2.00', reembolso: 'S/ 22.00', motivo: 'Error de cobro', requierePin: true }),
   confirmarMovimientoConsumo({ origen: 'Mesa 1', destino: 'Mesa 2', comandas: 1, importe: 'S/ 30.00', motivo: 'Cliente cambió de mesa', requierePin: true }),
   confirmarCambioMesero({ mesa: 'Mesa 1', anterior: 'Carlos', nuevo: 'María', comandas: 1, importe: 'S/ 30.00', motivo: 'Cambio de turno', requierePin: true }),
@@ -276,7 +276,7 @@ const resumenesSensibles = [
 check('cada acción sensible presenta acción, datos, PIN y auditoría', resumenesSensibles.every((r) => !!r.accion && !!r.datosAfectados && !!r.pinGerente && r.auditoria === TEXTO_AUDITORIA))
 check('el traspaso identifica a Carlos y María antes de confirmar', resumenesSensibles[3].datosAfectados.includes('Carlos → María'))
 check('el cierre advierte que el consumo pendiente seguirá abierto', resumenesSensibles[4].datosAfectados.includes('seguirán abiertos'))
-check('la anulación de ítem informa si liberará la mesa', confirmarAnulacionItem({ producto: 'Ceviche', cantidad: 1, importe: 'S/ 15.00', mesa: 'Mesa 1', liberaMesa: true, requierePin: false }).datosAfectados.includes('se liberará la mesa'))
+check('la anulación de ítem informa si libera la mesa y muestra motivo', confirmarAnulacionItem({ producto: 'Ceviche', cantidad: 1, importe: 'S/ 15.00', mesa: 'Mesa 1', liberaMesa: true, requierePin: false, motivo: 'Error de pedido' }).datosAfectados.includes('se liberará la mesa') && confirmarAnulacionItem({ producto: 'Ceviche', cantidad: 1, importe: 'S/ 15.00', mesa: 'Mesa 1', liberaMesa: true, requierePin: false, motivo: 'Error de pedido' }).datosAfectados.includes('Motivo: «Error de pedido»'))
 check('el PIN incorrecto se explica sin exponer el error técnico', mensajeOperacion('PIN de autorizacion incorrecto', 'Error') === 'El PIN no coincide. Revísalo con el gerente e inténtalo de nuevo.')
 check('un error de RLS se muestra como indicación para el local', mensajeOperacion('new row violates row-level security policy for table audit_logs', 'Error').includes('Actualiza la pantalla'))
 
@@ -704,13 +704,13 @@ const cocinaAntes = (await api.getPedidosActivos(RID)).data.find((p) => p.id ===
 check('12l · cocina ve la comanda completa antes de anular', cocinaAntes.items.length === 2 && cocinaAntes.anulados.length === 0)
 
 const auditoriasAntesDeCeviche = localSeed.auditLogs.filter((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemCeviche.id).length
-const an = await api.anularItem(RID, idC, itemCeviche.id)
+const an = await api.anularItem(RID, idC, itemCeviche.id, 'Motivo de anulación QA')
 check('12m · anular el ítem no falla', !an.error, an.error ?? '')
 const trasAnular = (await api.getPedidoItems([idC])).data
 check('12o2 · el primer intento deja exactamente una auditoría', localSeed.auditLogs.filter((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemCeviche.id).length - auditoriasAntesDeCeviche === 1)
 check('12n · el ítem queda marcado, no borrado', trasAnular.length === 2 && trasAnular.find((i) => i.id === itemCeviche.id).anulado === true)
 check('12o · queda registrado quién y cuándo lo anuló', !!trasAnular.find((i) => i.id === itemCeviche.id).anulado_at && !!trasAnular.find((i) => i.id === itemCeviche.id).anulado_por)
-check('12o1 · la anulación del ítem deja auditoría local', localSeed.auditLogs.some((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemCeviche.id))
+check('12o1 · la auditoría conserva motivo, actor, ítem y pedido', localSeed.auditLogs.some((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemCeviche.id && l.detalle?.motivo === 'Motivo de anulación QA' && l.detalle?.pedido_id === idC && l.detalle?.producto === itemCeviche.nombre_producto && l.actor_id === trasAnular.find((i) => i.id === itemCeviche.id).anulado_por))
 check('12p · el total ya no cuenta el ítem anulado', totalDe(trasAnular) === 8, `${totalDe(trasAnular)} != 8`)
 
 const cocinaAnulada = (await api.getPedidosActivos(RID)).data.find((p) => p.id === idC)
@@ -720,14 +720,17 @@ check(
   '12s · editar un ítem ya anulado se rechaza',
   !!(await api.editarItem(RID, idC, itemCeviche.id, { cantidad: 2, nota: null })).error,
 )
-check('12t · anular dos veces el mismo ítem no falla (idempotente)', (await api.anularItem(RID, idC, itemCeviche.id)).error === null)
+const registroCevicheOriginal = (await api.getPedidoItems([idC])).data.find((i) => i.id === itemCeviche.id)
+check('12t · anular dos veces el mismo ítem no falla (idempotente)', (await api.anularItem(RID, idC, itemCeviche.id, 'No sobrescribir el motivo original')).error === null)
+const registroCevicheRepetido = (await api.getPedidoItems([idC])).data.find((i) => i.id === itemCeviche.id)
+check('12t2 · el segundo intento conserva motivo, actor y fecha originales', registroCevicheRepetido.motivo_anulacion === registroCevicheOriginal.motivo_anulacion && registroCevicheRepetido.anulado_por === registroCevicheOriginal.anulado_por && registroCevicheRepetido.anulado_at === registroCevicheOriginal.anulado_at)
 
 // -- anular el último ítem: la comanda muere y la mesa se libera
 check('12t1 · repetir una anulación no duplica la auditoría', localSeed.auditLogs.filter((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemCeviche.id).length - auditoriasAntesDeCeviche === 1)
 const auditoriasAntesDelUltimo = localSeed.auditLogs.filter((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemChicha.id).length
 const an2 = await ejecutarAnulacionItem({
   anular: async () => {
-    const { error } = await api.anularItem(RID, idC, itemChicha.id)
+    const { error } = await api.anularItem(RID, idC, itemChicha.id, 'Motivo de anulación QA')
     return { error }
   },
   verificarAnulado: async () => (await api.getPedidoItems([idC])).data.some((item) => item.id === itemChicha.id && item.anulado),
@@ -774,13 +777,13 @@ check(
 )
 check(
   '12ac · anular una comanda cobrada se rechaza por el motivo correcto',
-  (await api.anularItem(RID, comandaD.data, itemsD[0].id)).error === 'La comanda ya fue cobrada',
+  (await api.anularItem(RID, comandaD.data, itemsD[0].id, 'Motivo de anulación QA')).error === 'La comanda ya fue cobrada',
 )
 
 // -- una comanda totalmente anulada no llega ni a la caja
 const comandaE = await api.crearPedido(RID, 'm-6', [pedir(prod('p-2'), 1)])
 const itemsE = (await api.getPedidoItems([comandaE.data])).data
-await api.anularItem(RID, comandaE.data, itemsE[0].id)
+await api.anularItem(RID, comandaE.data, itemsE[0].id, 'Motivo de anulación QA')
 const ventaAntes = (await api.getMetricasAdmin(RID)).data.ventaMes
 const cobroE = await api.cerrarCuenta(RID, 'm-6', [comandaE.data], 'efectivo')
 check('12ad · una comanda con todo anulado no se puede cobrar', !!cobroE.error, `error: ${cobroE.error ?? 'ninguno'}`)
@@ -882,8 +885,8 @@ await api.eliminarProducto(RID, agotado.data.id)
 // -- Una mesa con comanda servida y SIN cobrar no se puede borrar (paridad real/local)
 const mesaConComanda = await api.crearPedido(RID, 'm-7', [pedir(prod('p-1'), 1)])
 const itemsMesa = (await api.getPedidoItems([mesaConComanda.data])).data
-await api.anularItem(RID, mesaConComanda.data, itemsMesa[0].id)
-await api.anularItem(RID, mesaConComanda.data, itemsMesa[0].id)
+await api.anularItem(RID, mesaConComanda.data, itemsMesa[0].id, 'Motivo de anulación QA')
+await api.anularItem(RID, mesaConComanda.data, itemsMesa[0].id, 'Motivo de anulación QA')
 const comandaServida = await api.crearPedido(RID, 'm-7', [pedir(prod('p-1'), 1)])
 // Se "sirve" (entregado) sin pasar por caja: sigue siendo plata por cobrar.
 localSeed.pedidos.find((p) => p.id === comandaServida.data).estado = 'entregado'
@@ -898,8 +901,8 @@ check('13h · la mesa sigue existiendo', localSeed.mesas.some((m) => m.id === 'm
 // -- Una comanda anulada no avanza de estado en cocina
 const comandaAnulada = await api.crearPedido(RID, 'm-9', [pedir(prod('p-1'), 1)])
 const itemsAnulada = (await api.getPedidoItems([comandaAnulada.data])).data
-await api.anularItem(RID, comandaAnulada.data, itemsAnulada[0].id)
-await api.anularItem(RID, comandaAnulada.data, itemsAnulada[0].id)
+await api.anularItem(RID, comandaAnulada.data, itemsAnulada[0].id, 'Motivo de anulación QA')
+await api.anularItem(RID, comandaAnulada.data, itemsAnulada[0].id, 'Motivo de anulación QA')
 check(
   '13i · una comanda anulada no se puede avanzar de estado',
   (await api.avanzarPedido(RID, comandaAnulada.data)).error === 'La comanda está anulada',
@@ -1625,7 +1628,7 @@ check(
 )
 check(
   '17k · un usuario desactivado no anula ítems',
-  (await api.anularItem(RID, comandaDeUsuario.data, itemDeUsuario.id)).error === 'Usuario desactivado',
+  (await api.anularItem(RID, comandaDeUsuario.data, itemDeUsuario.id, 'Motivo de anulación QA')).error === 'Usuario desactivado',
 )
 check(
   '17l · un usuario desactivado no abre la caja',
@@ -1738,7 +1741,7 @@ check('18i · después del bloqueo la mesa vuelve a operar', !comandaDespues.err
 // local es una simulación en memoria. Lo que se verifica es que las dos capas
 // digan lo mismo y que el arqueo de caja account del dinero devuelto.
 
-const { esPinValido, errorAlConfigurarPin, errorAlAnularCobro, MENSAJE_PIN_INCORRECTO } =
+const { esPinValido, errorAlConfigurarPin, errorAlAnularCobro, errorAlAnularItem, MENSAJE_PIN_INCORRECTO } =
   await servidor.ssrLoadModule('/src/lib/autorizacion.ts')
 
 // -- Reglas puras del PIN (las mismas que muestra la UI)
@@ -1751,9 +1754,10 @@ check(
   errorAlConfigurarPin('1234', '1235') === 'Los dos PIN no coinciden.',
 )
 check(
-  '19f · el motivo de la anulación es obligatorio y tiene mínimo 4 letras',
+  '19f · el motivo de la anulación de recibo conserva su regla actual',
   errorAlAnularCobro('') !== null && errorAlAnularCobro('x') !== null && errorAlAnularCobro('Error de cobro') === null,
 )
+check('19f1 · motivo de ítem rechaza vacío, espacios y más de 200 caracteres', errorAlAnularItem('') !== null && errorAlAnularItem('   ') !== null && errorAlAnularItem('x'.repeat(201)) !== null && errorAlAnularItem('Error de pedido') === null)
 
 // -- Sin PIN configurado, anular funciona (no se rompe lo que ya existía)
 apiMode.operadorId = adminId
@@ -1763,10 +1767,9 @@ check(
 )
 const comandaPin = await api.crearPedido(RID, 'm-9', [pedir(prod('p-1'), 1)])
 const itemPin = (await api.getPedidoItems([comandaPin.data])).data[0]
-check(
-  '19h · sin PIN configurado se anula el ítem sin pedir nada',
-  (await api.anularItem(RID, comandaPin.data, itemPin.id)).error === null,
-)
+check('19h · motivo vacío se rechaza sin cambiar ni auditar el ítem', (await api.anularItem(RID, comandaPin.data, itemPin.id, '')).error === 'Escribe el motivo de la anulación.')
+check('19h1 · motivo con espacios se rechaza sin mutación', (await api.anularItem(RID, comandaPin.data, itemPin.id, '   ')).error === 'Escribe el motivo de la anulación.')
+check('19h2 · sin PIN configurado y con motivo se anula', (await api.anularItem(RID, comandaPin.data, itemPin.id, 'Cliente cambió el pedido')).error === null)
 check('19i · el ítem queda anulado, no borrado', itemPin.anulado === true)
 
 // -- El Admin configura el PIN: a partir de ahí, sin él no se anula
@@ -1782,19 +1785,23 @@ check(
 
 const comandaPin2 = await api.crearPedido(RID, 'm-9', [pedir(prod('p-1'), 1)])
 const itemPin2 = (await api.getPedidoItems([comandaPin2.data])).data[0]
+const auditoriasAntesDelPinIncorrecto = localSeed.auditLogs.filter((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemPin2.id).length
 check(
   '19m · sin PIN, anular un ítem se rechaza',
-  (await api.anularItem(RID, comandaPin2.data, itemPin2.id)).error === MENSAJE_PIN_INCORRECTO,
+  (await api.anularItem(RID, comandaPin2.data, itemPin2.id, 'Motivo de anulación QA')).error === MENSAJE_PIN_INCORRECTO,
 )
+check('19m1 · PIN ausente no cambia el ítem ni crea auditoría', itemPin2.anulado !== true && localSeed.auditLogs.filter((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemPin2.id).length === auditoriasAntesDelPinIncorrecto)
 check(
   '19n · con PIN incorrecto se rechaza con el mismo mensaje',
-  (await api.anularItem(RID, comandaPin2.data, itemPin2.id, '1111')).error === MENSAJE_PIN_INCORRECTO,
+  (await api.anularItem(RID, comandaPin2.data, itemPin2.id, 'Motivo de anulación QA', '1111')).error === MENSAJE_PIN_INCORRECTO,
 )
+check('19n1 · PIN incorrecto no cambia ni audita el ítem', itemPin2.anulado !== true && localSeed.auditLogs.filter((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemPin2.id).length === auditoriasAntesDelPinIncorrecto)
 check(
   '19o · con el PIN correcto se anula',
-  (await api.anularItem(RID, comandaPin2.data, itemPin2.id, '2468')).error === null,
+  (await api.anularItem(RID, comandaPin2.data, itemPin2.id, 'Motivo de anulación QA', '2468')).error === null,
 )
 check('19p · el ítem quedó anulado con el PIN correcto', itemPin2.anulado === true)
+check('19p1 · PIN correcto registra motivo, actor e ítem en una sola auditoría', localSeed.auditLogs.filter((l) => l.accion === 'comanda_item_anular' && l.entidad_id === itemPin2.id && l.actor_id === adminId && l.detalle?.motivo === 'Motivo de anulación QA' && l.detalle?.pedido_id === comandaPin2.data).length === 1)
 
 // -- Anulación de cobros
 // Comanda nueva: la anterior quedó sin ítems vigentes al anular su único ítem, y
@@ -3868,9 +3875,9 @@ check('33d · Cocina KDS avanza; Barra solo impresora no cambia el estado KDS',
   localSeed.estadosComandaEstacion.filter((fila) => fila.pedido_id === pedidoEnrutado.data).length === 1 &&
   entregasEnrutadas.find((fila) => fila.estacion_codigo === 'bar')?.estado === 'pendiente')
 const itemBarParaAnular = itemsEnrutados.find((item) => item.producto_id === 'qa-operacion-admin-producto-a')
-const anularEstacionBar = itemBarParaAnular && await api.anularItem(RID_OP_ADMIN_A, pedidoEnrutado.data, itemBarParaAnular.id)
+const anularEstacionBar = itemBarParaAnular && await api.anularItem(RID_OP_ADMIN_A, pedidoEnrutado.data, itemBarParaAnular.id, 'Motivo de anulación QA')
 const bebidaBarParaAnular = itemsEnrutados.find((item) => item.producto_id === PRODUCTO_OP_BEBIDA)
-const anularUltimoItemBar = bebidaBarParaAnular && await api.anularItem(RID_OP_ADMIN_A, pedidoEnrutado.data, bebidaBarParaAnular.id)
+const anularUltimoItemBar = bebidaBarParaAnular && await api.anularItem(RID_OP_ADMIN_A, pedidoEnrutado.data, bebidaBarParaAnular.id, 'Motivo de anulación QA')
 check('33e · anular el último ítem de Barra cancela su entrega pendiente sin alterar Cocina',
   !!anularEstacionBar && !anularEstacionBar.error &&
   !!anularUltimoItemBar && !anularUltimoItemBar.error &&

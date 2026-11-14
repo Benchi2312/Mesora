@@ -14,6 +14,7 @@ import {
   confirmarMovimientoConsumo,
 } from '../../domain/security/confirmaciones'
 import { mensajeOperacion } from '../../domain/security/mensajeOperacion'
+import { errorAlAnularItem } from '../../domain/security/autorizacion'
 import { ejecutarAnulacionItem } from '../../domain/security/anulacionItem'
 import Precuenta from '../../components/Precuenta'
 import type { Zona } from '../../types/database'
@@ -56,6 +57,8 @@ export default function MesaOcupada({
   const [editando, setEditando] = useState<EnEdicion | null>(null)
   const [anulando, setAnulando] = useState<EnEdicion | null>(null)
   const [anulandoEnCurso, setAnulandoEnCurso] = useState(false)
+  const anulacionEnCursoRef = useRef(false)
+  const [motivoAnulacion, setMotivoAnulacion] = useState('')
   const [errorAnulacion, setErrorAnulacion] = useState<string | null>(null)
   const [meseros, setMeseros] = useState<MeseroResumen[]>([])
   const [mesasLibres, setMesasLibres] = useState<Mesa[]>([])
@@ -213,33 +216,47 @@ export default function MesaOcupada({
   const hayPedidos = pedidos.length > 0
 
   async function confirmarAnulacion() {
-    if (!restaurante || !anulando || anulandoEnCurso) return
+    if (!restaurante || !anulando || anulacionEnCursoRef.current) return
+    const motivo = motivoAnulacion.trim()
+    const errorMotivo = errorAlAnularItem(motivo)
+    if (errorMotivo) {
+      setErrorAnulacion(errorMotivo)
+      return
+    }
+    anulacionEnCursoRef.current = true
     setAnulandoEnCurso(true)
     setErrorAnulacion(null)
     const api = getApi()
-    const resultado = await ejecutarAnulacionItem({
-      anular: async () => {
-        const { error: apiErr } = await api.anularItem(restaurante.id, anulando.pedidoId, anulando.item.id, pin)
-        return { error: apiErr }
-      },
-      verificarAnulado: async () => {
-        const lectura = await api.getPedidoItems([anulando.pedidoId])
-        return !lectura.error && Boolean(lectura.data?.some((item) => item.id === anulando.item.id && item.anulado))
-      },
-      recargar: async () => {
-        const lectura = await cargar(true, { silenciarErrores: true })
-        return { ok: lectura.ok, comandasAbiertas: lectura.pedidos.length }
-      },
-    })
-    setAnulandoEnCurso(false)
-    if (resultado.estado === 'error') {
-      setErrorAnulacion(mensajeOperacion(resultado.mensaje, 'No se pudo anular el ítem. Actualiza la comanda e inténtalo de nuevo.'))
-      return
+    try {
+      const resultado = await ejecutarAnulacionItem({
+        anular: async () => {
+          const { error: apiErr } = await api.anularItem(restaurante.id, anulando.pedidoId, anulando.item.id, motivo, pin)
+          return { error: apiErr }
+        },
+        verificarAnulado: async () => {
+          const lectura = await api.getPedidoItems([anulando.pedidoId])
+          return !lectura.error && Boolean(lectura.data?.some((item) => item.id === anulando.item.id && item.anulado))
+        },
+        recargar: async () => {
+          const lectura = await cargar(true, { silenciarErrores: true })
+          return { ok: lectura.ok, comandasAbiertas: lectura.pedidos.length }
+        },
+      })
+      if (resultado.estado === 'error') {
+        setErrorAnulacion(mensajeOperacion(resultado.mensaje, 'No se pudo anular el ítem. Actualiza la comanda e inténtalo de nuevo.'))
+        return
+      }
+      setAnulando(null)
+      setMotivoAnulacion('')
+      setPin('')
+      setError(null)
+      setFlash(resultado.mensaje)
+    } catch {
+      setErrorAnulacion('No se pudo confirmar la respuesta. El motivo se conservó; puedes reintentar de forma segura.')
+    } finally {
+      anulacionEnCursoRef.current = false
+      setAnulandoEnCurso(false)
     }
-    setAnulando(null)
-    setPin('')
-    setError(null)
-    setFlash(resultado.mensaje)
   }
 
   async function confirmarOperacionMesa() {
@@ -454,6 +471,8 @@ export default function MesaOcupada({
           edicion={editando}
           onCerrar={() => setEditando(null)}
           onAnular={() => {
+            setMotivoAnulacion('')
+            setErrorAnulacion(null)
             setAnulando(editando)
             setEditando(null)
           }}
@@ -480,6 +499,21 @@ export default function MesaOcupada({
           }
           extra={
             <>
+              <label className="label mt-4" htmlFor="motivo-anulacion-item">Motivo de anulación</label>
+              <textarea
+                id="motivo-anulacion-item"
+                aria-describedby="motivo-anulacion-item-ayuda"
+                aria-invalid={Boolean(errorAlAnularItem(motivoAnulacion))}
+                rows={3}
+                maxLength={200}
+                value={motivoAnulacion}
+                onChange={(e) => { setMotivoAnulacion(e.target.value); setErrorAnulacion(null) }}
+                placeholder="Ej.: producto duplicado o cambio solicitado por el cliente"
+                className="input resize-y py-3"
+              />
+              <p id="motivo-anulacion-item-ayuda" className="mt-1 text-xs text-zinc-500" role={errorAlAnularItem(motivoAnulacion) ? 'alert' : undefined}>
+                {errorAlAnularItem(motivoAnulacion) ?? 'Obligatorio. Máximo 200 caracteres. Quedará registrado en auditoría.'}
+              </p>
               <ResumenConfirmacionAccion pinVerificando={cargandoPin} resumen={confirmarAnulacionItem({
                 producto: anulando.item.nombre_producto,
                 cantidad: anulando.item.cantidad,
@@ -487,15 +521,17 @@ export default function MesaOcupada({
                 mesa: mesa.nombre,
                 liberaMesa: itemsVigentes(items).filter((item) => item.id !== anulando.item.id).length === 0,
                 requierePin,
+                motivo: motivoAnulacion,
               })} />
               {requierePin ? <CampoPin pin={pin} onChange={setPin} /> : null}
             </>
           }
-          disabled={cargandoPin || (requierePin && pin.length === 0)}
+          disabled={cargandoPin || Boolean(errorAlAnularItem(motivoAnulacion)) || (requierePin && pin.length === 0)}
           error={errorAnulacion}
           onConfirmar={() => void confirmarAnulacion()}
           onCancelar={() => {
             setAnulando(null)
+            setMotivoAnulacion('')
             setErrorAnulacion(null)
             setPin('')
           }}

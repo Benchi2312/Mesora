@@ -51,6 +51,10 @@ try {
   console.log('SQL QA: tablas, RPC, RLS y pgcrypto instalados')
   await verificarReconciliacionHistorica(pg)
   console.log('SQL QA: cuenta anulada histórica, dos salidas, reejecución idempotente, RPC manual/agente, aislamiento y envío incierto aprobados')
+  const migracionMotivo = readFileSync(new URL('../supabase/migrations/20261114120000_motivo_obligatorio_anulacion_item.sql', import.meta.url), 'utf8')
+  assert.equal((instalador.match(/-- # \d+\/\d+ · \.\.\/migrations\/20261114120000_motivo_obligatorio_anulacion_item\.sql/g) ?? []).length, 1, 'La migración de motivo debe aparecer una sola vez en el orden del instalador')
+  await pg.exec(readFileSync(new URL('../supabase/qa/motivo_obligatorio_anulacion_item_rollback.sql', import.meta.url), 'utf8'))
+  console.log('SQL QA: motivo obligatorio, PIN, idempotencia, auditoría, roles y aislamiento aprobados')
   await pg.exec(readFileSync(new URL('../supabase/qa/idempotencia_pedidos_rollback.sql', import.meta.url), 'utf8'))
   console.log('SQL QA: primer pedido, reintento, conflicto, roles, aislamiento y rollback idempotente aprobados')
   await pg.exec(`
@@ -323,8 +327,11 @@ try {
     await verificarReconciliacionHistorica(pgUpgrade)
     const reconciliacionHistoricaUpgrade = readFileSync(new URL('../supabase/migrations/20261114054941_reconciliar_salidas_cuentas_anuladas.sql', import.meta.url), 'utf8')
     await pgUpgrade.exec(reconciliacionHistoricaUpgrade)
+    await pgUpgrade.exec(migracionMotivo)
+    await pgUpgrade.exec(readFileSync(new URL('../supabase/qa/motivo_obligatorio_anulacion_item_rollback.sql', import.meta.url), 'utf8'))
     assert.equal((await pgUpgrade.query("select count(*)::int as n from public.pedidos where id='00000000-0000-4000-8000-000000000007' and solicitud_id is null and solicitud_items is null")).rows[0].n, 1)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from public.pedido_items where pedido_id='00000000-0000-4000-8000-000000000007'")).rows[0].n, 1)
+    assert.equal((await pgUpgrade.query("select motivo_anulacion from public.pedido_items where pedido_id='00000000-0000-4000-8000-000000000007'")).rows[0].motivo_anulacion, null)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='pedidos' and column_name in ('solicitud_id','solicitud_items')")).rows[0].n, 2)
     await pgUpgrade.exec(readFileSync(new URL('../supabase/qa/idempotencia_pedidos_rollback.sql', import.meta.url), 'utf8'))
     assert.equal((await pgUpgrade.query("select modalidad_cobro_aplicada from public.configuracion_operativa where restaurante_id='00000000-0000-4000-8000-000000000002'")).rows[0].modalidad_cobro_aplicada, null)
@@ -347,7 +354,7 @@ try {
     assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('registrar_impresion_salida_comanda','actualizar_estado_salida_comanda')")).rows[0].n, 2)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='entregas_comanda' and column_name='cancelada_por_anulacion_cuenta'")).rows[0].n, 1)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='pedidos_con_cuenta_anulada'")).rows[0].n, 1)
-    console.log('SQL QA: migración de idempotencia instalada sobre esquema existente; pedidos históricos intactos')
+    console.log('SQL QA: motivo obligatorio instalado sobre esquema existente; motivo histórico nulo y pedidos históricos intactos')
   } finally { await pgUpgrade.close() }
 } catch (e) {
   console.error(e.message, e.position ? `SQL position ${e.position}` : '', e.detail ?? '', e.hint ?? '', e.where ?? '')

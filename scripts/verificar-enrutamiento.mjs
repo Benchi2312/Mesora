@@ -113,10 +113,10 @@ try {
   assert.equal(active.rutasPorEstacion.bar.destinos.includes('impresora'), true)
 
   const itemBar = items.find((item) => item.producto_id === explicitId)
-  const cancelled = await api.anularItem(rid, created.data, itemBar.id)
+  const cancelled = await api.anularItem(rid, created.data, itemBar.id, 'Motivo de anulación QA')
   assert.ifError(cancelled.error)
   const itemBebidaBar = items.find((item) => item.producto_id === fallbackDrinkId)
-  const cancelledLastBarItem = await api.anularItem(rid, created.data, itemBebidaBar.id)
+  const cancelledLastBarItem = await api.anularItem(rid, created.data, itemBebidaBar.id, 'Motivo de anulación QA')
   assert.ifError(cancelledLastBarItem.error)
   const kitchenStationId = saved.data.estaciones.find((row) => row.codigo === 'cocina').id
   assert.equal(localSeed.estadosComandaEstacion.some((row) => row.pedido_id === created.data && row.estacion_id === saved.data.estaciones.find((fila) => fila.codigo === 'bar').id), false)

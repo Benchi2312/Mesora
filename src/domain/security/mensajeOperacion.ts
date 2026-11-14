@@ -6,6 +6,12 @@ export function mensajeOperacion(error: string | null | undefined, alternativo: 
   if (/pin de autorizaci[oó]n incorrecto/i.test(detalle)) {
     return 'El PIN no coincide. Revísalo con el gerente e inténtalo de nuevo.'
   }
+  if (/motivo.*obligatorio|escribe el motivo de la anulaci[oó]n/i.test(detalle)) {
+    return "Escribe el motivo de la anulación antes de confirmar."
+  }
+  if (/motivo.*200 caracteres|motivo demasiado largo/i.test(detalle)) {
+    return "El motivo no puede superar 200 caracteres."
+  }
   if (/falta el pin|se requiere.*pin|pin.*obligatorio/i.test(detalle)) {
     return 'Ingresa el PIN del gerente para continuar.'
   }
