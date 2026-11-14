@@ -70,7 +70,7 @@ begin
     select * from (values
       ('crear_pedido', format('select public.crear_pedido(%L::uuid,%L::uuid,%L::jsonb)', v_b, v_mesa_b, '[]'), 'Sin permiso'),
       ('editar_item_comanda', format('select public.editar_item_comanda(%L::uuid,%L::uuid,%L::uuid,2,%L::text)', v_b, v_pedido_b, v_item_b, 'QA'), 'Sin permiso'),
-      ('anular_item_comanda', format('select public.anular_item_comanda(%L::uuid,%L::uuid,%L::uuid,%L::text)', v_b, v_pedido_b, v_item_b, '0000'), 'Sin permiso'),
+      ('anular_item_comanda', format('select public.anular_item_comanda(%L::uuid,%L::uuid,%L::uuid,%L::text,%L::text)', v_b, v_pedido_b, v_item_b, 'Motivo QA', '0000'), 'Sin permiso'),
       ('cerrar_cuenta', format('select public.cerrar_cuenta(%L::uuid,%L::uuid,array[%L::uuid],%L::jsonb,0)', v_b, v_mesa_b, v_pedido_b, '[{"metodo_pago":"efectivo","monto":10}]'), 'No estás autorizado'),
       ('anular_cuenta', format('select public.anular_cuenta(%L::uuid,%L::uuid,%L::text,%L::text)', v_b, v_cuenta_b, 'Motivo QA', '0000'), 'Sin permiso'),
       ('abrir_turno_caja', format('select public.abrir_turno_caja(%L::uuid,%L::uuid,0)', v_b, v_admin_a), 'Sin permiso'),
@@ -125,7 +125,7 @@ begin
     select * from (values
       ('crear_pedido', format('select public.crear_pedido(%L::uuid,%L::uuid,%L::jsonb)', v_a, v_mesa_a, '[]'), 'Sin permiso'),
       ('editar_item_comanda', format('select public.editar_item_comanda(%L::uuid,%L::uuid,%L::uuid,2,%L::text)', v_a, v_pedido_b, v_item_b, 'QA'), 'Sin permiso'),
-      ('anular_item_comanda', format('select public.anular_item_comanda(%L::uuid,%L::uuid,%L::uuid,%L::text)', v_a, v_pedido_b, v_item_b, '0000'), 'Sin permiso'),
+      ('anular_item_comanda', format('select public.anular_item_comanda(%L::uuid,%L::uuid,%L::uuid,%L::text,%L::text)', v_a, v_pedido_b, v_item_b, 'Motivo QA', '0000'), 'Sin permiso'),
       ('cerrar_cuenta', format('select public.cerrar_cuenta(%L::uuid,%L::uuid,array[%L::uuid],%L::jsonb,0)', v_a, v_mesa_a, v_pedido_b, '[{"metodo_pago":"efectivo","monto":10}]'), 'No estás autorizado'),
       ('anular_cuenta', format('select public.anular_cuenta(%L::uuid,%L::uuid,%L::text,%L::text)', v_a, v_cuenta_b, 'Motivo QA', '0000'), 'Sin permiso'),
       ('abrir_turno_caja', format('select public.abrir_turno_caja(%L::uuid,%L::uuid,0)', v_a, v_cocina), 'Sin permiso'),
@@ -187,7 +187,7 @@ begin
     select * from (values
       ('crear_pedido', format('select public.crear_pedido(%L::uuid,%L::uuid,%L::jsonb)', v_a, v_mesa_a, '[]'), 'Sin permiso'),
       ('editar_item_comanda', format('select public.editar_item_comanda(%L::uuid,%L::uuid,%L::uuid,2,%L::text)', v_a, v_pedido_b, v_item_b, 'QA'), 'Sin permiso'),
-      ('anular_item_comanda', format('select public.anular_item_comanda(%L::uuid,%L::uuid,%L::uuid,%L::text)', v_a, v_pedido_b, v_item_b, '0000'), 'Sin permiso'),
+      ('anular_item_comanda', format('select public.anular_item_comanda(%L::uuid,%L::uuid,%L::uuid,%L::text,%L::text)', v_a, v_pedido_b, v_item_b, 'Motivo QA', '0000'), 'Sin permiso'),
       ('cerrar_cuenta', format('select public.cerrar_cuenta(%L::uuid,%L::uuid,array[%L::uuid],%L::jsonb,0)', v_a, v_mesa_a, v_pedido_b, '[{"metodo_pago":"efectivo","monto":10}]'), 'No estás autorizado'),
       ('configurar_pin_autorizacion', format('select public.configurar_pin_autorizacion(%L::uuid,%L::text)', v_a, '4242'), 'Solo el administrador'),
       ('quitar_pin_autorizacion', format('select public.quitar_pin_autorizacion(%L::uuid)', v_a), 'Solo el administrador'),

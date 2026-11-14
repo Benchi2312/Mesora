@@ -291,6 +291,8 @@ export type PedidoItem = {
   anulado?: boolean | null
   anulado_por?: string | null
   anulado_at?: string | null
+  /** Motivo obligatorio para anulaciones nuevas; null se conserva en históricos. */
+  motivo_anulacion?: string | null
   /** Clasificación histórica para reportes, congelada al crear la comanda. */
   es_bebida?: boolean | null
   /** Estación histórica para preparación e impresión. */
@@ -713,12 +715,13 @@ export interface Database {
           p_restaurante_id: string
           p_pedido_id: string
           p_item_id: string
+          p_motivo: string
           /**
            * PIN del restaurante. Si el restaurante no tiene PIN configurado se
            * ignora; si lo tiene, sin él la RPC no anula nada
            * (ver supabase/pin_autorizacion.sql).
            */
-          p_pin?: string | null
+          p_pin: string | null
         }
         Returns: undefined
       }

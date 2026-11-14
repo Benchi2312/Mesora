@@ -73,18 +73,77 @@ try {
       const dato = (r) => { if (r.error || r.data == null) throw new Error(r.error ?? 'Respuesta vacía'); return r.data }
       const zona = dato(await api.crearZona('r-demo', 'Salón QA'))
       const mesa = dato(await api.crearMesa('r-demo', { nombre: 'Mesa precuenta QA', zona_id: zona.id }))
+      dato(await api.crearMesa('r-demo', { nombre: 'Mesa motivo UI QA', zona_id: zona.id }))
       const plato = dato(await api.crearProducto('r-demo', { nombre: 'Lomo saltado especial con acompañamiento de la casa', precio: 22.5, categoria_id: null, disponible: true }))
       const bebida = dato(await api.crearProducto('r-demo', { nombre: 'Bebida QA', precio: 5.5, categoria_id: null, disponible: true }))
+      dato(await api.crearProducto('r-demo', { nombre: 'Producto motivo UI QA', precio: 0.01, categoria_id: null, disponible: true }))
       const pedido = dato(await api.crearPedido('r-demo', mesa.id, [
         { producto_id: plato.id, nombre_producto: plato.nombre, cantidad: 2, precio_unitario: 22.5 },
         { producto_id: bebida.id, nombre_producto: bebida.nombre, cantidad: 1, precio_unitario: 5.5 },
       ]))
       dato(await api.crearPedido('r-demo', mesa.id, [{ producto_id: bebida.id, nombre_producto: bebida.nombre, cantidad: 2, precio_unitario: 5.5 }]))
       const items = dato(await api.getPedidoItems([pedido]))
-      const anulacion = await api.anularItem('r-demo', pedido, items.find((it) => it.producto_id === bebida.id).id)
+      const anulacion = await api.anularItem('r-demo', pedido, items.find((it) => it.producto_id === bebida.id).id, 'Bebida agregada por error')
       if (anulacion.error) throw new Error(anulacion.error)
     })
     await visitar('/demo/mesero')
+    await page.evaluate(async () => {
+      const { getApi } = await import('/src/lib/api.ts')
+      const api = getApi()
+      const dato = (r) => { if (r.error || r.data == null) throw new Error(r.error ?? 'Respuesta vacía'); return r.data }
+      const mesas = dato(await api.getMesas('r-demo'))
+      const productos = dato(await api.getProductos('r-demo'))
+      const mesa = mesas.find((fila) => fila.nombre === 'Mesa motivo UI QA')
+      const producto = productos.find((fila) => fila.nombre === 'Producto motivo UI QA')
+      const pedido = dato(await api.crearPedido('r-demo', mesa.id, [{ producto_id: producto.id, nombre_producto: producto.nombre, cantidad: 1, precio_unitario: producto.precio }]))
+      sessionStorage.setItem('qa.pedidoMotivoUi', pedido)
+    })
+    await visitar('/demo/mesero')
+    await page.getByRole('button', { name: /Mesa motivo UI QA/ }).click()
+    await page.getByRole('button', { name: 'Editar Producto motivo UI QA' }).click()
+    await page.getByRole('button', { name: 'Anular ítem', exact: true }).click()
+    const campoMotivo = page.getByLabel('Motivo de anulación')
+    const botonAnular = page.getByRole('button', { name: 'Anular ítem', exact: true })
+    await expect(campoMotivo).toBeVisible()
+    await expect(botonAnular).toBeDisabled()
+    await campoMotivo.fill('   ')
+    await expect(botonAnular).toBeDisabled()
+    await expect(page.getByRole('alert')).toContainText('Escribe el motivo')
+    await campoMotivo.fill('Cambio solicitado por cliente')
+    await expect(botonAnular).toBeEnabled()
+    await page.evaluate(async () => {
+      const { getApi } = await import('/src/lib/api.ts')
+      const api = getApi()
+      window.__apiAnularItemOriginal = api.anularItem
+      window.__anulacionesUiQa = 0
+      api.anularItem = async () => {
+        window.__anulacionesUiQa++
+        await new Promise((resolve) => setTimeout(resolve, 80))
+        return { data: null, error: 'Failed to fetch' }
+      }
+    })
+    await botonAnular.dblclick()
+    await expect(page.getByText('No se pudo conectar. Revisa internet y actualiza la pantalla antes de repetir la operación.')).toBeVisible()
+    assert.equal(await campoMotivo.inputValue(), 'Cambio solicitado por cliente', 'El motivo debe conservarse si la RPC falla')
+    assert.equal(await page.evaluate(() => window.__anulacionesUiQa), 1, 'El doble clic solo debe disparar una solicitud')
+    await page.evaluate(async () => {
+      const { getApi } = await import('/src/lib/api.ts')
+      getApi().anularItem = window.__apiAnularItemOriginal
+    })
+    await botonAnular.click()
+    await expect(campoMotivo).toHaveCount(0)
+    const motivoGuardado = await page.evaluate(async () => {
+      const { getApi } = await import('/src/lib/api.ts')
+      const api = getApi()
+      const mesas = (await api.getMesas('r-demo')).data
+      const productos = (await api.getProductos('r-demo')).data
+      const mesa = mesas.find((fila) => fila.nombre === 'Mesa motivo UI QA')
+      const producto = productos.find((fila) => fila.nombre === 'Producto motivo UI QA')
+      const items = (await api.getPedidoItems([sessionStorage.getItem('qa.pedidoMotivoUi')])).data
+      return items.find((item) => item.producto_id === producto.id)?.motivo_anulacion
+    })
+    assert.equal(motivoGuardado, 'Cambio solicitado por cliente')
+    await page.getByRole('button', { name: /Volver a mesas/ }).click()
     await page.getByRole('button', { name: /Mesa precuenta QA/ }).click()
     const datosAntes = await page.evaluate(() => localStorage.getItem('mesora.demo.datos.v2'))
     await page.getByRole('button', { name: 'Ver precuenta', exact: true }).click()

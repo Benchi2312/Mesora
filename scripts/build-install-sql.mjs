@@ -124,6 +124,7 @@ const ORDEN = [
   '../migrations/20261112120000_idempotencia_crear_pedido.sql',
   '../migrations/20261113073105_bloquear_impresion_cuenta_anulada.sql',
   '../migrations/20261114054941_reconciliar_salidas_cuentas_anuladas.sql',
+  '../migrations/20261114120000_motivo_obligatorio_anulacion_item.sql',
 ]
 
 const fallos = []

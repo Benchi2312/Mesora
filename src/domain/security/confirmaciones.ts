@@ -25,10 +25,11 @@ export function confirmarAnulacionItem(datos: {
   mesa: string
   liberaMesa: boolean
   requierePin: boolean
+  motivo: string
 }): ResumenConfirmacion {
   return resumen(
     'Anular el ítem seleccionado',
-    `${datos.cantidad} × ${datos.producto} (${datos.importe}) en ${datos.mesa}. No se cobrará y dejará de figurar en cocina.${datos.liberaMesa ? ' Es el último ítem abierto: al anularlo se liberará la mesa.' : ''}`,
+    `${datos.cantidad} × ${datos.producto} (${datos.importe}) en ${datos.mesa}. Motivo: «${datos.motivo.trim()}». No se cobrará y dejará de figurar en cocina.${datos.liberaMesa ? ' Es el último ítem abierto: al anularlo se liberará la mesa.' : ''}`,
     datos.requierePin,
   )
 }

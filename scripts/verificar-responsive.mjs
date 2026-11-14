@@ -7,7 +7,7 @@
 // Levanta Vite con un directorio de entorno vacío para usar los datos mock,
 // sin mover .env.local ni cambiar la configuración de otros servidores.
 
-import { chromium } from '@playwright/test'
+import { chromium, expect } from '@playwright/test'
 import { spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, openSync, rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -736,7 +736,13 @@ async function correrAnulacionUltimoItem(browser) {
     await page.getByRole('button', { name: 'Anular ítem', exact: true }).click()
     etapa = 'confirmar anulación del último ítem'
     await page.getByRole('heading', { name: 'Anular ítem', exact: true }).waitFor()
-    await page.getByRole('button', { name: 'Anular ítem', exact: true }).last().click()
+    const motivoAnulacion = page.getByLabel('Motivo de anulación')
+    const confirmarAnulacion = page.getByRole('button', { name: 'Anular ítem', exact: true }).last()
+    check('anulación exige un motivo antes de confirmar', await confirmarAnulacion.isDisabled())
+    await motivoAnulacion.fill('Corrección solicitada durante prueba visual')
+    await expect(confirmarAnulacion).toBeEnabled({ timeout: 12000 })
+    check('motivo válido permite confirmar la anulación', await confirmarAnulacion.isEnabled())
+    await confirmarAnulacion.click()
 
     etapa = 'comprobar aviso verde'
     const aviso = page.getByRole('status').filter({ hasText: mensajeEsperado })

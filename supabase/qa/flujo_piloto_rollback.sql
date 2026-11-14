@@ -55,10 +55,10 @@ begin
   end if;
   select id into item_cancelado from public.pedido_items where pedido_id=p1 and producto_id=bebida;
   denegado:=false;
-  begin perform public.anular_item_comanda(r,p1,item_cancelado,'0000');
+  begin perform public.anular_item_comanda(r,p1,item_cancelado,'Bebida agregada por error','0000');
   exception when others then denegado:=true; end;
   if not denegado then raise exception 'Se anuló un ítem con PIN incorrecto'; end if;
-  perform public.anular_item_comanda(r,p1,item_cancelado,'4242');
+  perform public.anular_item_comanda(r,p1,item_cancelado,'Bebida agregada por error','4242');
   if jsonb_array_length(public.pedidos_pendientes_mesa(r,mesa))<>2 then raise exception 'Falta una comanda pendiente'; end if;
   resumen:=public.mesas_por_cobrar(r);
   if (resumen->0->>'total')::numeric<>56 then raise exception 'Precuenta incorrecta: %',resumen; end if;
@@ -70,6 +70,7 @@ begin
     select 1 from public.audit_logs
      where actor_id=mesero and entidad_id=item_cancelado and accion='comanda_item_anular'
        and detalle->>'producto'='Bebida QA'
+       and detalle->>'motivo'='Bebida agregada por error'
        and detalle->>'mesa_id'=mesa::text
   ) then raise exception 'La anulación del ítem no quedó en auditoría'; end if;
 
@@ -80,8 +81,8 @@ begin
   p_ultimo := public.crear_pedido(r,mesa_ultima,jsonb_build_array(
     jsonb_build_object('producto_id',postre,'cantidad',1)));
   select id into item_ultimo from public.pedido_items where pedido_id=p_ultimo;
-  perform public.anular_item_comanda(r,p_ultimo,item_ultimo,'4242');
-  perform public.anular_item_comanda(r,p_ultimo,item_ultimo,'4242');
+  perform public.anular_item_comanda(r,p_ultimo,item_ultimo,'Último ítem QA','4242');
+  perform public.anular_item_comanda(r,p_ultimo,item_ultimo,'Intento repetido QA','4242');
   if (select anulado from public.pedido_items where id=item_ultimo) is not true then
     raise exception 'El backend no confirmó el estado anulado del último ítem';
   end if;
