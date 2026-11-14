@@ -5,6 +5,25 @@ import { PGlite } from '@electric-sql/pglite'
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto'
 
 const pg = new PGlite({ extensions: { pgcrypto } })
+
+async function verificarReconciliacionHistorica(db) {
+  const migracion = readFileSync(new URL('../supabase/migrations/20261114054941_reconciliar_salidas_cuentas_anuladas.sql', import.meta.url), 'utf8')
+    .replace(/^\s*begin;\s*/i, '')
+    .replace(/\s*commit;\s*$/i, '')
+  const qa = readFileSync(new URL('../supabase/qa/reconciliar_salidas_cuenta_anulada_rollback.sql', import.meta.url), 'utf8')
+  const marcador = '/* APLICAR_MIGRACION_RECONCILIACION_SALIDAS */'
+  const marcadorSegunda = '/* APLICAR_MIGRACION_RECONCILIACION_SALIDAS_SEGUNDA_VEZ */'
+  assert.equal(qa.split(marcador).length, 2, 'Falta un punto único de inyección de la migración de reconciliación')
+  const [antes, resto] = qa.split(marcador)
+  assert.equal(resto.split(marcadorSegunda).length, 2, 'Falta el punto de inyección de la segunda ejecución')
+  const [despuesPrimera, despuesSegunda] = resto.split(marcadorSegunda)
+  await db.exec(antes)
+  await db.exec(migracion)
+  await db.exec(despuesPrimera)
+  await db.exec(migracion)
+  await db.exec(despuesSegunda)
+}
+
 try {
   await pg.exec(`
     create role anon nologin;
@@ -30,6 +49,8 @@ try {
   }
   assert.equal((await pg.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 27)
   console.log('SQL QA: tablas, RPC, RLS y pgcrypto instalados')
+  await verificarReconciliacionHistorica(pg)
+  console.log('SQL QA: cuenta anulada histórica, dos salidas, reejecución idempotente, RPC manual/agente, aislamiento y envío incierto aprobados')
   await pg.exec(readFileSync(new URL('../supabase/qa/idempotencia_pedidos_rollback.sql', import.meta.url), 'utf8'))
   console.log('SQL QA: primer pedido, reintento, conflicto, roles, aislamiento y rollback idempotente aprobados')
   await pg.exec(`
@@ -299,6 +320,9 @@ try {
     await pgUpgrade.exec(idempotenciaUpgrade)
     const bloqueoImpresionAnuladaUpgrade = readFileSync(new URL('../supabase/migrations/20261113073105_bloquear_impresion_cuenta_anulada.sql', import.meta.url), 'utf8')
     await pgUpgrade.exec(bloqueoImpresionAnuladaUpgrade)
+    await verificarReconciliacionHistorica(pgUpgrade)
+    const reconciliacionHistoricaUpgrade = readFileSync(new URL('../supabase/migrations/20261114054941_reconciliar_salidas_cuentas_anuladas.sql', import.meta.url), 'utf8')
+    await pgUpgrade.exec(reconciliacionHistoricaUpgrade)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from public.pedidos where id='00000000-0000-4000-8000-000000000007' and solicitud_id is null and solicitud_items is null")).rows[0].n, 1)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from public.pedido_items where pedido_id='00000000-0000-4000-8000-000000000007'")).rows[0].n, 1)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='pedidos' and column_name in ('solicitud_id','solicitud_items')")).rows[0].n, 2)
