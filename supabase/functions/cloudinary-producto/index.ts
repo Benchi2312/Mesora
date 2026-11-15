@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { crearHandlerCloudinary } from './handler.ts'
+import { clasificarErrorCloudinary } from './cloudinaryErrors.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
@@ -78,9 +79,14 @@ const handler = crearHandlerCloudinary({
       method: 'POST',
       body,
     })
-    const result = await response.json().catch(() => null) as { secure_url?: unknown; public_id?: unknown } | null
+    const result = await response.json().catch(() => null) as { secure_url?: unknown; public_id?: unknown; error?: unknown } | null
     if (!response.ok || typeof result?.secure_url !== 'string' || typeof result.public_id !== 'string') {
-      throw new Error('Cloudinary rechazó la carga.')
+      const errorProveedor = result?.error
+      const detalleProveedor = errorProveedor && typeof errorProveedor === 'object' && 'message' in errorProveedor &&
+        typeof errorProveedor.message === 'string'
+        ? errorProveedor.message
+        : ''
+      throw new Error(`CLOUDINARY_${clasificarErrorCloudinary(response.status, detalleProveedor)}`)
     }
     return { secureUrl: result.secure_url, publicId: result.public_id }
   },
