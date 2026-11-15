@@ -57,6 +57,21 @@ function requestSubida(mime: string, bytes = archivos[mime], filename = `product
 
 async function json(response: Response) { return await response.json() as Record<string, unknown> }
 
+Deno.test('Cloudinary producto: el preflight OPTIONS devuelve 204 sin cuerpo y permite el origen de producción', async () => {
+  const response = await entorno().handler(new Request('https://mesora-sistema.vercel.app/functions/v1/cloudinary-producto', {
+    method: 'OPTIONS',
+    headers: {
+      origin: ORIGEN,
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'authorization, apikey, content-type',
+    },
+  }))
+  if (response.status !== 204) throw new Error(`Se esperaba HTTP 204 para preflight, se recibió ${response.status}.`)
+  if (await response.text() !== '') throw new Error('El preflight 204 no debe incluir un cuerpo.')
+  if (response.headers.get('access-control-allow-origin') !== ORIGEN) throw new Error('El preflight no permitió el origen de producción.')
+  if (!response.headers.get('access-control-allow-headers')?.includes('authorization')) throw new Error('El preflight no permitió el encabezado de sesión.')
+})
+
 Deno.test('Cloudinary producto: JPG, PNG y WebP se validan y se suben al restaurante de la sesión', async () => {
   for (const mime of Object.keys(archivos)) {
     const env = entorno()
