@@ -34,7 +34,7 @@ const ORIGENES_BASE = [
 function respuesta(request: Request, estado: number, cuerpo: Record<string, unknown>, origenes: Set<string>): Response {
   const origin = request.headers.get('origin') ?? ''
   const permitido = origin && origenes.has(origin)
-  return new Response(JSON.stringify(cuerpo), {
+  return new Response(estado === 204 ? null : JSON.stringify(cuerpo), {
     status: estado,
     headers: {
       ...(permitido ? { 'Access-Control-Allow-Origin': origin } : {}),
@@ -42,7 +42,7 @@ function respuesta(request: Request, estado: number, cuerpo: Record<string, unkn
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Max-Age': '86400',
       'Cache-Control': 'no-store',
-      'Content-Type': 'application/json; charset=utf-8',
+      ...(estado === 204 ? {} : { 'Content-Type': 'application/json; charset=utf-8' }),
       Vary: 'Origin',
     },
   })
