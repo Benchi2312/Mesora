@@ -248,6 +248,8 @@ export type Producto = {
   nombre: string
   descripcion?: string | null
   imagen_url?: string | null
+  /** Identificador Cloudinary para reemplazar o retirar imágenes sin perderlas antes del guardado. */
+  imagen_public_id?: string | null
   precio: number
   disponible: boolean
   es_promocion?: boolean | null

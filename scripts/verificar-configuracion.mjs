@@ -272,21 +272,41 @@ try {
     await expect(nuevoProducto.getByLabel('Nombre', { exact: true })).toBeVisible()
     await expect(nuevoProducto.getByLabel('Precio (S/)')).toBeVisible()
     await expect(nuevoProducto.getByLabel('Es bebida')).toBeVisible()
+    await expect(nuevoProducto.getByRole('button', { name: 'Usar enlace', exact: true })).toBeVisible()
+    await expect(nuevoProducto.getByRole('button', { name: 'Subir archivo', exact: true })).toBeVisible()
+    await nuevoProducto.getByRole('button', { name: 'Subir archivo', exact: true }).click()
+    const archivoImagen = nuevoProducto.locator('#producto-imagen-archivo')
+    await expect(archivoImagen).toHaveAttribute('accept', '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp')
+    await expect(archivoImagen).toBeDisabled() // El demo no finge guardar en Cloudinary.
+    await nuevoProducto.getByRole('button', { name: 'Usar enlace', exact: true }).click()
     await expect(nuevoProducto.locator('#producto-estacion')).toHaveCount(0)
     await expect(nuevoProducto.getByText('En productos nuevos, las bebidas van a Barra y los demás a Cocina.', { exact: false })).toBeVisible()
     await nuevoProducto.getByLabel('Nombre', { exact: true }).fill('Bebida de QA')
     await nuevoProducto.getByLabel('Precio (S/)').fill('8.50')
+    await nuevoProducto.getByLabel('Enlace HTTPS (opcional)').fill('https://images.example.invalid/bebida-qa.jpg')
+    await expect(nuevoProducto.getByRole('img', { name: 'Vista previa del producto' })).toBeVisible()
     await nuevoProducto.locator('label').filter({ hasText: 'Es bebida' }).click()
     await expect(nuevoProducto.getByLabel('Es bebida')).toBeChecked()
     await page.evaluate(async () => {
       const api = (await import('/src/lib/api.ts')).getApi()
       window.__crearProducto = api.crearProducto
-      api.crearProducto = async (_rid, datos) => { window.__productoQA = datos; return { data: { id: 'producto-qa', ...datos }, error: null } }
+      window.__intentosImagenQA = 0
+      api.crearProducto = async (_rid, datos) => {
+        window.__productoQA = datos
+        window.__intentosImagenQA += 1
+        if (window.__intentosImagenQA === 1) return { data: null, error: 'Error de guardado QA' }
+        return { data: { id: 'producto-qa', ...datos }, error: null }
+      }
     })
+    await nuevoProducto.getByRole('button', { name: 'Crear producto' }).click()
+    await expect(nuevoProducto.getByText('Error de guardado QA', { exact: true })).toBeVisible()
+    await expect(nuevoProducto.getByLabel('Enlace HTTPS (opcional)')).toHaveValue('https://images.example.invalid/bebida-qa.jpg')
     await nuevoProducto.getByRole('button', { name: 'Crear producto' }).click()
     await expect(nuevoProducto).toHaveCount(0)
     const productoQA = await page.evaluate(() => window.__productoQA)
     assert.equal(productoQA.es_bebida, true)
+    assert.equal(productoQA.imagen_url, 'https://images.example.invalid/bebida-qa.jpg')
+    assert.equal(productoQA.imagen_public_id, null)
     assert.equal(productoQA.estacion, 'bar', 'Una bebida nueva se asigna internamente a Barra sin pedir estación')
     await page.evaluate(async () => { (await import('/src/lib/api.ts')).getApi().crearProducto = window.__crearProducto })
     await page.getByRole('button', { name: 'Agregar producto' }).first().click()

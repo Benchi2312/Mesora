@@ -49,6 +49,18 @@ try {
   }
   assert.equal((await pg.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 27)
   console.log('SQL QA: tablas, RPC, RLS y pgcrypto instalados')
+  const qaImagenProducto = readFileSync(new URL('../supabase/qa/imagenes_producto_cloudinary_rollback.sql', import.meta.url), 'utf8')
+  const migracionImagenProducto = readFileSync(new URL('../supabase/migrations/20261115072449_producto_imagen_public_id_cloudinary.sql', import.meta.url), 'utf8')
+    .replace(/^\s*begin;\s*/i, '')
+    .replace(/\s*commit;\s*$/i, '')
+  const marcadorImagenProducto = '/* APLICAR_MIGRACION_IMAGEN_PRODUCTO */'
+  assert.equal(qaImagenProducto.split(marcadorImagenProducto).length, 2, 'Falta el punto de inyección de la migración de imágenes')
+  const [qaImagenAntes, qaImagenDespues] = qaImagenProducto.split(marcadorImagenProducto)
+  await pg.exec(qaImagenAntes)
+  await pg.exec(migracionImagenProducto)
+  await pg.exec(migracionImagenProducto)
+  await pg.exec(qaImagenDespues)
+  console.log('SQL QA: imagen Cloudinary nullable, migración repetible, URL histórica y RLS preservados')
   await verificarReconciliacionHistorica(pg)
   console.log('SQL QA: cuenta anulada histórica, dos salidas, reejecución idempotente, RPC manual/agente, aislamiento y envío incierto aprobados')
   const migracionMotivo = readFileSync(new URL('../supabase/migrations/20261114120000_motivo_obligatorio_anulacion_item.sql', import.meta.url), 'utf8')

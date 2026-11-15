@@ -125,6 +125,7 @@ const ORDEN = [
   '../migrations/20261113073105_bloquear_impresion_cuenta_anulada.sql',
   '../migrations/20261114054941_reconciliar_salidas_cuentas_anuladas.sql',
   '../migrations/20261114120000_motivo_obligatorio_anulacion_item.sql',
+  '../migrations/20261115072449_producto_imagen_public_id_cloudinary.sql',
 ]
 
 const fallos = []

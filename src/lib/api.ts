@@ -292,6 +292,7 @@ export type DatosProducto = {
   /** Null hereda la estación de la categoría y luego usa la clasificación de bebida como fallback. */
   estacion?: EstacionComanda | null
   imagen_url?: string | null
+  imagen_public_id?: string | null
 }
 
 /** Roles que un administrador puede tocar (crear, editar, borrar). */
@@ -4426,6 +4427,7 @@ function crearApiDesde(
       nombre: datos.nombre.trim(),
       descripcion: datos.descripcion?.trim() || null,
       imagen_url: datos.imagen_url?.trim() || null,
+      imagen_public_id: datos.imagen_public_id?.trim() || null,
       precio: datos.precio,
       disponible: datos.disponible,
       es_promocion: datos.es_promocion ?? false,
@@ -4448,6 +4450,7 @@ function crearApiDesde(
     if (cambios.nombre !== undefined) producto.nombre = cambios.nombre.trim()
     if (cambios.descripcion !== undefined) producto.descripcion = cambios.descripcion?.trim() || null
     if (cambios.imagen_url !== undefined) producto.imagen_url = cambios.imagen_url?.trim() || null
+    if (cambios.imagen_public_id !== undefined) producto.imagen_public_id = cambios.imagen_public_id?.trim() || null
     if (cambios.precio !== undefined) producto.precio = cambios.precio
     if (cambios.disponible !== undefined) producto.disponible = cambios.disponible
     if (cambios.categoria_id !== undefined) producto.categoria_id = cambios.categoria_id

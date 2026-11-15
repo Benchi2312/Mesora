@@ -66,6 +66,7 @@ create table if not exists public.productos (
   nombre text not null check (length(btrim(nombre)) > 0),
   descripcion text,
   imagen_url text,
+  imagen_public_id text,
   precio numeric(12,2) not null check (precio >= 0),
   disponible boolean not null default true,
   es_promocion boolean not null default false,

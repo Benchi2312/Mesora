@@ -97,4 +97,5 @@ jobs:
       - run: npm run verificar:configuracion
       - run: npm run verificar:responsive
       - run: npm run build
+      - run: npm run verificar:imagenes
       - run: npm run verificar:chunks
