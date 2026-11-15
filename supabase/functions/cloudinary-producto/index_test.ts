@@ -1,4 +1,5 @@
 import { crearHandlerCloudinary } from './handler.ts'
+import { clasificarErrorCloudinary, mensajeErrorCloudinary } from './cloudinaryErrors.ts'
 import {
   validarArchivoImagenProducto,
   validarContenidoImagenProducto,
@@ -35,7 +36,7 @@ function entorno(opciones: {
     }),
     imagenEstaEnUso: async () => opciones.enUso ?? false,
     subirImagen: async (_file, rid) => {
-      if (opciones.errorSubida) throw new Error('private-cloud-secret-must-not-appear')
+      if (opciones.errorSubida) throw new Error('CLOUDINARY_credentials')
       subidas.push(rid)
       return { secureUrl: 'https://res.cloudinary.com/demo/image/upload/mesora/products/test.jpg', publicId: `${rid}_44444444-4444-4444-8444-444444444444` }
     },
@@ -121,7 +122,26 @@ Deno.test('Cloudinary producto: el tenant se deriva del perfil y no de un formul
 Deno.test('Cloudinary producto: sanea errores de Cloudinary y conserva la posibilidad de reintentar', async () => {
   const response = await entorno({ errorSubida: true }).handler(requestSubida('image/jpeg'))
   const body = await json(response)
-  if (response.status !== 502 || String(body.error).includes('private-cloud-secret')) throw new Error('La respuesta filtró detalles internos del proveedor.')
+  if (response.status !== 502 || !String(body.error).includes('CLOUDINARY_API_KEY') || String(body.error).includes('CLOUDINARY_credentials')) {
+    throw new Error('La respuesta no orientó sobre el rechazo de credenciales de forma segura.')
+  }
+})
+
+Deno.test('Cloudinary producto: clasifica errores de cuenta, credenciales, carpeta y rechazo genérico sin revelar texto del proveedor', () => {
+  const casos = [
+    [404, 'Unknown cloud name account', 'cloud_name'],
+    [401, 'Invalid Signature abc123', 'credentials'],
+    [400, 'Invalid folder name', 'folder'],
+    [500, 'Internal error with secret-value', 'provider'],
+  ] as const
+  for (const [status, detail, expected] of casos) {
+    const categoria = clasificarErrorCloudinary(status, detail)
+    if (categoria !== expected) throw new Error(`Clasificación de error inesperada para HTTP ${status}.`)
+    const mensaje = mensajeErrorCloudinary(`CLOUDINARY_${categoria}`)
+    if (mensaje.includes(detail) || mensaje.includes('abc123') || mensaje.includes('secret-value')) {
+      throw new Error('El mensaje seguro filtró texto o identificadores del proveedor.')
+    }
+  }
 })
 
 Deno.test('Cloudinary producto: solo elimina IDs de este tenant que ya no estén vinculados', async () => {

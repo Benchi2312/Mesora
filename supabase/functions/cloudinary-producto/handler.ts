@@ -3,6 +3,7 @@ import {
   validarArchivoImagenProducto,
   validarContenidoImagenProducto,
 } from '../../../src/domain/restaurant/imagenProducto.ts'
+import { mensajeErrorCloudinary } from './cloudinaryErrors.ts'
 
 export type PerfilCloudinary = {
   rol: string
@@ -140,8 +141,9 @@ export function crearHandlerCloudinary(
             return respuesta(request, 502, { error: 'Cloudinary devolvió una respuesta de imagen inválida.' }, origenes)
           }
           return respuesta(request, 200, { secure_url: imagen.secureUrl, public_id: imagen.publicId }, origenes)
-        } catch {
-          return respuesta(request, 502, { error: 'Cloudinary no pudo guardar la imagen. El formulario se conserva para reintentar.' }, origenes)
+        } catch (cause) {
+          const mensaje = mensajeErrorCloudinary(cause instanceof Error ? cause.message : '')
+          return respuesta(request, 502, { error: `${mensaje} El formulario se conserva para reintentar.` }, origenes)
         }
       }
 
