@@ -10,6 +10,8 @@ import { NOMBRES_ESTACION_COMANDA, type EstacionComanda } from '../../domain/res
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 import { fmtPEN } from '../../lib/format'
+import { eliminarImagenProducto, validarUrlImagenProducto } from '../../lib/imagenesProducto'
+import ImagenProductoEditor from './ImagenProductoEditor'
 import { Campo, ConfirmDialog, IconoBasura, IconoLapiz, IconoMas, Modal, PieAcciones } from '../../components/ui'
 
 type ModalCategoria = { accion: 'crear' | 'editar'; id?: string; nombre: string } | null
@@ -20,6 +22,9 @@ type ModalProducto = {
   nombre: string
   descripcion: string
   imagenUrl: string
+  imagenPublicId: string | null
+  imagenUrlOriginal: string
+  imagenPublicIdOriginal: string | null
   precio: string
   disponible: boolean
   esPromocion: boolean
@@ -27,7 +32,7 @@ type ModalProducto = {
   esBebida: boolean
   estacion: EstacionComanda | null
 } | null
-type Confirmar = { tipo: 'categoria' | 'producto'; id: string; nombre: string } | null
+type Confirmar = { tipo: 'categoria' | 'producto'; id: string; nombre: string; imagenPublicId?: string | null } | null
 /** Campo del formulario que el autocompletado está rellenando ahora mismo. */
 type CampoAuto = 'categoria' | 'nombre' | 'precio'
 
@@ -63,6 +68,9 @@ export default function MenuTab() {
   const [modalProducto, setModalProducto] = useState<ModalProducto>(null)
   const [productoError, setProductoError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [subiendoImagen, setSubiendoImagen] = useState(false)
+  const [avisoImagen, setAvisoImagen] = useState<string | null>(null)
+  const imagenesSubidasRef = useRef<string[]>([])
 
   const [confirmar, setConfirmar] = useState<Confirmar>(null)
   const [confirmError, setConfirmError] = useState<string | null>(null)
@@ -121,6 +129,9 @@ export default function MenuTab() {
       nombre: '',
       descripcion: '',
       imagenUrl: '',
+      imagenPublicId: null,
+      imagenUrlOriginal: '',
+      imagenPublicIdOriginal: null,
       precio: '',
       disponible: true,
       esPromocion: false,
@@ -303,7 +314,7 @@ export default function MenuTab() {
   }
 
   async function guardarProducto() {
-    if (!rid || !modalProducto) return
+    if (!rid || !modalProducto || subiendoImagen) return
     const m = modalProducto
     const nombre = m.nombre.trim()
     if (!nombre) {
@@ -327,6 +338,13 @@ export default function MenuTab() {
         return
       }
     }
+    if (m.imagenUrl.trim() !== m.imagenUrlOriginal.trim()) {
+      const errorImagen = validarUrlImagenProducto(m.imagenUrl)
+      if (errorImagen) {
+        setProductoError(errorImagen)
+        return
+      }
+    }
     setProductoError(null)
     setEnviando(true)
     const datos: DatosProducto = {
@@ -334,6 +352,7 @@ export default function MenuTab() {
       nombre,
       descripcion: m.descripcion.trim() || null,
       imagen_url: m.imagenUrl.trim() || null,
+      imagen_public_id: m.imagenPublicId,
       precio,
       disponible: m.disponible,
       es_promocion: m.esPromocion,
@@ -355,8 +374,34 @@ export default function MenuTab() {
     }
     // El producto quedó guardado: el recorrido lo detecta por los datos.
     detenerAutoLlenado()
+    const idsALimpiar = new Set([
+      ...(m.imagenPublicIdOriginal && m.imagenPublicIdOriginal !== m.imagenPublicId ? [m.imagenPublicIdOriginal] : []),
+      ...imagenesSubidasRef.current.filter((id) => id !== m.imagenPublicId),
+    ])
+    const imagenCambio = m.imagenUrl.trim() !== m.imagenUrlOriginal.trim() || m.imagenPublicId !== m.imagenPublicIdOriginal
+    const erroresLimpieza = (await Promise.all(isDemo ? [] : [...idsALimpiar].map((id) => eliminarImagenProducto(id))))
+      .filter((resultado): resultado is string => Boolean(resultado))
+    imagenesSubidasRef.current = []
+    detenerAutoLlenado()
     setModalProducto(null)
+    setAvisoImagen(erroresLimpieza.length
+      ? `Producto guardado. ${erroresLimpieza[0]} Las imágenes anteriores que aún estén vinculadas se conservan.`
+      : imagenCambio ? 'Producto guardado. La imagen queda disponible desde su enlace permanente.' : null)
     await cargar()
+  }
+
+  async function cerrarModalProducto() {
+    if (subiendoImagen) {
+      setProductoError('Espera a que termine la carga de imagen antes de cerrar el formulario.')
+      return
+    }
+    detenerAutoLlenado()
+    setModalProducto(null)
+    const ids = [...new Set(imagenesSubidasRef.current)]
+    imagenesSubidasRef.current = []
+    const errores = (await Promise.all(isDemo ? [] : ids.map((id) => eliminarImagenProducto(id))))
+      .filter((resultado): resultado is string => Boolean(resultado))
+    if (errores.length) setAvisoImagen(`El formulario se cerró, pero no se pudo limpiar una imagen temporal: ${errores[0]}`)
   }
 
   async function ejecutarEliminacion() {
@@ -373,12 +418,18 @@ export default function MenuTab() {
       setConfirmError(res.error)
       return
     }
+    if (!isDemo && confirmar.tipo === 'producto' && confirmar.imagenPublicId) {
+      const errorLimpieza = await eliminarImagenProducto(confirmar.imagenPublicId)
+      if (errorLimpieza) setAvisoImagen(`Producto eliminado. ${errorLimpieza}`)
+    }
     setConfirmar(null)
     await cargar()
   }
 
   function abrirProductoCrear(categoriaId: string) {
     setProductoError(null)
+    setAvisoImagen(null)
+    imagenesSubidasRef.current = []
     const catDemo = prefill
       ? categorias.find((c) =>
           c.nombre.toLowerCase().includes(prefill.producto.categoria.toLowerCase()),
@@ -390,6 +441,9 @@ export default function MenuTab() {
       nombre: prefill?.producto.nombre ?? '',
       descripcion: '',
       imagenUrl: '',
+      imagenPublicId: null,
+      imagenUrlOriginal: '',
+      imagenPublicIdOriginal: null,
       precio: prefill?.producto.precio ?? '',
       disponible: true,
       esPromocion: false,
@@ -401,6 +455,8 @@ export default function MenuTab() {
 
   function abrirProductoEditar(p: Producto) {
     setProductoError(null)
+    setAvisoImagen(null)
+    imagenesSubidasRef.current = []
     setModalProducto({
       accion: 'editar',
       id: p.id,
@@ -408,6 +464,9 @@ export default function MenuTab() {
       nombre: p.nombre,
       descripcion: p.descripcion ?? '',
       imagenUrl: p.imagen_url ?? '',
+      imagenPublicId: p.imagen_public_id ?? null,
+      imagenUrlOriginal: p.imagen_url ?? '',
+      imagenPublicIdOriginal: p.imagen_public_id ?? null,
       precio: String(p.precio),
       disponible: p.disponible,
       esPromocion: Boolean(p.es_promocion),
@@ -433,6 +492,11 @@ export default function MenuTab() {
 
   return (
     <div className="admin-managed-section admin-menu-section">
+      {avisoImagen && (
+        <div role="status" className="aviso mb-4 border-brand-500/30 bg-brand-500/10 text-zinc-200">
+          {avisoImagen}
+        </div>
+      )}
       <div className="admin-module-heading">
         <div className="admin-module-copy">
           <span className="admin-section-kicker">Productos y categorías</span>
@@ -608,7 +672,7 @@ export default function MenuTab() {
                         <button
                           type="button"
                           aria-label={`Eliminar ${p.nombre}`}
-                          onClick={() => setConfirmar({ tipo: 'producto', id: p.id, nombre: p.nombre })}
+                          onClick={() => setConfirmar({ tipo: 'producto', id: p.id, nombre: p.nombre, imagenPublicId: p.imagen_public_id ?? null })}
                           className="btn btn-ghost h-11 w-11 p-0 text-zinc-400 hover:text-danger-500"
                         >
                           <IconoBasura />
@@ -678,10 +742,7 @@ export default function MenuTab() {
       {modalProducto && (
         <Modal
           titulo={modalProducto.accion === 'crear' ? 'Agregar producto' : 'Editar producto'}
-          onCerrar={() => {
-            detenerAutoLlenado()
-            setModalProducto(null)
-          }}
+          onCerrar={() => void cerrarModalProducto()}
           ancho="max-w-lg"
         >
           <form
@@ -730,15 +791,22 @@ export default function MenuTab() {
                 placeholder="Opcional"
               />
             </Campo>
-            <Campo etiqueta="URL de imagen" htmlFor="producto-imagen" error={null}>
-              <input
-                id="producto-imagen"
-                value={modalProducto.imagenUrl}
-                onChange={(e) => setModalProducto({ ...modalProducto, imagenUrl: e.target.value })}
-                className="input"
-                placeholder="https://… (opcional)"
-              />
-            </Campo>
+            <ImagenProductoEditor
+              restauranteId={rid ?? ''}
+              isDemo={isDemo}
+              imagenUrl={modalProducto.imagenUrl}
+              imagenPublicId={modalProducto.imagenPublicId}
+              imagenUrlOriginal={modalProducto.imagenUrlOriginal}
+              imagenPublicIdOriginal={modalProducto.imagenPublicIdOriginal}
+              deshabilitado={enviando}
+              onChange={(imagenUrl, imagenPublicId) => setModalProducto((actual) => actual
+                ? { ...actual, imagenUrl, imagenPublicId }
+                : actual)}
+              onSubidaConfirmada={(publicId) => {
+                if (!imagenesSubidasRef.current.includes(publicId)) imagenesSubidasRef.current.push(publicId)
+              }}
+              onEstadoCarga={setSubiendoImagen}
+            />
             <Campo etiqueta="Precio (S/)" htmlFor="producto-precio" error={null}>
               <input
                 id="producto-precio"
@@ -863,14 +931,14 @@ export default function MenuTab() {
 
             <PieAcciones
               onCancelar={() => {
-                detenerAutoLlenado()
-                setModalProducto(null)
+                void cerrarModalProducto()
               }}
               enviando={enviando}
               textoEnvio="Guardando…"
               labelGuardar={modalProducto.accion === 'crear' ? 'Crear producto' : 'Guardar cambios'}
               guia="producto-guardar"
               pulso={pulsoGuardar}
+              disabledGuardar={subiendoImagen}
             />
           </form>
         </Modal>
