@@ -98,6 +98,7 @@ export type CuentaReporteAdmin = Omit<CuentaReporteVenta, 'pedidos'> & {
 }
 
 export type ReporteAdminDetallado = Omit<ReporteVentas, 'cuentas' | 'productos' | 'meseros'> & {
+  reembolsos_por_dia: { fecha: string; reembolsos: number }[]
   cuentas: CuentaReporteAdmin[]
   productos: { id: string | null; nombre: string; categoria_id: string | null; categoria: string; es_bebida: boolean; cantidad: number; total: number }[]
   categorias: { id: string | null; categoria: string; cantidad: number; total: number }[]

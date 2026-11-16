@@ -1117,6 +1117,9 @@ const reporteAdminDetallado = await api.getReporteAdminDetallado(RID, rangoRepor
 check('14q · Admin carga el reporte extendido desde el backend local', !reporteAdminDetallado.error && !!reporteAdminDetallado.data, reporteAdminDetallado.error ?? '')
 check('14r · el total cobrado conserva la semántica del reporte actual',
   reporteAdminDetallado.data?.resumen.ventas === reporteDetallado.data?.resumen.ventas)
+check('14r1 · devoluciones diarias suman el total del resumen sin paginar',
+  Math.abs((reporteAdminDetallado.data?.reembolsos_por_dia.reduce((suma, dia) => suma + dia.reembolsos, 0) ?? 0)
+    - (reporteAdminDetallado.data?.resumen.reembolsos ?? 0)) < 0.01)
 check('14s · cuentas detalladas incluyen número, operación, productos y método',
   Boolean(reporteAdminDetallado.data?.cuentas.some((cuenta) => cuenta.fecha_operacion && cuenta.pedidos.some((pedido) => pedido.items.some((item) => item.id && item.categoria !== undefined)))))
 check('14t · meseros separan ventas, cuentas atendidas y comandas',

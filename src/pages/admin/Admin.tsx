@@ -169,7 +169,7 @@ export default function Admin() {
   }
 
   return (
-    <div className="admin-shell">
+    <div className={`admin-shell${seccion === 'ventas' ? ' admin-shell--reportes' : ''}`}>
       <aside className="admin-sidebar" aria-label="Administración del restaurante">
         <div className="admin-sidebar-brand">
           <img src="/marca/isotipo.svg" alt="" aria-hidden="true" />
@@ -237,6 +237,7 @@ export default function Admin() {
           </div>
         )}
 
+        {seccion === 'ventas' && <button type="button" className="btn btn-outline mb-4 hidden min-h-11 px-4 lg:inline-flex" onClick={() => seleccionarSeccion('dashboard')}>← Volver al panel</button>}
         <PageHeader titulo={encabezado.titulo} descripcion={encabezado.descripcion} />
 
         <AvisoSuscripcion />

@@ -453,6 +453,15 @@
     gap: clamp(1.25rem, 2vw, 2rem);
   }
 
+  /* Reportes usa sus propias pestañas: deja el ancho completo para filtros y gráficos. */
+  .admin-shell--reportes {
+    display: block;
+  }
+
+  .admin-shell--reportes > .admin-sidebar {
+    display: none;
+  }
+
   .admin-sidebar {
     position: sticky;
     top: 80px;

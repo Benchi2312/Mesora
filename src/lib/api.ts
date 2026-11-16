@@ -3729,8 +3729,18 @@ function crearApiDesde(
         categoria: ds.categorias.find((categoria) => categoria.id === producto.categoria_id && categoria.restaurante_id === rid)?.nombre ?? 'Sin categoría',
         precio_actual: producto.precio, disponible: producto.disponible,
       }))
+    const reembolsosPorDia = new Map<string, number>()
+    for (const cuenta of todasLasCuentas) {
+      if (cuenta.estado !== 'anulada') continue
+      const fecha = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Lima', year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(new Date(cuenta.anulada_at ?? cuenta.pagado_at ?? cuenta.created_at))
+      reembolsosPorDia.set(fecha, (reembolsosPorDia.get(fecha) ?? 0) + (cuenta.monto_reembolsado ?? 0))
+    }
     const resultado: ReporteAdminDetallado = {
       ...(base as ReporteVentas), productos, meseros, categorias, comandas_por_estacion, productos_sin_ventas,
+      reembolsos_por_dia: [...reembolsosPorDia].map(([fecha, reembolsos]) => ({ fecha, reembolsos }))
+        .sort((a, b) => a.fecha.localeCompare(b.fecha)),
       cuentas: cuentasDetalle.slice(rango.offset, rango.offset + Math.min(Math.max(rango.limite, 1), 100)),
       total_cuentas: cuentasDetalle.length,
     }
