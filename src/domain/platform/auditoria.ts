@@ -51,7 +51,7 @@ const ETIQUETAS: Record<AccionAuditoria, string> = {
   comanda_item_anular: 'Ítem de comanda anulado',
   comanda_imprimir: 'Comanda enviada a impresión',
   comanda_reimprimir: 'Comanda reimpresa',
-  cuenta_anular: 'Boleta anulada y reembolsada',
+  cuenta_anular: 'Recibo interno anulado y reembolsado',
   caja_turno_cerrar: 'Turno de caja cerrado',
 }
 

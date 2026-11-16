@@ -125,7 +125,7 @@ export default function ConfiguracionTab() {
       // La fila devuelta por el servidor actualiza el contexto de recibos y personal.
       if (esDemo) useDemoStore.getState().actualizarRestaurante(res.data)
       else if (useAuthStore.getState().restaurante?.id === rid) useAuthStore.setState({ restaurante: res.data })
-      setOk('Datos guardados. La próxima precuenta y boleta usarán estos datos.')
+      setOk('Datos guardados. La próxima precuenta y el recibo interno usarán estos datos.')
     } catch {
       setError('No se pudo confirmar el guardado. Revisa tu conexión y actualiza antes de reintentar.')
     } finally {
@@ -211,7 +211,7 @@ export default function ConfiguracionTab() {
         <span className="flex items-start gap-2.5">
           <IconoInfo className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            Estos datos salen impresos en cada boleta. Si no los completas, la boleta se emite sin RUC ni
+            Estos datos salen impresos en cada recibo interno. Si no los completas, el recibo se emite sin RUC ni
             dirección fiscal.
           </span>
         </span>
@@ -225,7 +225,7 @@ export default function ConfiguracionTab() {
       >
         <div className="card p-4 sm:p-5">
           <h2 className="text-lg font-bold tracking-tight text-zinc-100">Datos del local</h2>
-          <p className="mt-0.5 mb-5 text-sm text-zinc-500">Nombre y datos fiscales que salen en la boleta.</p>
+          <p className="mt-0.5 mb-5 text-sm text-zinc-500">Nombre y datos fiscales que salen en el recibo interno.</p>
 
           <Campo etiqueta="Nombre del restaurante" htmlFor="cfg-nombre">
             <input

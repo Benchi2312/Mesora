@@ -111,6 +111,8 @@ const {
 } = await servidor.ssrLoadModule('/src/lib/usuarios.ts')
 const { suSuscripcionVencida, useAuthStore } = await servidor.ssrLoadModule('/src/store/auth.ts')
 const { filtrarPersonal } = await servidor.ssrLoadModule('/src/domain/security/personal.ts')
+const { cantidadConNombre, resultadosEncontrados } = await servidor.ssrLoadModule('/src/lib/plural.ts')
+const { presentarAuditoria, textoReciboInterno } = await servidor.ssrLoadModule('/src/domain/platform/presentarAuditoria.ts')
 // Lógica pura del panel "Estadísticas" del super admin.
 const {
   PRESETS_RANGO,
@@ -279,6 +281,47 @@ check('el cierre advierte que el consumo pendiente seguirá abierto', resumenesS
 check('la anulación de ítem informa si libera la mesa y muestra motivo', confirmarAnulacionItem({ producto: 'Ceviche', cantidad: 1, importe: 'S/ 15.00', mesa: 'Mesa 1', liberaMesa: true, requierePin: false, motivo: 'Error de pedido' }).datosAfectados.includes('se liberará la mesa') && confirmarAnulacionItem({ producto: 'Ceviche', cantidad: 1, importe: 'S/ 15.00', mesa: 'Mesa 1', liberaMesa: true, requierePin: false, motivo: 'Error de pedido' }).datosAfectados.includes('Motivo: «Error de pedido»'))
 check('el PIN incorrecto se explica sin exponer el error técnico', mensajeOperacion('PIN de autorizacion incorrecto', 'Error') === 'El PIN no coincide. Revísalo con el gerente e inténtalo de nuevo.')
 check('un error de RLS se muestra como indicación para el local', mensajeOperacion('new row violates row-level security policy for table audit_logs', 'Error').includes('Actualiza la pantalla'))
+
+titulo('0.2 · Terminología y detalle legible de auditoría')
+check('los resultados usan singular y plural correctos',
+  resultadosEncontrados(0) === 'Se muestran 0 resultados.' &&
+  resultadosEncontrados(1) === 'Se muestra 1 resultado.' &&
+  resultadosEncontrados(8) === 'Se muestran 8 resultados.' &&
+  cantidadConNombre(1, 'recibo interno', 'recibos internos') === '1 recibo interno' &&
+  cantidadConNombre(2, 'movimiento', 'movimientos') === '2 movimientos')
+check('la terminología visible reemplaza boleta sin alterar códigos',
+  textoReciboInterno('Boleta B001-000003 anulada') === 'Recibo interno B001-000003 anulado' &&
+  textoReciboInterno('Boletas anuladas') === 'Recibos internos anulados' &&
+  textoReciboInterno('Boleta anulada y reembolsada') === 'Recibo interno anulado y reembolsado')
+const logLegible = presentarAuditoria({
+  id: 'audit-qa', actor_id: 'admin-qa', actor_rol: 'cajero', actor_nombre: 'Luis',
+  restaurante_id: RID, restaurante_nombre: 'QA', entidad: 'cuenta', entidad_id: 'cuenta-qa',
+  accion: 'cuenta_anular', descripcion: 'Boleta B001-000003 anulada; se registró la devolución.',
+  detalle: { numero: 'B001-000003', motivo: 'Error de cobro', boleta: 'B001-000003', monto_reembolsado: 30 },
+  created_at: '2026-11-13T06:30:54.000Z',
+})
+check('auditoría muestra acción, usuario, fecha, módulo, objetivo, motivo y resultado',
+  logLegible.accion.startsWith('Recibo interno B001-000003') &&
+  logLegible.usuario === 'Luis · cajero' && logLegible.fecha.includes('2026') &&
+  logLegible.modulo === 'Cobros' && logLegible.objetivo === 'Recibo interno B001-000003' &&
+  logLegible.motivo === 'Error de cobro' && logLegible.resultado === 'Recibo interno anulado' &&
+  logLegible.json.includes('"boleta"'))
+check('auditoría sin descripción usa una etiqueta legible', presentarAuditoria({
+  id: 'audit-sin-descripcion', actor_id: 'admin-qa', actor_rol: 'cajero', actor_nombre: 'Luis',
+  restaurante_id: RID, restaurante_nombre: 'QA', entidad: 'cuenta', entidad_id: 'cuenta-qa',
+  accion: 'cuenta_anular', descripcion: '', detalle: null,
+  created_at: '2026-11-13T06:30:54.000Z',
+}).accion === 'Recibo interno anulado y reembolsado')
+const logPersonal = presentarAuditoria({
+  id: 'audit-usuario-qa', actor_id: 'admin-qa', actor_rol: 'admin_restaurante', actor_nombre: 'Ana',
+  restaurante_id: RID, restaurante_nombre: 'QA', entidad: 'usuario', entidad_id: 'usuario-qa',
+  accion: 'usuario_desactivar', descripcion: 'Desactivó el acceso de María',
+  detalle: { motivo: 'Fin de contrato', activo_anterior: true, activo_nuevo: false },
+  created_at: '2026-11-13T06:30:54.000Z',
+})
+check('auditoría de personal muestra motivo y resultado sin cambiar el JSON',
+  logPersonal.modulo === 'Personal' && logPersonal.motivo === 'Fin de contrato' &&
+  logPersonal.resultado === 'Acceso desactivado' && logPersonal.json.includes('"activo_anterior"'))
 
 // ---------------------------------------------------------------------------
 titulo('1 · Dos comandas a la misma mesa antes de cobrar')
@@ -1921,10 +1964,21 @@ const metodoAnulado19 = await api.getCuentasFiltradas(RID, { ...criteriosCobro19
 check('19z6 · filtro de método incluye el detalle del pago', metodoAnulado19.data?.items.some((c) => c.id === cuentaAnulable.id))
 const paginadoCobro19 = await api.getCuentasFiltradas('r-nuevo', { ...criteriosCobro19, limite: 1 })
 check('19z7 · cobros ignora el restaurante enviado y conserva el tenant de la sesión', paginadoCobro19.data?.items.length <= 1 && paginadoCobro19.data.items.every((c) => c.restaurante_id === RID) && paginadoCobro19.data.total >= paginadoCobro19.data.items.length)
+const segundaPaginaCobro19 = await api.getCuentasFiltradas(RID, { ...criteriosCobro19, limite: 1, offset: 1 })
+check('19z7b · paginación local de cobros no repite el primer recibo',
+  paginadoCobro19.data?.total >= 2 && paginadoCobro19.data.items.length === 1 &&
+  segundaPaginaCobro19.data?.items.length === 1 &&
+  paginadoCobro19.data.items[0].id !== segundaPaginaCobro19.data.items[0].id)
 const auditoriaUsuarios19 = await api.getAuditoriaRestaurante({ desde: null, hasta: null, busqueda: 'Reingreso', categoria: 'usuarios', offset: 0, limite: 25 })
 const auditoriaCaja19 = await api.getAuditoriaRestaurante({ desde: null, hasta: null, busqueda: '', categoria: 'caja', offset: 0, limite: 25 })
 const auditoriaCuentas19 = await api.getAuditoriaRestaurante({ desde: null, hasta: null, busqueda: '', categoria: 'cuentas', offset: 0, limite: 25 })
 check('19z8 · auditoría busca usuario/motivo y separa caja de cuentas', auditoriaUsuarios19.data?.items.some((l) => l.accion === 'usuario_reactivar') && auditoriaCaja19.data?.total > 0 && auditoriaCaja19.data.items.every((l) => l.entidad === 'caja_turno' || l.accion.startsWith('caja_')) && auditoriaCuentas19.data?.total > 0 && auditoriaCuentas19.data.items.every((l) => l.entidad === 'cuenta' || l.accion.startsWith('cuenta_')), `usuario=${auditoriaUsuarios19.data?.total}; caja=${auditoriaCaja19.data?.total}; cuentas=${auditoriaCuentas19.data?.total}`)
+const primeraPaginaAuditoria19 = await api.getAuditoriaRestaurante({ desde: null, hasta: null, busqueda: '', categoria: 'todas', offset: 0, limite: 1 })
+const segundaPaginaAuditoria19 = await api.getAuditoriaRestaurante({ desde: null, hasta: null, busqueda: '', categoria: 'todas', offset: 1, limite: 1 })
+check('19z8b · paginación local de auditoría conserva total y no repite movimientos',
+  primeraPaginaAuditoria19.data?.total >= 2 && primeraPaginaAuditoria19.data.items.length === 1 &&
+  segundaPaginaAuditoria19.data?.items.length === 1 &&
+  primeraPaginaAuditoria19.data.items[0].id !== segundaPaginaAuditoria19.data.items[0].id)
 apiMode.operadorId = ADMIN13?.id
 const auditoriaAjena19 = await api.getAuditoriaRestaurante({ desde: null, hasta: null, busqueda: 'caja_', categoria: 'todas', offset: 0, limite: 25 })
 check('19z9 · auditoría de otro restaurante no devuelve datos del tenant anterior', auditoriaAjena19.data?.total === 0)
@@ -2938,7 +2992,7 @@ check(
   etiquetaAccionAuditoria('restaurante_crear') === 'Restaurante creado' &&
     etiquetaAccionAuditoria('suscripcion_suspender') === 'Suscripción suspendida' &&
     etiquetaAccionAuditoria('comanda_item_anular') === 'Ítem de comanda anulado' &&
-    etiquetaAccionAuditoria('cuenta_anular') === 'Boleta anulada y reembolsada' &&
+    etiquetaAccionAuditoria('cuenta_anular') === 'Recibo interno anulado y reembolsado' &&
     etiquetaAccionAuditoria('caja_turno_cerrar') === 'Turno de caja cerrado' &&
     etiquetaAccionAuditoria('accion-desconocida') === 'accion-desconocida' &&
     categoriaDeAccion('suscripcion_renovar') === 'suscripciones' &&

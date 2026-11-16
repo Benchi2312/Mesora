@@ -195,7 +195,7 @@ export default function SoporteTab() {
                 className="input"
                 required
                 maxLength={120}
-                placeholder="Ej. La boleta no imprime el RUC"
+                placeholder="Ej. El recibo interno no imprime el RUC"
                 value={form.asunto}
                 onChange={(e) => setForm((f) => ({ ...f, asunto: e.target.value }))}
               />

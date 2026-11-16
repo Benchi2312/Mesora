@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getApi } from '../../lib/api'
 import type { FiltrosAuditoriaRestaurante } from '../../lib/api'
 import type { AuditLog } from '../../types/database'
-import { normalizarContenidoUtf8, normalizarTextoUtf8 } from '../../domain/platform/normalizarUtf8'
-import { fmtFecha } from '../../lib/format'
+import { presentarAuditoria } from '../../domain/platform/presentarAuditoria'
+import { cantidadConNombre } from '../../lib/plural'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 
@@ -119,26 +119,44 @@ export default function AuditoriaRestauranteTab() {
             : <div className="space-y-3">
               {items.map((l) => {
                 const abierto = abiertos.has(l.id)
-                const descripcion = normalizarTextoUtf8(l.descripcion || l.accion)
-                const detalleNormalizado = normalizarContenidoUtf8(l.detalle)
-                const detalle = detalleNormalizado && Object.keys(detalleNormalizado).length ? JSON.stringify(detalleNormalizado, null, 2) : null
+                const presentacion = presentarAuditoria(l)
+                const detalleId = `auditoria-detalle-${l.id}`
                 return <article key={l.id} className="card min-w-0 p-4 sm:p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="break-words font-semibold text-zinc-100">{descripcion}</p>
-                      <p className="mt-1 text-sm text-zinc-400">{l.actor_nombre ?? 'Usuario del sistema'}{l.actor_rol ? ` · ${l.actor_rol}` : ''}</p>
-                      <p className="mt-1 text-xs text-zinc-500">{l.entidad ?? 'Registro'}{l.entidad_id ? ` · ${l.entidad_id}` : ''}</p>
+                      <p className="break-words font-semibold text-zinc-100">{presentacion.accion}</p>
+                      <p className="mt-1 text-sm text-zinc-400">{presentacion.usuario}</p>
+                      <p className="mt-1 text-xs text-zinc-500">{presentacion.modulo} · {presentacion.objetivo}</p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-2">
-                      <time className="text-xs text-zinc-500">{fmtFecha(l.created_at)}</time>
-                      {(l.descripcion || detalle) && <button type="button" className="btn btn-outline min-h-10 px-3 text-xs" aria-expanded={abierto} onClick={() => alternar(l.id)}>{abierto ? 'Ocultar detalle' : 'Ver detalle'}</button>}
+                      <time dateTime={l.created_at} className="text-xs text-zinc-500">{presentacion.fecha}</time>
+                      <button type="button" className="btn btn-outline min-h-11 px-3 text-xs" aria-expanded={abierto} aria-controls={detalleId} onClick={() => alternar(l.id)}>{abierto ? 'Ocultar detalle' : 'Ver detalle'}</button>
                     </div>
                   </div>
-                  {abierto && detalle && <pre className="mt-4 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-surface-700 bg-surface-950 p-3 text-xs leading-relaxed text-zinc-400">{detalle}</pre>}
+                  {abierto && <div id={detalleId} className="mt-4 border-t border-surface-700 pt-4">
+                    <dl className="grid gap-x-5 gap-y-3 text-sm sm:grid-cols-2">
+                      {([
+                        ['Acción', presentacion.accion],
+                        ['Usuario', presentacion.usuario],
+                        ['Fecha', presentacion.fecha],
+                        ['Módulo', presentacion.modulo],
+                        ['Objetivo', presentacion.objetivo],
+                        ['Motivo', presentacion.motivo],
+                        ['Resultado', presentacion.resultado],
+                      ] as const).map(([etiqueta, valor]) => <div key={etiqueta} className="min-w-0">
+                        <dt className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{etiqueta}</dt>
+                        <dd className="mt-1 break-words text-zinc-200">{valor}</dd>
+                      </div>)}
+                    </dl>
+                    {presentacion.json && <details className="mt-4 rounded-xl border border-surface-700 bg-surface-950">
+                      <summary className="flex min-h-11 cursor-pointer items-center px-3 text-sm text-zinc-300">Datos técnicos (JSON)</summary>
+                      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words border-t border-surface-700 p-3 text-xs leading-relaxed text-zinc-400">{presentacion.json}</pre>
+                    </details>}
+                  </div>}
                 </article>
               })}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-sm text-zinc-400">
-                <span>{total} movimientos · página {pagina + 1} de {paginas}</span>
+                <span>{cantidadConNombre(total, 'movimiento', 'movimientos')} · página {pagina + 1} de {paginas}</span>
                 <div className="flex gap-2">
                   <button type="button" className="btn btn-outline min-h-11 px-3" disabled={pagina === 0 || cargando} onClick={() => setPagina((p) => p - 1)}>Anterior</button>
                   <button type="button" className="btn btn-outline min-h-11 px-3" disabled={pagina + 1 >= paginas || cargando} onClick={() => setPagina((p) => p + 1)}>Siguiente</button>

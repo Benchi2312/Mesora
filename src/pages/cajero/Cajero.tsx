@@ -26,7 +26,7 @@ export default function Cajero() {
         {(
           [
             { id: 'caja', label: 'Turno' },
-            { id: 'cobros', label: 'Boletas de hoy' },
+            { id: 'cobros', label: 'Recibos internos de hoy' },
           ] as const
         ).map((s) => (
           <button
