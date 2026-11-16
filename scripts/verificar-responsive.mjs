@@ -8,8 +8,9 @@
 // sin mover .env.local ni cambiar la configuración de otros servidores.
 
 import { chromium, expect } from '@playwright/test'
+import { strFromU8, unzipSync } from 'fflate'
 import { spawn } from 'node:child_process'
-import { mkdirSync, mkdtempSync, openSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, openSync, readFileSync, rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -591,6 +592,8 @@ async function correrPantalla(browser, vp, pantalla) {
             await exportaciones.click()
             const opcionExportacion = page.getByRole('button', { name: 'Anulaciones y devoluciones', exact: true })
             await opcionExportacion.waitFor({ state: 'visible' })
+            check(`reportes ofrecen ZIP con los cinco CSV ${vp.nombre}`,
+              await page.getByRole('button', { name: /Exportar todo/ }).count() === 1)
             const menuExportacion = await page.locator('details[open] > div').evaluate((menu) => {
               const rect = menu.getBoundingClientRect()
               return { left: rect.left, right: rect.right, scrollWidth: document.documentElement.scrollWidth, width: window.innerWidth }
@@ -599,6 +602,24 @@ async function correrPantalla(browser, vp, pantalla) {
               menuExportacion.left >= -1 && menuExportacion.right <= menuExportacion.width + 1 && menuExportacion.scrollWidth <= menuExportacion.width + 1,
               `${Math.round(menuExportacion.left)}..${Math.round(menuExportacion.right)} / ${menuExportacion.width}, scroll ${menuExportacion.scrollWidth}`)
             await exportaciones.click()
+            if (vp.w === 390) {
+              await page.getByLabel('Estado de operación').selectOption('anulada')
+              await page.getByRole('tab', { name: 'Resumen', exact: true }).waitFor({ state: 'visible' })
+              await exportaciones.click()
+              const descarga = page.waitForEvent('download')
+              await page.getByRole('group', { name: 'Elegir reporte para exportar' }).getByRole('button', { name: /Exportar todo/ }).click()
+              const zipDescargado = await descarga
+              const archivos = unzipSync(new Uint8Array(readFileSync(await zipDescargado.path())))
+              const nombres = Object.keys(archivos)
+              check('exportar todo descarga exactamente cinco CSV filtrados', nombres.length === 5 &&
+                ['resumen', 'ventas', 'meseros', 'productos', 'anulaciones'].every((tipo) => nombres.some((nombre) => nombre.startsWith(`mesora-${tipo}-`) && nombre.endsWith('.csv'))) &&
+                Object.values(archivos).every((contenido) => {
+                  const csv = strFromU8(contenido)
+                  return contenido[0] === 0xef && contenido[1] === 0xbb && contenido[2] === 0xbf &&
+                    Buffer.from(contenido).indexOf(Buffer.from([0xef, 0xbb, 0xbf]), 3) === -1 &&
+                    csv.includes('"Estado del detalle";"Solo anuladas"') && csv.includes('"Restaurante";') && csv.includes('"Desde";') && csv.includes('"Hasta";')
+                }))
+            }
             for (const [nombre, encabezadoInterno] of [
               ['Ventas detalladas', 'Operaciones'],
               ['Meseros', 'Rendimiento por mesero'],
@@ -611,9 +632,17 @@ async function correrPantalla(browser, vp, pantalla) {
               await medir(page, vp, `${vp.nombre}_admin_reportes_${nombre.replace(/\s+/g, '-').toLowerCase()}`)
               check(`pestaña de reportes ${nombre} visible ${vp.nombre}`, await page.getByRole('heading', { name: encabezadoInterno, exact: true }).isVisible())
             }
+            check(`resumen conserva gráfico diario o estado vacío ${vp.nombre}`,
+              await page.getByRole('heading', { name: 'Cobros y devoluciones por día', exact: true }).count() === 1)
           }
         }
         await medir(page, vp, `${vp.nombre}_${pantalla.nombre}_${tab.replace(/\s+/g, '-').toLowerCase()}`)
+        if (pantalla.ruta === '/demo/admin' && tab === 'Ventas' && !adminMovil) {
+          check(`reportes ocultan navegación lateral duplicada ${vp.nombre}`,
+            await page.locator('.admin-sidebar').isHidden())
+          await page.getByRole('button', { name: /Volver al panel/ }).click()
+          await page.waitForFunction(() => document.querySelector('[data-admin-active-section]')?.getAttribute('data-admin-active-section') === 'dashboard')
+        }
       }
     } else {
       await page.waitForTimeout(350)
@@ -699,6 +728,11 @@ async function correrNavegacionAdmin(browser, vp) {
       check(`sección Admin ${tab} activa ${vp.nombre}`,
         await page.locator(`[data-admin-active-section="${id}"]`).count() === 1 && ruta.pathname === '/demo/admin')
       if (vp.w < 1024) await page.locator('.admin-drawer[role="dialog"]').waitFor({ state: 'hidden' })
+      if (tab === 'Ventas' && vp.w >= 1024) {
+        etapa = 'regresar del reporte al panel'
+        await page.getByRole('button', { name: /Volver al panel/ }).click()
+        await page.locator('[data-admin-active-section="dashboard"]').waitFor({ state: 'attached' })
+      }
       if (tab === 'Cobros') {
         etapa = 'probar acceso de Cobros a Caja'
         const irACaja = page.getByRole('button', { name: 'Ir a Caja', exact: true })

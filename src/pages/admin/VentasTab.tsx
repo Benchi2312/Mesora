@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { strToU8, zipSync } from 'fflate'
 import { fmtFecha, fmtPEN } from '../../lib/format'
 import { getApi } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import { METODOS_PAGO_LABEL } from '../../domain/cashier/pagos'
 import type { CuentaReporteAdmin, ReporteAdminDetallado } from '../../domain/reporting/ventas'
 import {
-  crearCsv, crearNombreCsv, fechaDeHoy, periodoAnterior, rangoApi, rangoRapido,
+  crearCsv, crearNombreCsv, fechaDeHoy, nombrePeriodoArchivo, periodoAnterior, rangoApi, rangoRapido,
   ZONA_HORARIA_REPORTES,
   type PeriodoRapido, type RangoFechas,
 } from '../../domain/reporting/reportesAdmin'
 import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
+import { GraficoDiario, GraficoMeseros, GraficoProductos } from './GraficosReportes'
 
 type Pestana = 'resumen' | 'ventas' | 'meseros' | 'productos' | 'anulaciones'
-type TipoExportacion = 'resumen' | 'ventas' | 'meseros' | 'productos' | 'anulaciones'
+type TipoExportacion = 'resumen' | 'ventas' | 'meseros' | 'productos' | 'anulaciones' | 'todo'
+type ArchivoCsv = { nombre: string; contenido: string }
 const LIMITE = 25
 const money = (valor: number | null | undefined) => fmtPEN(Number(valor ?? 0))
 const hoyInicial = fechaDeHoy()
@@ -29,14 +32,13 @@ function etiquetaEstado(cuenta: CuentaReporteAdmin): string {
   return 'Anulado'
 }
 
-function descargaCsv(nombre: string, contenido: string) {
-  const blob = new Blob([contenido], { type: 'text/csv;charset=utf-8' })
+function descargarArchivo(nombre: string, blob: Blob) {
   const url = URL.createObjectURL(blob)
   const enlace = document.createElement('a')
   enlace.href = url
   enlace.download = nombre
   enlace.click()
-  URL.revokeObjectURL(url)
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 export default function VentasTab() {
@@ -64,6 +66,7 @@ export default function VentasTab() {
   const [errorCatalogos, setErrorCatalogos] = useState<string | null>(null)
   const [errorExportar, setErrorExportar] = useState<string | null>(null)
   const [exportando, setExportando] = useState<TipoExportacion | null>(null)
+  const menuExportacionRef = useRef<HTMLDetailsElement>(null)
   const secuencia = useRef(0)
 
   const rango = useMemo(() => rangoRapido(periodo, fechaDeHoy(), mes, rangoPersonalizado), [periodo, mes, rangoPersonalizado])
@@ -160,61 +163,86 @@ export default function VentasTab() {
     setExportando(tipo)
     try {
       const filtros = { estado, mesero_id: meseroId || null, producto_id: productoId || null, busqueda: busquedaAplicada, offset: 0, limite: 100 }
-      if (tipo === 'ventas' || tipo === 'anulaciones') {
-        const filas: CuentaReporteAdmin[] = []
+      const necesitaDetalle = tipo === 'todo' || tipo === 'ventas' || tipo === 'anulaciones'
+      const cuentas: CuentaReporteAdmin[] = []
+      if (necesitaDetalle) {
         let offset = 0
         let total = 0
         do {
           const res = await getApi().getReporteAdminDetallado(rid, rangoApi(rango, { ...filtros, offset }))
           if (res.error || !res.data) throw new Error(res.error ?? 'No se recibió el reporte detallado.')
-          filas.push(...res.data.cuentas)
+          cuentas.push(...res.data.cuentas)
           total = res.data.total_cuentas
           offset += filtros.limite
         } while (offset < total)
-        const seleccion = tipo === 'anulaciones' ? filas.filter((cuenta) => cuenta.estado === 'anulada') : filas
-        const csv = crearCsv(
-          ['Fecha y hora (Lima)', 'Número de recibo/cuenta', 'Mesa', 'Mesero', 'Productos', 'Cantidad', 'Importe', 'Método de pago', 'Estado', 'Monto devuelto', 'Motivo de anulación'],
-          seleccion.map((cuenta) => [
-            new Intl.DateTimeFormat('es-PE', { timeZone: ZONA_HORARIA_REPORTES, dateStyle: 'short', timeStyle: 'medium' }).format(new Date(cuenta.fecha_operacion)),
-            cuenta.numero ?? cuenta.id, cuenta.mesas, cuenta.meseros,
-            cuenta.pedidos.flatMap((pedido) => pedido.items.map((item) => `${item.cantidad} × ${item.nombre}`)).join(' | '),
-            cuenta.cantidad_productos, cuenta.total, metodoCuenta(cuenta), etiquetaEstado(cuenta),
-            cuenta.monto_reembolsado ?? 0, cuenta.motivo_anulacion ?? '',
-          ]),
-        )
-        descargaCsv(crearNombreCsv(tipo, rango), csv)
-      } else if (tipo === 'resumen') {
-        const filas = [
-          ['Restaurante', restaurante?.nombre ?? 'Restaurante'], ['Periodo', `${rango.desde} a ${rango.hasta}`], ['Zona horaria', ZONA_HORARIA_REPORTES],
-          ['Total cobrado', reporte.resumen.ventas], ['Neto (cobrado menos devoluciones)', reporte.resumen.neto],
-          ['Total devuelto/anulado', reporte.resumen.reembolsos], ['Cuentas pagadas', reporte.resumen.cuentas_pagadas],
-          ['Cuentas anuladas', reporte.resumen.cuentas_anuladas], ['Ticket promedio', reporte.resumen.ticket_promedio], ['Propinas', reporte.resumen.propinas],
-          ...reporte.ventas_por_metodo.map((fila) => [`Método: ${METODOS_PAGO_LABEL[fila.metodo_pago as keyof typeof METODOS_PAGO_LABEL] ?? fila.metodo_pago}`, fila.ventas]),
-          ['Nota', 'Los indicadores resumen cubren el periodo completo; filtros de mesero, producto y estado afinan el detalle.'],
-        ]
-        descargaCsv(crearNombreCsv('resumen', rango), crearCsv(['Indicador', 'Valor'], filas))
-      } else if (tipo === 'meseros') {
-        descargaCsv(crearNombreCsv('meseros', rango), crearCsv(
-          ['Puesto', 'Mesero', 'Total vendido atribuido', 'Cuentas atendidas', 'Comandas', 'Unidades', 'Ticket promedio atribuido', 'Propinas atribuidas'],
-          reporte.meseros.map((fila, indice) => [indice + 1, fila.nombre, fila.ventas, fila.cuentas, fila.comandas, fila.unidades, fila.ticket_promedio, fila.propinas]),
-        ))
-      } else {
+      }
+      const nombreMesero = meseroId ? meseros.find((fila) => fila.id === meseroId)?.nombre ?? meseroId : 'Todos'
+      const nombreProducto = productoId ? productos.find((fila) => fila.id === productoId)?.nombre ?? productoId : 'Todos'
+      const contexto = (alcance: string) => crearCsv(['Filtro', 'Valor'], [
+        ['Restaurante', restaurante?.nombre ?? 'Restaurante activo'],
+        ['Desde', rango.desde], ['Hasta', rango.hasta], ['Zona horaria', ZONA_HORARIA_REPORTES],
+        ['Estado del detalle', estado === 'todas' ? 'Cobradas y anuladas' : estado === 'pagada' ? 'Solo cobradas' : 'Solo anuladas'],
+        ['Mesero', nombreMesero], ['Producto', nombreProducto], ['Búsqueda', busquedaAplicada || 'Sin búsqueda'],
+        ['Alcance', alcance],
+      ])
+      const csvConContexto = (columnas: string[], filas: (string | number | null)[][], alcance: string) =>
+        `${contexto(alcance)}\r\n${crearCsv(columnas, filas).slice(1)}`
+      const construir = (seleccion: Exclude<TipoExportacion, 'todo'>): ArchivoCsv => {
+        const nombre = crearNombreCsv(seleccion, rango)
+        if (seleccion === 'ventas' || seleccion === 'anulaciones') {
+          const filas = seleccion === 'anulaciones' ? cuentas.filter((cuenta) => cuenta.estado === 'anulada') : cuentas
+          return { nombre, contenido: csvConContexto(
+            ['Fecha y hora (Lima)', 'Número de recibo/cuenta', 'Mesa', 'Mesero', 'Productos', 'Cantidad', 'Importe', 'Método de pago', 'Estado', 'Monto devuelto', 'Motivo de anulación'],
+            filas.map((cuenta) => [
+              new Intl.DateTimeFormat('es-PE', { timeZone: ZONA_HORARIA_REPORTES, dateStyle: 'short', timeStyle: 'medium' }).format(new Date(cuenta.fecha_operacion)),
+              cuenta.numero ?? cuenta.id, cuenta.mesas, cuenta.meseros,
+              cuenta.pedidos.flatMap((pedido) => pedido.items.map((item) => `${item.cantidad} × ${item.nombre}`)).join(' | '),
+              cuenta.cantidad_productos, cuenta.total, metodoCuenta(cuenta), etiquetaEstado(cuenta),
+              cuenta.monto_reembolsado ?? 0, cuenta.motivo_anulacion ?? '',
+            ]), 'Detalle filtrado por estado, mesero, producto y búsqueda.') }
+        }
+        if (seleccion === 'resumen') {
+          const filas: (string | number)[][] = [
+            ['Total cobrado', reporte.resumen.ventas], ['Neto (cobrado menos devoluciones)', reporte.resumen.neto],
+            ['Total devuelto/anulado', reporte.resumen.reembolsos], ['Cuentas pagadas', reporte.resumen.cuentas_pagadas],
+            ['Cuentas anuladas', reporte.resumen.cuentas_anuladas], ['Ticket promedio', reporte.resumen.ticket_promedio], ['Propinas', reporte.resumen.propinas],
+            ...reporte.ventas_por_metodo.map((fila) => [`Método: ${METODOS_PAGO_LABEL[fila.metodo_pago as keyof typeof METODOS_PAGO_LABEL] ?? fila.metodo_pago}`, fila.ventas]),
+          ]
+          return { nombre, contenido: csvConContexto(['Indicador', 'Valor'], filas, 'Indicadores del periodo completo; los filtros de detalle no cambian este resumen.') }
+        }
+        if (seleccion === 'meseros') {
+          return { nombre, contenido: csvConContexto(
+            ['Puesto', 'Mesero', 'Total vendido atribuido', 'Cuentas atendidas', 'Comandas', 'Unidades', 'Ticket promedio atribuido', 'Propinas atribuidas'],
+            reporte.meseros.map((fila, indice) => [indice + 1, fila.nombre, fila.ventas, fila.cuentas, fila.comandas, fila.unidades, fila.ticket_promedio, fila.propinas]),
+            'Ranking del periodo; mesero y producto afinan el ranking. Estado y búsqueda aplican solo al detalle.',
+          ) }
+        }
         const filasProductos = reporte.productos.map((fila) => ['Producto', fila.nombre, fila.categoria, fila.cantidad, fila.total, fila.es_bebida ? 'Bebida' : 'Comida'])
         const filasCategorias = reporte.categorias.map((fila) => ['Categoría actual', fila.categoria, '—', fila.cantidad, fila.total, ''])
         const filasEstaciones = reporte.comandas_por_estacion.map((fila) => ['Estación', fila.estacion, '—', fila.unidades, fila.ventas, `${fila.comandas} comandas`])
         const filasSinVentas = reporte.productos_sin_ventas.map((fila) => ['Sin ventas', fila.nombre, fila.categoria, 0, 0, fila.disponible ? 'Disponible' : 'No disponible'])
-        descargaCsv(crearNombreCsv('productos', rango), crearCsv(
+        return { nombre, contenido: csvConContexto(
           ['Tipo', 'Producto / categoría / estación', 'Categoría actual del menú', 'Cantidad', 'Importe', 'Clasificación'],
           [...filasProductos, ...filasCategorias, ...filasEstaciones, ...filasSinVentas],
-        ))
+          'Productos del periodo; mesero y producto afinan los vendidos. Categorías y productos sin ventas usan el menú actual.',
+        ) }
       }
+      const selecciones: Exclude<TipoExportacion, 'todo'>[] = tipo === 'todo'
+        ? ['resumen', 'ventas', 'meseros', 'productos', 'anulaciones'] : [tipo]
+      const archivos = selecciones.map(construir)
+      if (tipo === 'todo') {
+        const contenido = zipSync(Object.fromEntries(archivos.map((archivo) => [archivo.nombre, strToU8(archivo.contenido)])), { level: 1 })
+        descargarArchivo(`mesora-reportes-${nombrePeriodoArchivo(rango)}.zip`, new Blob([new Uint8Array(contenido)], { type: 'application/zip' }))
+      } else {
+        descargarArchivo(archivos[0].nombre, new Blob([archivos[0].contenido], { type: 'text/csv;charset=utf-8' }))
+      }
+      if (menuExportacionRef.current) menuExportacionRef.current.open = false
     } catch (causa) {
-      setErrorExportar(causa instanceof Error ? causa.message : 'No se pudo preparar el CSV. Puedes reintentar.')
+      setErrorExportar(causa instanceof Error ? causa.message : 'No se pudo preparar el archivo. Puedes reintentar.')
     } finally {
       setExportando(null)
     }
   }
-
   const paginas = Math.max(1, Math.ceil((reporte?.total_cuentas ?? 0) / LIMITE))
   const variacion = comparar && anterior
     ? anterior.resumen.ventas > 0
@@ -278,10 +306,11 @@ export default function VentasTab() {
             <input type="checkbox" checked={comparar} onChange={(e) => setComparar(e.target.checked)} />
             Comparar con el periodo anterior de igual duración
           </label>
-          <details className="relative">
+          <details ref={menuExportacionRef} className="relative">
             <summary className="btn btn-outline min-h-11 cursor-pointer list-none px-4">Exportar reportes CSV</summary>
-            <div className="absolute left-0 z-20 mt-2 grid w-max min-w-56 max-w-[calc(100vw-2rem)] gap-1 rounded-xl border border-surface-700 bg-surface-900 p-2 shadow-xl sm:left-auto sm:right-0">
-              {([['resumen', 'Resumen del periodo'], ['ventas', 'Ventas detalladas'], ['meseros', 'Rendimiento de meseros'], ['productos', 'Productos y categorías'], ['anulaciones', 'Anulaciones y devoluciones']] as const).map(([tipo, label]) => <button key={tipo} type="button" disabled={!reporte || exportando !== null} className="btn btn-outline min-h-11 justify-start px-3" onClick={() => void exportar(tipo)}>{exportando === tipo ? 'Preparando…' : label}</button>)}
+            <div role="group" aria-label="Elegir reporte para exportar" className="absolute left-0 z-20 mt-2 grid max-h-[60vh] w-max min-w-64 max-w-[calc(100vw-2rem)] gap-1 overflow-y-auto rounded-xl border border-surface-700 bg-surface-900 p-2 shadow-xl sm:left-auto sm:right-0">
+              <p className="px-2 py-1 text-xs text-zinc-400">Elige un reporte. Todos conservan el periodo y muestran sus filtros.</p>
+              {([['resumen', 'Resumen'], ['ventas', 'Ventas detalladas'], ['meseros', 'Meseros'], ['productos', 'Productos y categorías'], ['anulaciones', 'Anulaciones y devoluciones'], ['todo', 'Exportar todo']] as const).map(([tipo, label]) => <button key={tipo} type="button" disabled={!reporte || exportando !== null} className="btn btn-outline min-h-11 justify-start px-3 text-left" onClick={() => void exportar(tipo)}>{exportando === tipo ? 'Preparando…' : label}{tipo === 'todo' && exportando !== tipo ? <span className="ml-1 text-xs text-zinc-400">· ZIP con cinco CSV</span> : null}</button>)}
             </div>
           </details>
         </div>
@@ -339,9 +368,7 @@ function ResumenPeriodo({ reporte, anterior, comparar, variacion, rango }: { rep
       <section className="card p-4 sm:p-5"><h3 className="titulo-seccion">Ventas por método de pago</h3><p className="mt-1 text-sm text-zinc-500">Los pagos divididos se distribuyen proporcionalmente al importe cobrado; propinas y vuelto quedan fuera.</p>
         {!reporte.ventas_por_metodo.length ? <p className="py-5 text-sm text-zinc-500">No hay pagos registrados.</p> : <div className="mt-4 space-y-3">{reporte.ventas_por_metodo.map((fila) => <Barra key={fila.metodo_pago} titulo={METODOS_PAGO_LABEL[fila.metodo_pago as keyof typeof METODOS_PAGO_LABEL] ?? fila.metodo_pago} valor={fila.ventas} maximo={Math.max(...reporte.ventas_por_metodo.map((x) => x.ventas))} detalle={`${fila.cuentas} cuentas`} />)}</div>}
       </section>
-      <section className="card p-4 sm:p-5"><h3 className="titulo-seccion">Ventas por día</h3>
-        {!reporte.ventas_por_dia.length ? <p className="py-5 text-sm text-zinc-500">No hay ventas por día para este periodo.</p> : <div className="mt-4 space-y-3">{reporte.ventas_por_dia.map((fila) => <Barra key={fila.fecha} titulo={fila.fecha} valor={fila.ventas} maximo={Math.max(...reporte.ventas_por_dia.map((x) => x.ventas))} detalle={`${fila.cuentas} cuentas`} />)}</div>}
-      </section>
+      <GraficoDiario reporte={reporte} />
       <ListaSimple titulo="Ventas por hora" vacio="No hay ventas cobradas en el periodo." columnas={['Hora', 'Cuentas', 'Importe']} filas={reporte.ventas_por_hora.map((fila) => [fila.hora, String(fila.cuentas), money(fila.ventas)])} />
       <ListaSimple titulo="Ventas por mesa" vacio="No hay consumos cobrados en el periodo." columnas={['Mesa', 'Cuentas', 'Importe']} filas={reporte.mesas.slice(0, 12).map((fila) => [fila.nombre, String(fila.cuentas), money(fila.ventas)])} />
       <ListaSimple titulo="Comandas por estación" vacio="No hay productos con estación histórica en el periodo." columnas={['Estación', 'Comandas', 'Unidades', 'Importe']} filas={reporte.comandas_por_estacion.map((fila) => [nombreEstacion(fila.estacion), String(fila.comandas), String(fila.unidades), money(fila.ventas)])} />
@@ -377,7 +404,9 @@ function Anulaciones({ reporte, abierta, setAbierta, pagina, paginas, cargando, 
 }
 
 function ReporteMeseros({ reporte, alFiltrar }: { reporte: ReporteAdminDetallado; alFiltrar: (id: string) => void }) {
+  const [verTodos, setVerTodos] = useState(false)
   return <section className="card overflow-hidden p-4 sm:p-5"><div className="mb-4"><h2 className="titulo-seccion">Rendimiento por mesero</h2><p className="mt-1 text-sm text-zinc-500">Ventas atribuidas según los productos de sus comandas. Las comandas y ventas se muestran por separado; la propina se prorratea por aporte al importe del pedido.</p></div>
+    <GraficoMeseros meseros={reporte.meseros} verTodos={verTodos} alCambiar={() => setVerTodos((valor) => !valor)} />
     {!reporte.meseros.length ? <EstadoVacio titulo="No hay ventas atribuidas a meseros en el periodo." /> : <div className="grid gap-3 xl:grid-cols-2">{reporte.meseros.map((fila, indice) => <article key={fila.id ?? fila.nombre} className="rounded-xl border border-surface-700 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2"><div><span className="chip chip-neutral">Puesto {indice + 1}</span><h3 className="mt-2 text-lg font-semibold text-zinc-100">{fila.nombre}</h3></div><strong className="text-xl tabular-nums">{money(fila.ventas)}</strong></div>
       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3"><Dato titulo="Cuentas atendidas" valor={fila.cuentas} /><Dato titulo="Comandas" valor={fila.comandas} /><Dato titulo="Unidades" valor={fila.unidades} /><Dato titulo="Ticket promedio atribuido" valor={money(fila.ticket_promedio)} /><Dato titulo="Propinas atribuidas" valor={money(fila.propinas)} /></dl>
@@ -391,6 +420,7 @@ function ReporteProductos({ reporte }: { reporte: ReporteAdminDetallado }) {
   const productos = [...reporte.productos].sort((a, b) => orden === 'cantidad' ? b.cantidad - a.cantidad || b.total - a.total : b.total - a.total || b.cantidad - a.cantidad)
   return <div className="space-y-4">
     <section className="card p-4 sm:p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="titulo-seccion">Productos más vendidos</h2><p className="mt-1 text-sm text-zinc-500">Categoría según el menú actual; nombre, cantidad, precio y estación proceden de la comanda.</p></div><label className="text-sm text-zinc-400">Ordenar por <select aria-label="Orden de productos" className="input ml-2 min-h-11" value={orden} onChange={(e) => setOrden(e.target.value as typeof orden)}><option value="cantidad">Cantidad</option><option value="importe">Importe</option></select></label></div>
+      <GraficoProductos productos={productos} orden={orden} />
       {!productos.length ? <EstadoVacio titulo="No hay productos cobrados en este periodo." /> : <div className="mt-4 grid gap-2 sm:grid-cols-2">{productos.map((fila, indice) => <article key={`${fila.id ?? fila.nombre}-${fila.es_bebida}`} className="flex min-h-16 items-center justify-between gap-3 rounded-lg border border-surface-700 p-3"><span className="min-w-0"><span className="mr-2 text-xs text-zinc-500">#{indice + 1}</span><strong className="break-words">{fila.nombre}</strong><span className="mt-1 block text-xs text-zinc-500">{fila.categoria} · {fila.es_bebida ? 'Bebida' : 'Comida'}</span></span><span className="shrink-0 text-right"><strong>{fila.cantidad} unid.</strong><span className="block text-sm tabular-nums text-zinc-400">{money(fila.total)}</span></span></article>)}</div>}
     </section>
     <ListaSimple titulo="Ventas por categoría" vacio="No hay categorías con ventas cobradas." nota="Las categorías reflejan la clasificación actual del menú, porque esa etiqueta no se guarda históricamente en cada ítem." columnas={['Categoría actual', 'Unidades', 'Importe']} filas={reporte.categorias.map((fila) => [fila.categoria, String(fila.cantidad), money(fila.total)])} />

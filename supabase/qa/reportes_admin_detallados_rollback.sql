@@ -88,6 +88,7 @@ begin
   r := public.reporte_admin_detallado_restaurante(v.r_a, inicio, fin, 'todas', null, null, '', 0, 100);
   if (r#>>'{resumen,ventas}')::numeric <> 25 then raise exception 'Ventas pagadas no coinciden con el reporte base'; end if;
   if (r#>>'{resumen,neto}')::numeric <> 20 then raise exception 'Neto no descuenta el monto reembolsado'; end if;
+  if jsonb_array_length(r->'reembolsos_por_dia') <> 1 or (r#>>'{reembolsos_por_dia,0,reembolsos}')::numeric <> 5 then raise exception 'La serie diaria no conserva el reembolso del resumen'; end if;
   if (r#>>'{resumen,propinas}')::numeric <> 5 then raise exception 'La propina debe conservarse fuera de ventas'; end if;
   if (r#>>'{resumen,cuentas_pagadas}')::integer <> 1 or (r#>>'{resumen,cuentas_anuladas}')::integer <> 1 then raise exception 'No se separan cuentas pagadas y anuladas'; end if;
   if (r#>>'{productos,0,cantidad}')::integer <> 2 or (r#>>'{productos,0,total}')::numeric <> 20 then raise exception 'Producto vendido no suma cantidad/importe'; end if;
@@ -105,8 +106,10 @@ begin
 
   r := public.reporte_admin_detallado_restaurante(v.r_a, inicio, fin, 'todas', null, null, '', 0, 1);
   if (r->>'total_cuentas')::integer <> 2 or jsonb_array_length(r->'cuentas') <> 1 then raise exception 'La paginación del detalle no respeta su total'; end if;
+  if jsonb_array_length(r->'reembolsos_por_dia') <> 1 then raise exception 'La serie diaria no puede depender de la página visible'; end if;
   r := public.reporte_admin_detallado_restaurante(v.r_a, now() + interval '3 days', now() + interval '4 days', 'todas', null, null, '', 0, 25);
   if (r#>>'{resumen,ventas}')::numeric <> 0 or jsonb_array_length(r->'cuentas') <> 0 then raise exception 'Un periodo sin ventas debe devolver ceros y listas vacías'; end if;
+  if jsonb_array_length(r->'reembolsos_por_dia') <> 0 then raise exception 'Periodo vacío no debe tener barras de reembolso'; end if;
 
   perform set_config('request.jwt.claim.sub', v.waiter_a::text, true);
   begin

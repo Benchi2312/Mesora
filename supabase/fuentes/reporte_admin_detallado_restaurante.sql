@@ -1,5 +1,5 @@
--- Reportes detallados de Admin. Usa los mismos importes y fechas que
--- reporte_ventas_restaurante; agrega cortes server-side sin crear tablas.
+-- Reportes detallados de Admin. Conserva los importes y fechas del Dashboard.
+-- Añade una serie diaria de reembolsos para el gráfico, sin crear tablas.
 create or replace function public.reporte_admin_detallado_restaurante(
   p_restaurante_id uuid,
   p_desde timestamptz,
@@ -19,6 +19,7 @@ set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_base jsonb;
+  v_reembolsos_dia jsonb;
   v_productos jsonb;
   v_categorias jsonb;
   v_meseros jsonb;
@@ -60,6 +61,23 @@ begin
   v_base := public.reporte_ventas_restaurante(
     p_restaurante_id, p_desde, p_hasta, 'todas', '', 0, 1
   ) - 'cuentas' - 'total_cuentas';
+
+  -- Usa la misma fecha operativa y el mismo monto_reembolsado del resumen.
+  -- La serie se calcula completa en servidor, sin depender de la página visible.
+  select coalesce(jsonb_agg(to_jsonb(d) order by d.fecha), '[]'::jsonb)
+    into v_reembolsos_dia
+    from (
+      select to_char((coalesce(c.anulada_at, c.pagado_at, c.created_at)
+                       at time zone 'America/Lima')::date, 'YYYY-MM-DD') as fecha,
+             round(sum(coalesce(c.monto_reembolsado, 0)), 2) as reembolsos
+        from public.cuentas c
+       where c.restaurante_id = p_restaurante_id
+         and c.estado::text = 'anulada'
+         and coalesce(c.anulada_at, c.pagado_at, c.created_at) >= p_desde
+         and coalesce(c.anulada_at, c.pagado_at, c.created_at) < p_hasta
+       group by (coalesce(c.anulada_at, c.pagado_at, c.created_at)
+                 at time zone 'America/Lima')::date
+    ) d;
 
   with cuentas_periodo as materialized (
     select c.id, c.restaurante_id, c.estado::text as estado, c.total,
@@ -386,6 +404,7 @@ begin
     ) x;
 
   v_resultado := v_base || jsonb_build_object(
+    'reembolsos_por_dia', coalesce(v_reembolsos_dia, '[]'::jsonb),
     'productos', coalesce(v_productos, '[]'::jsonb),
     'categorias', coalesce(v_categorias, '[]'::jsonb),
     'meseros', coalesce(v_meseros, '[]'::jsonb),
