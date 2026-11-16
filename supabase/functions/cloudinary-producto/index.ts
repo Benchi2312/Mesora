@@ -1,6 +1,11 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { crearHandlerCloudinary } from './handler.ts'
 import { clasificarErrorCloudinary } from './cloudinaryErrors.ts'
+import {
+  formularioCargaCloudinary,
+  firmarParametrosCloudinary,
+  parametrosCargaCloudinary,
+} from './cloudinaryFirma.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
@@ -9,16 +14,6 @@ const CLOUD_NAME = Deno.env.get('CLOUDINARY_CLOUD_NAME') ?? ''
 const CLOUD_API_KEY = Deno.env.get('CLOUDINARY_API_KEY') ?? ''
 const CLOUD_API_SECRET = Deno.env.get('CLOUDINARY_API_SECRET') ?? ''
 const CLOUD_FOLDER = Deno.env.get('CLOUDINARY_FOLDER') ?? ''
-
-function firmaCloudinary(parametros: Record<string, string>): Promise<string> {
-  const texto = Object.keys(parametros)
-    .sort()
-    .map((clave) => `${clave}=${parametros[clave]}`)
-    .join('&') + CLOUD_API_SECRET
-  return crypto.subtle.digest('SHA-1', new TextEncoder().encode(texto)).then((hash) =>
-    Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, '0')).join(''),
-  )
-}
 
 function dependenciasConfiguradas(): boolean {
   return Boolean(
@@ -66,15 +61,9 @@ const handler = crearHandlerCloudinary({
     if (!dependenciasConfiguradas()) throw new Error('Cloudinary no está configurado.')
     const timestamp = Math.floor(Date.now() / 1000).toString()
     const publicId = `${restauranteId}_${crypto.randomUUID()}`
-    const parametros = { folder: CLOUD_FOLDER, public_id: publicId, timestamp }
-    const signature = await firmaCloudinary(parametros)
-    const body = new FormData()
-    body.set('file', archivo, archivo.name)
-    body.set('api_key', CLOUD_API_KEY)
-    body.set('timestamp', timestamp)
-    body.set('folder', CLOUD_FOLDER)
-    body.set('public_id', publicId)
-    body.set('signature', signature)
+    const parametros = parametrosCargaCloudinary(CLOUD_FOLDER, publicId, timestamp)
+    const signature = await firmarParametrosCloudinary(parametros, CLOUD_API_SECRET)
+    const body = formularioCargaCloudinary(archivo, CLOUD_API_KEY, parametros, signature)
     const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(CLOUD_NAME)}/image/upload`, {
       method: 'POST',
       body,
@@ -94,7 +83,7 @@ const handler = crearHandlerCloudinary({
     if (!dependenciasConfiguradas()) throw new Error('Cloudinary no está configurado.')
     const timestamp = Math.floor(Date.now() / 1000).toString()
     const parametros = { invalidate: 'true', public_id: publicId, timestamp }
-    const signature = await firmaCloudinary(parametros)
+    const signature = await firmarParametrosCloudinary(parametros, CLOUD_API_SECRET)
     const body = new FormData()
     body.set('public_id', publicId)
     body.set('timestamp', timestamp)
