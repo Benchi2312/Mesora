@@ -10,6 +10,7 @@ import { Spinner } from '../../components/LoadingScreen'
 import EstadoVacio from '../../components/EstadoVacio'
 import ComandaImprimible from '../../components/ComandaImprimible'
 import { ESTACIONES_COMANDA, NOMBRES_ESTACION_COMANDA, estacionDeProducto, itemsDeEstacion, type EstacionComanda } from '../../domain/restaurant/impresionComandas'
+import { detectarComandasNuevas, ESTACIONES_ALERTA_COMANDAS, programarAlertaComanda, type EstacionAlertaComanda } from '../../domain/restaurant/alertaComandas'
 
 /* Íconos SVG de línea (consistentes con el resto de la app) */
 function IconoOlla({ className = 'h-5 w-5' }: { className?: string }) {
@@ -136,6 +137,12 @@ export default function Cocina() {
   const [avisoNuevo, setAvisoNuevo] = useState('')
   const audioContext = useRef<AudioContext | null>(null)
   const pedidosConocidos = useRef<Set<string> | null>(null)
+  const cargaEnCurso = useRef<Promise<void> | null>(null)
+  const sonidoActivoRef = useRef(sonidoActivo)
+  sonidoActivoRef.current = sonidoActivo
+  const [nuevasPorEstacion, setNuevasPorEstacion] = useState<Record<EstacionAlertaComanda, ReadonlySet<string>>>(() => ({
+    cocina: new Set(), bar: new Set(), otros: new Set(),
+  }))
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   /** Ids de comandas cuyo avance está en vuelo (evita el doble toque). */
@@ -146,6 +153,13 @@ export default function Cocina() {
   const cargar = useCallback(async () => {
     const rid = restaurante?.id
     if (!rid) return
+    if (cargaEnCurso.current) {
+      await cargaEnCurso.current
+      return
+    }
+    let completarCarga!: () => void
+    const solicitudCarga = new Promise<void>((resolve) => { completarCarga = resolve })
+    cargaEnCurso.current = solicitudCarga
     try {
       const api = getApi()
       const rutasRes = await api.getEstacionesEnrutamiento(rid)
@@ -163,19 +177,40 @@ export default function Cocina() {
         return
       }
       const pedidosNuevos = pRes.data ?? []
-      const idsDeEstacion = new Set(pedidosNuevos.filter((p) =>
-        p.rutasPorEstacion?.[estacion]?.estado === 'pendiente' &&
-        p.items.some((it) => estacionDeProducto(it) === estacion),
-      ).map((p) => p.id))
-      if (pedidosConocidos.current === null) pedidosConocidos.current = idsDeEstacion
-      else {
-        const nuevos = [...idsDeEstacion].filter((id) => !pedidosConocidos.current?.has(id))
-        if (nuevos.length) {
-          const cuenta = nuevos.length
-          setAvisoNuevo(`${cuenta === 1 ? 'Nueva comanda' : `${cuenta} comandas nuevas`} en ${NOMBRES_ESTACION_COMANDA[estacion].toLowerCase()}.`)
-          if (sonidoActivo) void reproducirAviso()
+      const idsActivos = new Set<string>()
+      const pendientes = { cocina: new Set<string>(), bar: new Set<string>(), otros: new Set<string>() }
+      for (const pedido of pedidosNuevos) {
+        if (pedido.cuentaAnulada) continue
+        for (const destino of ESTACIONES_ALERTA_COMANDAS) {
+          const ruta = pedido.rutasPorEstacion?.[destino]
+          if (!ruta || ruta.estado === 'entregado' || ruta.estado === 'anulado') continue
+          if (!pedido.items.some((item) => estacionDeProducto(item) === destino)) continue
+          idsActivos.add(pedido.id)
+          if (ruta.estado === 'pendiente') pendientes[destino].add(pedido.id)
         }
-        pedidosConocidos.current = idsDeEstacion
+      }
+      const deteccion = detectarComandasNuevas(pedidosConocidos.current, idsActivos, pendientes)
+      pedidosConocidos.current = new Set(deteccion.idsConocidos)
+      setNuevasPorEstacion((anteriores) => {
+        const siguientes: Record<EstacionAlertaComanda, ReadonlySet<string>> = {
+          cocina: new Set([...anteriores.cocina].filter((id) => pendientes.cocina.has(id))),
+          bar: new Set([...anteriores.bar].filter((id) => pendientes.bar.has(id))),
+          otros: new Set([...anteriores.otros].filter((id) => pendientes.otros.has(id))),
+        }
+        for (const destino of ESTACIONES_ALERTA_COMANDAS) {
+          const vigentes = new Set(siguientes[destino])
+          for (const id of deteccion.nuevasPorEstacion[destino]) vigentes.add(id)
+          siguientes[destino] = vigentes
+        }
+        return siguientes
+      })
+      if (deteccion.debeAlertar) {
+        const cantidad = deteccion.idsNuevos.size
+        const estacionesNuevas = ESTACIONES_ALERTA_COMANDAS
+          .filter((destino) => deteccion.nuevasPorEstacion[destino].size > 0)
+          .map((destino) => destino === 'bar' ? 'Barra' : NOMBRES_ESTACION_COMANDA[destino])
+        setAvisoNuevo(`${cantidad === 1 ? 'Nueva comanda' : `${cantidad} comandas nuevas`} en ${estacionesNuevas.join(' y ')}.`)
+        if (sonidoActivoRef.current) void reproducirAviso()
       }
       setPedidos(pedidosNuevos)
       setEstacionesOperativas(rutasRes.data ?? [])
@@ -188,13 +223,17 @@ export default function Cocina() {
       setError(null)
     } catch {
       setError('No se pudo actualizar cocina. Comprueba tu conexión e inténtalo de nuevo.')
+    } finally {
+      if (cargaEnCurso.current === solicitudCarga) cargaEnCurso.current = null
+      completarCarga()
     }
-  }, [restaurante?.id, estacion, sonidoActivo])
+  }, [restaurante?.id])
 
   useEffect(() => {
     const rid = restaurante?.id
     if (!rid) return
     pedidosConocidos.current = null
+    setNuevasPorEstacion({ cocina: new Set(), bar: new Set(), otros: new Set() })
     let activo = true
     setCargando(true)
     ;(async () => {
@@ -245,23 +284,11 @@ export default function Cocina() {
       const contexto = audioContext.current ?? new ContextoAudio()
       audioContext.current = contexto
       if (contexto.state === 'suspended') await contexto.resume()
-      const ahora = contexto.currentTime
-      for (const [indice, frecuencia] of [880, 1175].entries()) {
-        const oscilador = contexto.createOscillator()
-        const volumen = contexto.createGain()
-        oscilador.type = 'sine'
-        oscilador.frequency.value = frecuencia
-        volumen.gain.setValueAtTime(0.0001, ahora + indice * 0.16)
-        volumen.gain.exponentialRampToValueAtTime(0.18, ahora + indice * 0.16 + 0.02)
-        volumen.gain.exponentialRampToValueAtTime(0.0001, ahora + indice * 0.16 + 0.13)
-        oscilador.connect(volumen)
-        volumen.connect(contexto.destination)
-        oscilador.start(ahora + indice * 0.16)
-        oscilador.stop(ahora + indice * 0.16 + 0.14)
-      }
+      programarAlertaComanda(contexto)
     } catch {
       setAvisoNuevo('El navegador bloqueó el sonido. Pulsa “Activar sonido” otra vez.')
       setSonidoActivo(false)
+      sonidoActivoRef.current = false
       setEstadoSonido('bloqueado')
     }
   }
@@ -269,8 +296,11 @@ export default function Cocina() {
   async function alternarSonido() {
     if (sonidoActivo) {
       setSonidoActivo(false)
+      sonidoActivoRef.current = false
       setEstadoSonido('desactivado')
       setAvisoNuevo('Aviso sonoro desactivado.')
+      const contexto = audioContext.current
+      if (contexto?.state === 'running') void contexto.suspend().catch(() => undefined)
       return
     }
     try {
@@ -280,6 +310,7 @@ export default function Cocina() {
       audioContext.current = contexto
       if (contexto.state === 'suspended') await contexto.resume()
       setSonidoActivo(true)
+      sonidoActivoRef.current = true
       setEstadoSonido('activo')
       setAvisoNuevo('Aviso sonoro activado para esta estación en este dispositivo.')
       // Tono de confirmación: verifica el volumen y desbloquea el audio del navegador.
@@ -292,6 +323,7 @@ export default function Cocina() {
       oscilador.start(); oscilador.stop(contexto.currentTime + 0.13)
     } catch {
       setSonidoActivo(false)
+      sonidoActivoRef.current = false
       setEstadoSonido('bloqueado')
       setAvisoNuevo('No se pudo activar el sonido. Revisa los permisos del navegador y vuelve a intentarlo.')
     }
@@ -344,6 +376,10 @@ export default function Cocina() {
   const tieneKds = Boolean(configuracionEstacion?.activo && configuracionEstacion.destinos.some((destino) => destino.activo && destino.grupo === 'principal' && destino.tipo === 'kds')) || pedidos.some((p) => p.rutasPorEstacion?.[estacion]?.destinos.includes('kds') || p.rutasPorEstacion?.[estacion]?.legado)
   const tieneImpresora = Boolean(configuracionEstacion?.activo && configuracionEstacion.destinos.some((destino) => destino.activo && destino.grupo === 'principal' && destino.tipo === 'impresora')) || pedidos.some((p) => p.rutasPorEstacion?.[estacion]?.destinos.includes('impresora'))
   const porEstado = (estado: EstadoPedido) => activos.filter((p) => p.estado === estado)
+  const totalComandasNuevas = new Set(ESTACIONES_ALERTA_COMANDAS.flatMap((destino) => [...nuevasPorEstacion[destino]])).size
+  const estacionesConNuevas = ESTACIONES_ALERTA_COMANDAS
+    .filter((destino) => nuevasPorEstacion[destino].size > 0)
+    .map((destino) => destino === 'bar' ? 'Barra' : NOMBRES_ESTACION_COMANDA[destino])
 
   if (cargando)
     return (
@@ -378,10 +414,28 @@ export default function Cocina() {
           </p>
         </div>
         <button type="button" aria-pressed={sonidoActivo} onClick={() => void alternarSonido()} className={`btn min-h-11 shrink-0 px-4 ${sonidoActivo ? 'btn-primary' : 'btn-outline'}`}>
-          {sonidoActivo ? '♪ Sonido activo' : 'Activar sonido'}
+          {sonidoActivo ? 'Desactivar sonido' : 'Activar sonido'}
         </button>
       </div>
       <p role="status" aria-live="polite" className="sr-only">{avisoNuevo}</p>
+
+      {totalComandasNuevas > 0 && <div
+        role="status"
+        aria-live="polite"
+        data-aviso-comandas-nuevas
+        className="mb-5 flex items-start gap-3 rounded-xl border-2 border-brand-500/70 bg-brand-500/10 px-4 py-3 text-zinc-100 shadow-sm"
+      >
+        <span className="mt-1 h-3 w-3 shrink-0 rounded-full bg-brand-400 motion-safe:animate-pulse" aria-hidden="true" />
+        <div>
+          <p className="font-semibold">{totalComandasNuevas === 1 ? 'Nueva comanda pendiente' : `${totalComandasNuevas} comandas nuevas pendientes`}</p>
+          <p className="mt-0.5 text-sm text-zinc-300">Revisa las tarjetas resaltadas en {estacionesConNuevas.join(' y ')}.</p>
+          {!sonidoActivo && <p className="mt-1 text-xs text-zinc-400">
+            {estadoSonido === 'bloqueado'
+              ? 'El navegador bloqueó el audio. Activa el sonido para oír el aviso; las comandas seguirán resaltadas.'
+              : 'El sonido está desactivado en este dispositivo. Las comandas seguirán resaltadas.'}
+          </p>}
+        </div>
+      </div>}
 
       {error && (
         <div className="aviso mb-6 border-danger-500/40 bg-danger-500/10 text-danger-500">
@@ -413,6 +467,7 @@ export default function Cocina() {
             <span className="flex flex-wrap gap-x-3 gap-y-1 pl-7 text-xs font-normal text-zinc-400">
               {tieneKdsEstacion && <span>{pedidosPorEstacion[destino].length} {pedidosPorEstacion[destino].length === 1 ? 'comanda en pantalla' : 'comandas en pantalla de preparación'}</span>}
               {tieneImpresoraEstacion && <span>{salidasPendientesEstacion} {salidasPendientesEstacion === 1 ? 'salida de impresión pendiente' : 'salidas de impresión pendientes'}</span>}
+              {nuevasPorEstacion[destino].size > 0 && <span className="font-semibold text-brand-400">{nuevasPorEstacion[destino].size} nuevas</span>}
               {soloImpresora && <span>Ticketera manual</span>}
             </span>
           </button>
@@ -471,6 +526,7 @@ export default function Cocina() {
                      boton={col.boton}
                      onAvanzar={() => void avanzar(p)}
                      avanzando={avanzando.has(p.id)}
+                     nueva={nuevasPorEstacion[estacion].has(p.id)}
                      onImprimir={p.rutasPorEstacion?.[estacion]?.legado ? () => setTicket({ p, mesaNombre: nombreMesa.get(p.mesa_id) ?? '—', meseroNombre: nombreMesero.get(p.mesero_id) ?? 'No asignado', estacion, impresoras: [] }) : undefined}
                    />
                  ))}
@@ -557,6 +613,7 @@ function TarjetaComanda({
   boton,
   onAvanzar,
   avanzando,
+  nueva,
   onImprimir,
 }: {
   p: PedidoConItems
@@ -565,6 +622,7 @@ function TarjetaComanda({
   boton: string
   onAvanzar: () => void
   avanzando: boolean
+  nueva: boolean
   onImprimir?: () => void
 }) {
   const tiempo = useElapsed(p.created_at)
@@ -572,9 +630,9 @@ function TarjetaComanda({
   const total = p.items.reduce((a, it) => a + it.cantidad * it.precio_unitario, 0)
 
   return (
-    <div className="rounded-xl border border-surface-700 bg-surface-800 p-4" data-comanda-kds={p.id}>
+    <div className={`rounded-xl border bg-surface-800 p-4 ${nueva ? 'border-brand-500 ring-2 ring-brand-500/40' : 'border-surface-700'}`} data-comanda-kds={p.id} data-nueva-comanda={nueva ? 'true' : undefined}>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-lg font-bold tracking-tight text-zinc-100">{mesaNombre}</p>
+        <p className="flex items-center gap-2 text-lg font-bold tracking-tight text-zinc-100">{mesaNombre}{nueva && <span className="rounded-full bg-brand-500 px-2 py-0.5 text-xs font-bold text-surface-950">Nueva</span>}</p>
         <span className={`inline-flex items-center gap-1.5 rounded-full border bg-surface-900 px-3 py-1 text-sm tabular-nums ${tiempoProlongado ? 'border-warn-500/50 text-warn-300' : 'border-surface-600 text-brand-400'}`} aria-label={`Tiempo en cola: ${tiempo}${tiempoProlongado ? ', tiempo prolongado' : ''}`}>
           <IconoReloj />
           {tiempo}

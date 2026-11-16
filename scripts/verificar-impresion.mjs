@@ -69,6 +69,9 @@ try {
   page.on('pageerror', (error) => erroresPagina.push(String(error)))
   await page.addInitScript(() => {
     window.__mesoraPrintCalls = 0
+    window.__mesoraAudioBlocked = true
+    window.__mesoraAudioStarts = 0
+    window.__mesoraAudioSuspends = 0
     window.print = () => {
       window.__mesoraPrintCalls++
       window.dispatchEvent(new Event('afterprint'))
@@ -77,13 +80,97 @@ try {
       configurable: true,
       value: class {
         state = 'suspended'
-        async resume() { throw new Error('El navegador bloqueó el audio') }
+        currentTime = 0
+        destination = {}
+        constructor() { window.__mesoraActiveAudioContext = this }
+        async resume() {
+          if (window.__mesoraAudioBlocked) throw new Error('El navegador bloqueó el audio')
+          this.state = 'running'
+        }
+        async suspend() {
+          window.__mesoraAudioSuspends++
+          this.state = 'suspended'
+        }
+        createOscillator() {
+          return { type: 'sine', frequency: { value: 0 }, connect() {}, start() { window.__mesoraAudioStarts++ }, stop() {} }
+        }
+        createGain() {
+          return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }
+        }
       },
     })
   })
 
   await page.goto(`${URL}/demo/cocina`, { waitUntil: 'networkidle', timeout: 45000 })
   await explorarDemoSinGuia(page)
+
+  const comportamientoAlerta = await page.evaluate(async () => {
+    const {
+      DURACION_ALERTA_COMANDA_MS,
+      ESTACIONES_ALERTA_COMANDAS,
+      SECUENCIA_ALERTA_COMANDA,
+      detectarComandasNuevas,
+      programarAlertaComanda,
+    } = await import('/src/domain/restaurant/alertaComandas.ts')
+    const vacias = { cocina: new Set(), bar: new Set(), otros: new Set() }
+    const inicial = detectarComandasNuevas(null, new Set(['anterior']), {
+      ...vacias,
+      cocina: new Set(['anterior']),
+    })
+    const batchPendientes = {
+      cocina: new Set(['anterior', 'mixta', 'solo-cocina']),
+      bar: new Set(['mixta', 'solo-barra']),
+      otros: new Set(),
+    }
+    const activosBatch = new Set(['anterior', 'mixta', 'solo-cocina', 'solo-barra'])
+    const batch = detectarComandasNuevas(inicial.idsConocidos, activosBatch, batchPendientes)
+    let reproducciones = 0
+    if (batch.debeAlertar) reproducciones++
+    const repetida = detectarComandasNuevas(batch.idsConocidos, activosBatch, batchPendientes)
+    if (repetida.debeAlertar) reproducciones++
+    const recarga = detectarComandasNuevas(null, activosBatch, batchPendientes)
+    if (recarga.debeAlertar) reproducciones++
+
+    const tiempos = []
+    const parametro = () => ({ setValueAtTime() {}, exponentialRampToValueAtTime() {} })
+    const contexto = {
+      currentTime: 10,
+      destination: {},
+      createGain: () => ({ gain: parametro(), connect() {} }),
+      createOscillator: () => ({
+        frequency: { value: 0 }, type: 'sine', connect() {},
+        start: (tiempo) => tiempos.push({ tipo: 'inicio', tiempo }),
+        stop: (tiempo) => tiempos.push({ tipo: 'fin', tiempo }),
+      }),
+    }
+    programarAlertaComanda(contexto)
+    const inicioProgramado = Math.min(...tiempos.filter((fila) => fila.tipo === 'inicio').map((fila) => fila.tiempo))
+    const finProgramado = Math.max(...tiempos.filter((fila) => fila.tipo === 'fin').map((fila) => fila.tiempo))
+    return {
+      estaciones: ESTACIONES_ALERTA_COMANDAS,
+      inicialSinAlerta: inicial.primeraCarga && !inicial.debeAlertar && inicial.idsNuevos.size === 0,
+      batchUnico: batch.debeAlertar && batch.idsNuevos.size === 3 &&
+        batch.nuevasPorEstacion.cocina.size === 2 && batch.nuevasPorEstacion.bar.size === 2 &&
+        batch.nuevasPorEstacion.otros.size === 0,
+      repetidaSinAlerta: !repetida.debeAlertar && repetida.idsNuevos.size === 0,
+      recargaSinAlerta: recarga.primeraCarga && !recarga.debeAlertar && recarga.idsNuevos.size === 0,
+      reproducciones,
+      duracionConfiguradaMs: DURACION_ALERTA_COMANDA_MS,
+      duracionProgramadaMs: Math.round((finProgramado - inicioProgramado) * 1000),
+      pulsos: SECUENCIA_ALERTA_COMANDA.filter((tono) => tono.tipo === 'pulso').length,
+    }
+  })
+  check('el detector cubre Cocina, Barra y Otros', comportamientoAlerta.estaciones.join(',') === 'cocina,bar,otros')
+  check('la carga inicial no alerta pedidos que ya estaban presentes', comportamientoAlerta.inicialSinAlerta)
+  check('varias comandas nuevas, incluida una mixta, forman un lote único', comportamientoAlerta.batchUnico)
+  check('una actualización repetida no vuelve a alertar el mismo lote', comportamientoAlerta.repetidaSinAlerta)
+  check('una recarga vuelve a establecer la base sin alertar pedidos existentes', comportamientoAlerta.recargaSinAlerta)
+  check('un lote produce exactamente una reproducción del sonido', comportamientoAlerta.reproducciones === 1, `reproducciones=${comportamientoAlerta.reproducciones}`)
+  check('la secuencia sintetizada dura aproximadamente 3 segundos y tiene dos pulsos',
+    comportamientoAlerta.duracionConfiguradaMs === 3000 && comportamientoAlerta.duracionProgramadaMs >= 2900 && comportamientoAlerta.duracionProgramadaMs <= 3100 && comportamientoAlerta.pulsos === 2,
+    JSON.stringify({ duracion: comportamientoAlerta.duracionProgramadaMs, pulsos: comportamientoAlerta.pulsos }))
+
+  check('no se muestra una alerta visual por la primera carga vacía', await page.locator('[data-aviso-comandas-nuevas]').count() === 0)
 
   // networkidle no espera las consultas asíncronas de Cocina ni el fin de su
   // estado de carga. Espera el primer control del selector como señal funcional.
@@ -98,6 +185,13 @@ try {
   await page.getByRole('button', { name: 'Activar sonido' }).click()
   await estadoSonido.getByText('El navegador no permitió el sonido. Actívalo de nuevo cuando estés listo.', { exact: true }).waitFor()
   check('el bloqueo del navegador se explica sin activar un estado falso', await page.getByRole('button', { name: 'Activar sonido' }).getAttribute('aria-pressed') === 'false')
+  await page.evaluate(() => { window.__mesoraAudioBlocked = false })
+  await page.getByRole('button', { name: 'Activar sonido' }).click()
+  check('el usuario puede activar el sonido cuando el navegador lo permite', await page.getByRole('button', { name: 'Desactivar sonido' }).getAttribute('aria-pressed') === 'true')
+  await page.getByRole('button', { name: 'Desactivar sonido' }).click()
+  check('el usuario puede desactivar el sonido a voluntad',
+    await page.getByRole('button', { name: 'Activar sonido' }).getAttribute('aria-pressed') === 'false' &&
+    await page.evaluate(() => window.__mesoraAudioSuspends === 1))
 
   // El demo inicia vacío. Sembramos una mesa con un ítem de cocina y otro de
   // bar mediante el API local real; así ambas estaciones usan una comanda.
@@ -199,6 +293,17 @@ try {
   }, pedidoPruebaId)
   if (!pedidoMixto) throw new Error('El demo no tiene una comanda activa mixta para probar la separación')
   await page.getByRole('button', { name: /^Cocina/ }).click()
+  await page.locator(`[data-comanda-kds="${pedidoMixto.id}"]`).waitFor({ state: 'visible' })
+  check('la comanda presente al abrir Cocina no se marca ni alerta como nueva',
+    await page.locator('[data-aviso-comandas-nuevas]').count() === 0 &&
+    await page.locator(`[data-comanda-kds="${pedidoMixto.id}"][data-nueva-comanda="true"]`).count() === 0)
+  await page.reload({ waitUntil: 'networkidle' })
+  await explorarDemoSinGuia(page)
+  await page.getByRole('button', { name: /^Cocina/ }).click()
+  await page.locator(`[data-comanda-kds="${pedidoMixto.id}"]`).waitFor({ state: 'visible' })
+  check('recargar Cocina no reproduce ni mantiene una alerta falsa para la comanda existente',
+    await page.locator('[data-aviso-comandas-nuevas]').count() === 0 &&
+    await page.locator(`[data-comanda-kds="${pedidoMixto.id}"][data-nueva-comanda="true"]`).count() === 0)
   check('la configuración mixta usa snapshots de 80 mm/2 copias en Cocina y 58 mm/1 copia en Barra',
     pedidoMixto.salidaCocina?.papel_mm === 80 && pedidoMixto.salidaCocina?.copias === 2 &&
     pedidoMixto.salidaBarra?.papel_mm === 58 && pedidoMixto.salidaBarra?.copias === 1 && !pedidoMixto.barTieneKds)
@@ -498,7 +603,13 @@ try {
   await page.goto(`${URL}/demo/cocina`, { waitUntil: 'networkidle', timeout: 45000 })
   await explorarDemoSinGuia(page)
   await page.getByRole('button', { name: /^Cocina/ }).waitFor({ state: 'visible' })
-  await page.getByText(/^Salidas canceladas por anulación de cuenta/).click()
+  async function abrirSalidasCanceladas() {
+    const detalles = page.locator('details').filter({ hasText: 'Salidas canceladas por anulación de cuenta' })
+    await detalles.waitFor({ state: 'visible' })
+    if (!(await detalles.evaluate((elemento) => elemento.open))) await detalles.locator('summary').click()
+    await detalles.getByText('Cancelada por anulación de cuenta', { exact: true }).first().waitFor({ state: 'visible' })
+  }
+  await abrirSalidasCanceladas()
   for (const salida of salidasAnuladas.salidas.filter((fila) => fila.estacion === 'cocina')) {
     const tarjeta = page.locator(`[data-salida-impresion="${salida.entrega_id}"]`)
     await tarjeta.waitFor({ state: 'visible' })
@@ -508,7 +619,7 @@ try {
       await page.locator(`[data-comanda-kds="${salidasAnuladas.pedidoId}"]`).count() === 0)
   }
   await page.getByRole('button', { name: /^Barra/ }).click()
-  await page.getByText(/^Salidas canceladas por anulación de cuenta/).click()
+  await abrirSalidasCanceladas()
   for (const salida of salidasAnuladas.salidas.filter((fila) => fila.estacion === 'bar')) {
     const tarjeta = page.locator(`[data-salida-impresion="${salida.entrega_id}"]`)
     await tarjeta.waitFor({ state: 'visible' })
@@ -517,6 +628,114 @@ try {
       await tarjeta.locator('[data-imprimir-salida]').count() === 0 &&
       await page.locator(`[data-comanda-kds="${salidasAnuladas.pedidoId}"]`).count() === 0)
   }
+
+  // Prueba de UI real: primero se establece una base con órdenes existentes,
+  // luego llegan dos comandas juntas. Una es mixta y aparece en dos estaciones,
+  // pero el lote reproduce una sola secuencia. Todo se ejecuta en el demo local.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(`${URL}/demo/cocina`, { waitUntil: 'networkidle', timeout: 45000 })
+  await explorarDemoSinGuia(page)
+  await page.getByRole('button', { name: /^Cocina/ }).waitFor({ state: 'visible' })
+  await page.getByRole('button', { name: /^Cocina/ }).click()
+  await page.locator(`[data-comanda-kds="${pedidoMixto.id}"]`).waitFor({ state: 'visible' })
+  check('la carga de Cocina no resalta órdenes preexistentes antes de la prueba de llegada',
+    await page.locator('[data-aviso-comandas-nuevas]').count() === 0 &&
+    await page.locator('[data-nueva-comanda="true"]').count() === 0)
+  await page.evaluate(() => { window.__mesoraAudioBlocked = false })
+  await page.getByRole('button', { name: 'Activar sonido' }).click()
+  const iniciosTrasDesbloquear = await page.evaluate(() => window.__mesoraAudioStarts)
+  const llegadasLote = await page.evaluate(async () => {
+    const { getApi, apiMode } = await import('/src/lib/api.ts')
+    const api = getApi()
+    const [mesas, productos] = await Promise.all([api.getMesas('r-demo'), api.getProductos('r-demo')])
+    const mesa = mesas.data?.find((fila) => fila.nombre === 'Mesa QA impresión')
+    const plato = productos.data?.find((fila) => fila.nombre === 'Plato QA impresión')
+    const bebida = productos.data?.find((fila) => fila.nombre === 'Bebida QA impresión')
+    if (!mesa || !plato || !bebida) throw new Error('No se encontró la mesa o producto para la prueba de alerta')
+    const actorAnterior = apiMode.operadorId
+    apiMode.operadorId = 'u-mesero-1'
+    try {
+      const mixta = await api.crearPedido('r-demo', mesa.id, [
+        { producto_id: plato.id, nombre_producto: plato.nombre, cantidad: 1, precio_unitario: plato.precio },
+        { producto_id: bebida.id, nombre_producto: bebida.nombre, cantidad: 1, precio_unitario: bebida.precio },
+      ])
+      const soloCocina = await api.crearPedido('r-demo', mesa.id, [
+        { producto_id: plato.id, nombre_producto: plato.nombre, cantidad: 1, precio_unitario: plato.precio },
+      ])
+      if (mixta.error || !mixta.data || soloCocina.error || !soloCocina.data) throw new Error('No se creó el lote de comandas de prueba')
+      return { mixta: mixta.data, soloCocina: soloCocina.data }
+    } finally {
+      apiMode.operadorId = actorAnterior
+    }
+  })
+  await page.locator(`button[data-guia-avanzar="${pedidoMixto.id}"]`).click()
+  const bannerNuevas = page.locator('[data-aviso-comandas-nuevas]')
+  await bannerNuevas.getByText('2 comandas nuevas pendientes', { exact: true }).waitFor({ state: 'visible' })
+  check('la llegada real en lote resalta ambas comandas nuevas en Cocina',
+    await page.locator(`[data-comanda-kds="${llegadasLote.mixta}"][data-nueva-comanda="true"]`).count() === 1 &&
+    await page.locator(`[data-comanda-kds="${llegadasLote.soloCocina}"][data-nueva-comanda="true"]`).count() === 1)
+  const alertaMovil = await page.evaluate(() => {
+    const banner = document.querySelector('[data-aviso-comandas-nuevas]')
+    const borde = banner?.getBoundingClientRect()
+    return { scroll: document.documentElement.scrollWidth, ancho: innerWidth, izquierda: borde?.left ?? -1, derecha: borde?.right ?? Infinity }
+  })
+  check('la señal visual de comandas nuevas cabe en móvil de 390 px',
+    alertaMovil.ancho === 390 && alertaMovil.scroll <= alertaMovil.ancho + 1 && alertaMovil.izquierda >= 0 && alertaMovil.derecha <= alertaMovil.ancho + 1,
+    JSON.stringify(alertaMovil))
+  await page.setViewportSize({ width: 1280, height: 800 })
+  const alertaEscritorio = await page.evaluate(() => {
+    const banner = document.querySelector('[data-aviso-comandas-nuevas]')
+    const borde = banner?.getBoundingClientRect()
+    return { scroll: document.documentElement.scrollWidth, ancho: innerWidth, visible: Boolean(borde && borde.width > 0 && borde.height > 0) }
+  })
+  check('la señal visual de comandas nuevas permanece visible en escritorio',
+    alertaEscritorio.ancho === 1280 && alertaEscritorio.scroll <= alertaEscritorio.ancho + 1 && alertaEscritorio.visible,
+    JSON.stringify(alertaEscritorio))
+  await page.setViewportSize({ width: 390, height: 844 })
+  check('una comanda mixta y otra de Cocina producen una única secuencia sonora',
+    await page.evaluate((inicios) => window.__mesoraAudioStarts - inicios === 7, iniciosTrasDesbloquear))
+  await page.getByRole('button', { name: /^Barra/ }).click()
+  await bannerNuevas.getByText('Revisa las tarjetas resaltadas en Cocina y Barra.', { exact: true }).waitFor({ state: 'visible' })
+  check('el lote mixto mantiene una señal visible al cambiar de estación', await bannerNuevas.isVisible())
+
+  await page.evaluate(() => {
+    window.__mesoraAudioBlocked = true
+    if (window.__mesoraActiveAudioContext) window.__mesoraActiveAudioContext.state = 'suspended'
+  })
+  const terceraLlegada = await page.evaluate(async () => {
+    const { getApi, apiMode } = await import('/src/lib/api.ts')
+    const api = getApi()
+    const [mesas, productos] = await Promise.all([api.getMesas('r-demo'), api.getProductos('r-demo')])
+    const mesa = mesas.data?.find((fila) => fila.nombre === 'Mesa QA impresión')
+    const plato = productos.data?.find((fila) => fila.nombre === 'Plato QA impresión')
+    if (!mesa || !plato) throw new Error('No se encontró el producto para verificar audio bloqueado')
+    const actorAnterior = apiMode.operadorId
+    apiMode.operadorId = 'u-mesero-1'
+    try {
+      const pedido = await api.crearPedido('r-demo', mesa.id, [
+        { producto_id: plato.id, nombre_producto: plato.nombre, cantidad: 1, precio_unitario: plato.precio },
+      ])
+      if (pedido.error || !pedido.data) throw new Error(pedido.error ?? 'No se creó la comanda de prueba')
+      return pedido.data
+    } finally {
+      apiMode.operadorId = actorAnterior
+    }
+  })
+  await page.getByRole('button', { name: /^Cocina/ }).click()
+  await page.locator(`button[data-guia-avanzar="${llegadasLote.soloCocina}"]`).click()
+  await page.getByText('El navegador no permitió el sonido. Actívalo de nuevo cuando estés listo.', { exact: true }).waitFor({ state: 'visible' })
+  check('si el navegador bloquea el audio, la llegada conserva la alerta visual',
+    await page.locator('[data-aviso-comandas-nuevas]').isVisible() &&
+    await page.locator(`[data-comanda-kds="${terceraLlegada}"][data-nueva-comanda="true"]`).count() === 1 &&
+    await page.locator('[data-aviso-comandas-nuevas]').getByText(/El navegador bloqueó el audio/).count() === 1)
+  await page.reload({ waitUntil: 'networkidle' })
+  await explorarDemoSinGuia(page)
+  await page.getByRole('button', { name: /^Cocina/ }).click()
+  await page.locator(`[data-comanda-kds="${terceraLlegada}"]`).waitFor({ state: 'visible' })
+  check('después de recargar, las comandas existentes no alertan ni se marcan como nuevas',
+    await page.locator('[data-aviso-comandas-nuevas]').count() === 0 &&
+    await page.locator('[data-nueva-comanda="true"]').count() === 0)
+
   check('la vista de impresión no genera errores de JavaScript', erroresPagina.length === 0, erroresPagina.join(' | '))
   await context.close()
 } catch (error) {
