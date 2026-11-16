@@ -100,8 +100,15 @@ async function esperarServidor(timeout = 60000) {
  */
 async function medir(page, vp, etiqueta) {
   const datos = await page.evaluate((ancho) => {
+    const ocultoEnDetallesCerrados = (el) => {
+      const details = el.closest('details:not([open])')
+      if (!details) return false
+      const summary = details.querySelector(':scope > summary')
+      return el !== details && !summary?.contains(el)
+    }
     const desbordes = []
     for (const el of document.querySelectorAll('body *')) {
+      if (ocultoEnDetallesCerrados(el)) continue
       const estilo = getComputedStyle(el)
       if (estilo.display === 'none' || estilo.visibility === 'hidden' || Number(estilo.opacity) === 0) continue
       const r = el.getBoundingClientRect()
@@ -122,9 +129,15 @@ async function medir(page, vp, etiqueta) {
     const scroll = document.documentElement.scrollWidth
     const chicos = []
     for (const el of document.querySelectorAll('button, a.btn, input, select, textarea')) {
+      if (ocultoEnDetallesCerrados(el)) continue
       const estilo = getComputedStyle(el)
       if (estilo.display === 'none' || estilo.visibility === 'hidden' || el.disabled) continue
-      const r = el.getBoundingClientRect()
+      // El checkbox nativo suele medir 13 px, pero el label completo es el
+      // objetivo táctil real cuando el control está dentro de una etiqueta.
+      const objetivo = (el instanceof HTMLInputElement && ['checkbox', 'radio'].includes(el.type)
+        ? el.closest('label')
+        : null) ?? el
+      const r = objetivo.getBoundingClientRect()
       if (r.width < 1 || r.height < 1) continue
       if (r.height < 28) {
         chicos.push({
@@ -142,6 +155,7 @@ async function medir(page, vp, etiqueta) {
       return estilo.display !== 'none' && estilo.visibility !== 'hidden' && el.getBoundingClientRect().width > 0
     })
     const botones = [...document.querySelectorAll('button')].filter((el) => {
+      if (ocultoEnDetallesCerrados(el)) return false
       if (dialogo && !dialogo.contains(el)) return false
       const estilo = getComputedStyle(el)
       const r = el.getBoundingClientRect()
@@ -564,6 +578,39 @@ async function correrPantalla(browser, vp, pantalla) {
             new globalThis.URL(page.url()).pathname === '/demo/admin')
           if (adminMovil) {
             await page.locator('.admin-drawer[role="dialog"]').waitFor({ state: 'hidden' })
+          }
+          if (tab === 'Ventas') {
+            await page.getByRole('heading', { name: 'Periodo y filtros', exact: true }).waitFor({ state: 'visible', timeout: 15000 })
+            check(`reportes ofrecen periodo, estado, mesero y producto ${vp.nombre}`,
+              await page.getByLabel('Mes del reporte').count() === 0 &&
+              await page.getByRole('button', { name: 'Elegir mes', exact: true }).count() === 1 &&
+              await page.getByLabel('Estado de operación').count() === 1 &&
+              await page.getByLabel('Filtrar por mesero').count() === 1 &&
+              await page.getByLabel('Filtrar por producto').count() === 1)
+            const exportaciones = page.locator('summary').filter({ hasText: 'Exportar reportes CSV' })
+            await exportaciones.click()
+            const opcionExportacion = page.getByRole('button', { name: 'Anulaciones y devoluciones', exact: true })
+            await opcionExportacion.waitFor({ state: 'visible' })
+            const menuExportacion = await page.locator('details[open] > div').evaluate((menu) => {
+              const rect = menu.getBoundingClientRect()
+              return { left: rect.left, right: rect.right, scrollWidth: document.documentElement.scrollWidth, width: window.innerWidth }
+            })
+            check(`menú de exportación abierto cabe en el viewport ${vp.nombre}`,
+              menuExportacion.left >= -1 && menuExportacion.right <= menuExportacion.width + 1 && menuExportacion.scrollWidth <= menuExportacion.width + 1,
+              `${Math.round(menuExportacion.left)}..${Math.round(menuExportacion.right)} / ${menuExportacion.width}, scroll ${menuExportacion.scrollWidth}`)
+            await exportaciones.click()
+            for (const [nombre, encabezadoInterno] of [
+              ['Ventas detalladas', 'Operaciones'],
+              ['Meseros', 'Rendimiento por mesero'],
+              ['Productos y categorías', 'Productos más vendidos'],
+              ['Anulaciones', 'Historial de anulaciones y devoluciones'],
+              ['Resumen', 'Resumen del periodo'],
+            ]) {
+              await page.getByRole('tab', { name: nombre, exact: true }).click()
+              await page.getByRole('heading', { name: encabezadoInterno, exact: true }).waitFor({ state: 'visible', timeout: 10000 })
+              await medir(page, vp, `${vp.nombre}_admin_reportes_${nombre.replace(/\s+/g, '-').toLowerCase()}`)
+              check(`pestaña de reportes ${nombre} visible ${vp.nombre}`, await page.getByRole('heading', { name: encabezadoInterno, exact: true }).isVisible())
+            }
           }
         }
         await medir(page, vp, `${vp.nombre}_${pantalla.nombre}_${tab.replace(/\s+/g, '-').toLowerCase()}`)
@@ -1220,6 +1267,16 @@ async function run() {
         { w: 1280, h: 800, nombre: '1280x800' },
         { w: 1440, h: 900, nombre: '1440x900' },
       ]) await correrNavegacionAdmin(browser, vp)
+    } else if (process.argv.includes('--solo-reportes')) {
+      const admin = PANTALLAS.find((pantalla) => pantalla.nombre === 'admin')
+      if (!admin) throw new Error('No se encontro la ruta Admin para revisar reportes.')
+      for (const vp of [
+        { w: 390, h: 844, nombre: '390x844' },
+        { w: 768, h: 1024, nombre: '768x1024' },
+        { w: 1024, h: 768, nombre: '1024x768' },
+        { w: 1280, h: 800, nombre: '1280x800' },
+        { w: 1440, h: 900, nombre: '1440x900' },
+      ]) await correrPantalla(browser, vp, { ...admin, tabs: ['Ventas'] })
     } else {
       await correrLandingResponsive(browser)
       await correrAnulacionUltimoItem(browser)
@@ -1257,7 +1314,9 @@ async function run() {
   }
 
   console.log(`\n${'-'.repeat(60)}`)
-  const cobertura = process.argv.includes('--solo-superadmin-responsive')
+  const cobertura = process.argv.includes('--solo-reportes')
+    ? 'Reportes Admin, filtros y exportación en 390, 768, 1024, 1280 y 1440 px'
+    : process.argv.includes('--solo-superadmin-responsive')
     ? 'Superadmin en 390, 768, 1024, 1280 y 1440 px'
     : process.argv.includes('--solo-admin-nav')
     ? 'navegaciÃ³n Admin en 390, 768, 1024, 1280 y 1440 px'

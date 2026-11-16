@@ -90,7 +90,7 @@ import { formatearNumeroBoleta } from '../domain/cashier/boleta'
 import { prepararDatosLocal, type CambiosDatosLocal } from '../domain/restaurant/datosLocal'
 import { buscarMesaConNombre, mensajeNombreMesaDuplicado } from '../domain/restaurant/mesas'
 import { registrarDiagnostico } from './diagnostico'
-import type { RangoReporteVentas, ReporteVentas } from '../domain/reporting/ventas'
+import type { RangoReporteAdmin, RangoReporteVentas, ReporteAdminDetallado, ReporteVentas } from '../domain/reporting/ventas'
 import {
   registrarFalloDeSincronizacion,
   registrarServidorAlcanzable,
@@ -557,6 +557,7 @@ export interface DataApi {
   liberarMesa(rid: string, mesaId: string): Promise<Res<null>>
   getMetricasAdmin(rid: string): Promise<Res<MetricasAdmin>>
   getReporteVentas(rid: string, rango: RangoReporteVentas): Promise<Res<ReporteVentas>>
+  getReporteAdminDetallado(rid: string, rango: RangoReporteAdmin): Promise<Res<ReporteAdminDetallado>>
   /**
    * Cuentas pagadas del restaurante (para el reporte CSV). Se expone aparte y
    * no se mete en `getMetricasAdmin` porque el dashboard no necesita el detalle
@@ -1376,6 +1377,20 @@ const realApi: DataApi = {
       p_limite: rango.limite,
     })
     return { data: data as ReporteVentas | null, error: error?.message ?? null }
+  },
+  async getReporteAdminDetallado(rid, rango) {
+    const { data, error } = await supabase.rpc('reporte_admin_detallado_restaurante', {
+      p_restaurante_id: rid,
+      p_desde: rango.desde,
+      p_hasta: rango.hasta,
+      p_estado: rango.estado,
+      p_mesero_id: rango.mesero_id,
+      p_producto_id: rango.producto_id,
+      p_busqueda: rango.busqueda,
+      p_offset: rango.offset,
+      p_limite: rango.limite,
+    })
+    return { data: data as ReporteAdminDetallado | null, error: error?.message ?? null }
   },
   async getCuentasPagadas(rid) {
     const { data, error } = await supabase
@@ -3558,6 +3573,168 @@ function crearApiDesde(
       ventas_por_metodo: [...porMetodo.values()].sort((a, b) => b.ventas - a.ventas),
       cuentas, total_cuentas: coincidencias.length,
     }, error: null }
+  },
+  async getReporteAdminDetallado(rid, rango) {
+    await espera(120)
+    const actor = ds.usuarios.find((u) => u.id === apiMode.operadorId && u.restaurante_id === rid)
+    if (!actor || actor.activo === false || actor.rol !== 'admin_restaurante') {
+      return { data: null, error: 'Solo el administrador activo de este restaurante puede consultar los reportes.' }
+    }
+
+    // El resumen y las series vienen del mismo cálculo que usa el reporte base.
+    // Solo se pagina el detalle después de aplicar los filtros de operación.
+    const rangoBase: RangoReporteVentas = {
+      desde: rango.desde, hasta: rango.hasta, estado: 'todas', busqueda: '', offset: 0, limite: 100,
+    }
+    const todasLasCuentas: ReporteVentas['cuentas'] = []
+    let base: ReporteVentas | null = null
+    let offsetBase = 0
+    do {
+      const paginaBase = await this.getReporteVentas(rid, { ...rangoBase, offset: offsetBase })
+      if (paginaBase.error || !paginaBase.data) return { data: null, error: paginaBase.error ?? 'No se pudo construir el reporte.' }
+      base ??= paginaBase.data
+      todasLasCuentas.push(...paginaBase.data.cuentas)
+      offsetBase += rangoBase.limite
+    } while (offsetBase < (base?.total_cuentas ?? 0))
+
+    const cuentaIds = new Set(todasLasCuentas.map((cuenta) => cuenta.id))
+    const vinculos = ds.cuentaPedidos.filter((vinculo) => cuentaIds.has(vinculo.cuenta_id))
+    const pedidoIds = new Set(vinculos.map((vinculo) => vinculo.pedido_id))
+    const cuentasPorPedido = new Map<string, string>()
+    for (const vinculo of vinculos) cuentasPorPedido.set(vinculo.pedido_id, vinculo.cuenta_id)
+    const pedidosPeriodo = ds.pedidos.filter((pedido) => pedido.restaurante_id === rid && pedidoIds.has(pedido.id))
+    const ventasItems = ds.items.filter((item) => pedidoIds.has(item.pedido_id) && item.anulado !== true)
+    const cuentaBasePorId = new Map(todasLasCuentas.map((cuenta) => [cuenta.id, cuenta]))
+    const pagosPorCuenta = new Map<string, ReporteVentas['cuentas'][number]['pagos']>()
+    for (const pago of ds.pagos.filter((fila) => fila.restaurante_id === rid && cuentaIds.has(fila.cuenta_id))) {
+      const lista = pagosPorCuenta.get(pago.cuenta_id) ?? []
+      lista.push({ metodo_pago: pago.metodo_pago, monto: pago.monto })
+      pagosPorCuenta.set(pago.cuenta_id, lista)
+    }
+
+    const itemsPorPedido = new Map<string, typeof ventasItems>()
+    for (const item of ds.items.filter((fila) => pedidoIds.has(fila.pedido_id))) {
+      const lista = itemsPorPedido.get(item.pedido_id) ?? []
+      lista.push(item)
+      itemsPorPedido.set(item.pedido_id, lista)
+    }
+    const cuentasFiltradas = todasLasCuentas.filter((cuenta) => {
+      if (rango.estado !== 'todas' && cuenta.estado !== rango.estado) return false
+      const pedidosCuenta = pedidosPeriodo.filter((pedido) => cuentasPorPedido.get(pedido.id) === cuenta.id)
+      if (rango.mesero_id && !pedidosCuenta.some((pedido) => pedido.mesero_id === rango.mesero_id)) return false
+      if (rango.producto_id && !pedidosCuenta.some((pedido) => (itemsPorPedido.get(pedido.id) ?? []).some((item) => item.producto_id === rango.producto_id))) return false
+      if (rango.busqueda.trim()) {
+        const texto = [cuenta.numero, cuenta.mesas, cuenta.meseros,
+          ...pedidosCuenta.flatMap((pedido) => (itemsPorPedido.get(pedido.id) ?? []).map((item) => item.nombre_producto))]
+          .filter(Boolean).join(' ').toLocaleLowerCase()
+        if (!texto.includes(rango.busqueda.trim().toLocaleLowerCase())) return false
+      }
+      return true
+    })
+
+    const cuentasDetalle = cuentasFiltradas.map((cuenta) => {
+      const cuentaOriginal = cuentaBasePorId.get(cuenta.id)!
+      const pedidos = pedidosPeriodo.filter((pedido) => cuentasPorPedido.get(pedido.id) === cuenta.id)
+        .filter((pedido) => !rango.mesero_id || pedido.mesero_id === rango.mesero_id)
+        .filter((pedido) => !rango.producto_id || (itemsPorPedido.get(pedido.id) ?? []).some((item) => item.producto_id === rango.producto_id))
+        .map((pedido) => {
+          const mesa = ds.mesas.find((fila) => fila.id === pedido.mesa_id && fila.restaurante_id === rid)
+          const mesero = ds.usuarios.find((fila) => fila.id === pedido.mesero_id && fila.restaurante_id === rid)
+          const zona = ds.zonas.find((fila) => fila.id === mesa?.zona_id && fila.restaurante_id === rid)
+          const items = (itemsPorPedido.get(pedido.id) ?? [])
+            .filter((item) => !rango.producto_id || item.producto_id === rango.producto_id)
+            .map((item) => {
+              const producto = ds.productos.find((fila) => fila.id === item.producto_id && fila.restaurante_id === rid)
+              const categoria = ds.categorias.find((fila) => fila.id === producto?.categoria_id && fila.restaurante_id === rid)
+              return {
+                id: item.id, producto_id: item.producto_id, nombre: item.nombre_producto,
+                cantidad: item.cantidad, precio_unitario: item.precio_unitario,
+                total: item.cantidad * item.precio_unitario,
+                es_bebida: item.es_bebida ?? producto?.es_bebida ?? false,
+                anulado: item.anulado === true, nota: item.nota ?? null,
+                categoria_id: producto?.categoria_id ?? null, categoria: categoria?.nombre ?? 'Sin categoría',
+                estacion: item.estacion ?? producto?.estacion ?? null,
+              }
+            })
+          return { pedido_id: pedido.id, created_at: pedido.created_at, mesa: mesa?.nombre ?? '—', mesero: mesero?.nombre ?? '—', mesero_id: pedido.mesero_id, zona: zona?.nombre ?? null, items }
+        })
+      const fecha = cuenta.estado === 'anulada' ? cuenta.anulada_at ?? cuenta.created_at : cuenta.pagado_at ?? cuenta.created_at
+      const cantidad = pedidos.flatMap((pedido) => pedido.items.filter((item) => !item.anulado)).reduce((suma, item) => suma + item.cantidad, 0)
+      return { ...cuentaOriginal, fecha_operacion: fecha, cantidad_productos: cantidad, pagos: pagosPorCuenta.get(cuenta.id) ?? cuentaOriginal.pagos, pedidos }
+    })
+
+    const filasPagadas = ventasItems.filter((item) => {
+      const cuentaId = cuentasPorPedido.get(item.pedido_id)
+      if (!cuentaId || cuentaBasePorId.get(cuentaId)?.estado !== 'pagada') return false
+      if (rango.producto_id && item.producto_id !== rango.producto_id) return false
+      const pedido = pedidosPeriodo.find((fila) => fila.id === item.pedido_id)
+      if (rango.mesero_id && pedido?.mesero_id !== rango.mesero_id) return false
+      return true
+    })
+    const productosMap = new Map<string, ReporteAdminDetallado['productos'][number]>()
+    const categoriasMap = new Map<string, ReporteAdminDetallado['categorias'][number]>()
+    const meserosMap = new Map<string, { id: string | null; nombre: string; cuentasSet: Set<string>; pedidosSet: Set<string>; unidades: number; ventas: number; propinas: number }>()
+    const ventasPorCuentaMesero = new Map<string, Map<string, number>>()
+    const estacionesMap = new Map<string, { estacion: string; comandasSet: Set<string>; unidades: number; ventas: number }>()
+    for (const item of filasPagadas) {
+      const pedido = pedidosPeriodo.find((fila) => fila.id === item.pedido_id)
+      if (!pedido) continue
+      const cuentaId = cuentasPorPedido.get(pedido.id)!
+      const producto = ds.productos.find((fila) => fila.id === item.producto_id && fila.restaurante_id === rid)
+      const categoria = ds.categorias.find((fila) => fila.id === producto?.categoria_id && fila.restaurante_id === rid)
+      const subtotal = item.cantidad * item.precio_unitario
+      const productKey = `${item.producto_id ?? item.nombre_producto}|${item.es_bebida ?? producto?.es_bebida ?? false}`
+      const productRow = productosMap.get(productKey) ?? {
+        id: item.producto_id, nombre: item.nombre_producto, categoria_id: producto?.categoria_id ?? null,
+        categoria: categoria?.nombre ?? 'Sin categoría', es_bebida: item.es_bebida ?? producto?.es_bebida ?? false, cantidad: 0, total: 0,
+      }
+      productRow.cantidad += item.cantidad; productRow.total += subtotal; productosMap.set(productKey, productRow)
+      const categoryKey = producto?.categoria_id ?? 'sin-categoria'
+      const categoryRow = categoriasMap.get(categoryKey) ?? { id: producto?.categoria_id ?? null, categoria: categoria?.nombre ?? 'Sin categoría', cantidad: 0, total: 0 }
+      categoryRow.cantidad += item.cantidad; categoryRow.total += subtotal; categoriasMap.set(categoryKey, categoryRow)
+      const waiter = ds.usuarios.find((fila) => fila.id === pedido.mesero_id && fila.restaurante_id === rid)
+      const waiterKey = pedido.mesero_id ?? 'sin-mesero'
+      const waiterRow = meserosMap.get(waiterKey) ?? { id: pedido.mesero_id ?? null, nombre: waiter?.nombre ?? 'Sin mesero', cuentasSet: new Set<string>(), pedidosSet: new Set<string>(), unidades: 0, ventas: 0, propinas: 0 }
+      waiterRow.cuentasSet.add(cuentaId); waiterRow.pedidosSet.add(pedido.id); waiterRow.unidades += item.cantidad; waiterRow.ventas += subtotal; meserosMap.set(waiterKey, waiterRow)
+      const key = `${cuentaId}|${waiterKey}`
+      const porMesero = ventasPorCuentaMesero.get(cuentaId) ?? new Map<string, number>()
+      porMesero.set(waiterKey, (porMesero.get(waiterKey) ?? 0) + subtotal); ventasPorCuentaMesero.set(cuentaId, porMesero)
+      const stationKey = item.estacion ?? 'sin_clasificar'
+      const station = estacionesMap.get(stationKey) ?? { estacion: stationKey, comandasSet: new Set<string>(), unidades: 0, ventas: 0 }
+      station.comandasSet.add(pedido.id); station.unidades += item.cantidad; station.ventas += subtotal; estacionesMap.set(stationKey, station)
+      void key
+    }
+    for (const [cuentaId, waiters] of ventasPorCuentaMesero) {
+      const totalWaiterSales = [...waiters.values()].reduce((sum, value) => sum + value, 0)
+      const cuenta = cuentaBasePorId.get(cuentaId)
+      if (!cuenta || totalWaiterSales <= 0) continue
+      for (const [waiterId, sales] of waiters) {
+        const waiter = meserosMap.get(waiterId)
+        if (waiter) waiter.propinas += (cuenta.propina ?? 0) * sales / totalWaiterSales
+      }
+    }
+    const meseros = [...meserosMap.values()].map((row) => ({
+      id: row.id, nombre: row.nombre, cuentas: row.cuentasSet.size, comandas: row.pedidosSet.size,
+      unidades: row.unidades, ventas: row.ventas, ticket_promedio: row.cuentasSet.size ? row.ventas / row.cuentasSet.size : 0, propinas: row.propinas,
+    })).sort((a, b) => b.ventas - a.ventas || b.comandas - a.comandas || a.nombre.localeCompare(b.nombre))
+    const productos = [...productosMap.values()].sort((a, b) => b.total - a.total || b.cantidad - a.cantidad)
+    const categorias = [...categoriasMap.values()].sort((a, b) => b.total - a.total || b.cantidad - a.cantidad)
+    const comandas_por_estacion = [...estacionesMap.values()].map((row) => ({
+      estacion: row.estacion, comandas: row.comandasSet.size, unidades: row.unidades, ventas: row.ventas,
+    })).sort((a, b) => a.estacion.localeCompare(b.estacion))
+    const vendidos = new Set(productos.map((row) => row.id).filter(Boolean))
+    const productos_sin_ventas = ds.productos.filter((producto) => producto.restaurante_id === rid && !vendidos.has(producto.id))
+      .map((producto) => ({
+        id: producto.id, nombre: producto.nombre, categoria_id: producto.categoria_id ?? null,
+        categoria: ds.categorias.find((categoria) => categoria.id === producto.categoria_id && categoria.restaurante_id === rid)?.nombre ?? 'Sin categoría',
+        precio_actual: producto.precio, disponible: producto.disponible,
+      }))
+    const resultado: ReporteAdminDetallado = {
+      ...(base as ReporteVentas), productos, meseros, categorias, comandas_por_estacion, productos_sin_ventas,
+      cuentas: cuentasDetalle.slice(rango.offset, rango.offset + Math.min(Math.max(rango.limite, 1), 100)),
+      total_cuentas: cuentasDetalle.length,
+    }
+    return { data: resultado, error: null }
   },
   async getCuentasPagadas(rid) {
     await espera(250)

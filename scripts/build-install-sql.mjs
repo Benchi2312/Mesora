@@ -47,6 +47,7 @@ const FUENTES_VERSIONADAS = {
   'fase5_kds_salida_manual_comandas.sql': '../migrations/20261109045958_fase5_kds_salida_manual_comandas.sql',
   'fase6_agente_impresion_automatica.sql': '../migrations/20261109061058_fase6_agente_impresion_automatica.sql',
   'modalidad_cobro_restaurante.sql': '../migrations/20261109075129_validar_modalidad_cobro_restaurante.sql',
+  'reporte_admin_detallado_restaurante.sql': '../migrations/20261116033329_reportes_admin_detallados_restaurante.sql',
 }
 
 // -----------------------------------------------------------------------------
@@ -126,6 +127,7 @@ const ORDEN = [
   '../migrations/20261114054941_reconciliar_salidas_cuentas_anuladas.sql',
   '../migrations/20261114120000_motivo_obligatorio_anulacion_item.sql',
   '../migrations/20261115072449_producto_imagen_public_id_cloudinary.sql',
+  '../migrations/20261116033329_reportes_admin_detallados_restaurante.sql',
 ]
 
 const fallos = []

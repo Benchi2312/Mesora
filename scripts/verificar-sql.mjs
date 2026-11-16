@@ -211,6 +211,8 @@ try {
     rollback;
   `)
   console.log('SQL QA: reporte ventas, consumo, bebidas y permisos de administrador aprobados')
+  await pg.exec(readFileSync(new URL('../supabase/qa/reportes_admin_detallados_rollback.sql', import.meta.url), 'utf8'))
+  console.log('SQL QA: reportes detallados, pagos divididos, filtros, tip y aislamiento por restaurante aprobados')
   await pg.exec(`
     begin;
     do $$

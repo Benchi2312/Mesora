@@ -571,6 +571,20 @@ export interface Database {
         }
         Returns: Record<string, unknown>
       }
+      reporte_admin_detallado_restaurante: {
+        Args: {
+          p_restaurante_id: string
+          p_desde: string
+          p_hasta: string
+          p_estado?: string
+          p_mesero_id?: string | null
+          p_producto_id?: string | null
+          p_busqueda?: string
+          p_offset?: number
+          p_limite?: number
+        }
+        Returns: Record<string, unknown>
+      }
       /** Solo super admin. Edita los datos administrativos de un restaurante (RPC de gestión del panel). */
       admin_actualizar_restaurante: {
         Args: {
