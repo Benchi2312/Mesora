@@ -1,6 +1,12 @@
 import { crearHandlerCloudinary } from './handler.ts'
 import { clasificarErrorCloudinary, mensajeErrorCloudinary } from './cloudinaryErrors.ts'
 import {
+  cadenaFirmaCloudinary,
+  formularioCargaCloudinary,
+  firmarParametrosCloudinary,
+  parametrosCargaCloudinary,
+} from './cloudinaryFirma.ts'
+import {
   validarArchivoImagenProducto,
   validarContenidoImagenProducto,
   validarUrlImagenProducto,
@@ -57,6 +63,35 @@ function requestSubida(mime: string, bytes = archivos[mime], filename = `product
 }
 
 async function json(response: Response) { return await response.json() as Record<string, unknown> }
+
+Deno.test('Cloudinary signs asset_folder and omits folder for dynamic folder accounts', async () => {
+  const png = archivos['image/png']
+  const pngBuffer = new ArrayBuffer(png.byteLength)
+  new Uint8Array(pngBuffer).set(png)
+  const archivo = new File([pngBuffer], 'producto.png', { type: 'image/png' })
+  const parametros = parametrosCargaCloudinary('mesora/products', 'tenant-id_test', '123456789')
+  if (Object.keys(parametros).sort().join(',') !== 'asset_folder,public_id,timestamp') {
+    throw new Error('The upload signature must contain exactly asset_folder, public_id and timestamp.')
+  }
+  if ('folder' in parametros) throw new Error('The signature must omit folder for dynamic folder accounts.')
+  if (cadenaFirmaCloudinary(parametros) !== 'asset_folder=mesora/products&public_id=tenant-id_test&timestamp=123456789') {
+    throw new Error('The canonical signature string does not match the expected sorted parameters.')
+  }
+  const firma = await firmarParametrosCloudinary(parametros, 'fixture-secret')
+  if (firma !== '4a993794a09f85c8ef35125864bb14564e791a33') {
+    throw new Error('The SHA-1 signature does not match the fixed test vector.')
+  }
+  const formulario = formularioCargaCloudinary(archivo, 'fixture-api-key', parametros, firma)
+  if (formulario.get('asset_folder') !== 'mesora/products' || formulario.has('folder')) {
+    throw new Error('The multipart upload must send asset_folder and omit folder.')
+  }
+  if (formulario.get('signature') !== firma || formulario.get('api_key') !== 'fixture-api-key') {
+    throw new Error('The multipart form did not preserve the expected test signature or API key.')
+  }
+  if (Array.from(formulario.keys()).sort().join(',') !== 'api_key,asset_folder,file,public_id,signature,timestamp') {
+    throw new Error('The multipart form contains unexpected parameters.')
+  }
+})
 
 Deno.test('Cloudinary producto: el preflight OPTIONS devuelve 204 sin cuerpo y permite el origen de producción', async () => {
   const response = await entorno().handler(new Request('https://mesora-sistema.vercel.app/functions/v1/cloudinary-producto', {
