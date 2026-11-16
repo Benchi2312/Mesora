@@ -162,10 +162,12 @@ Deno.test('Cloudinary producto: sanea errores de Cloudinary y conserva la posibi
   }
 })
 
-Deno.test('Cloudinary producto: clasifica errores de cuenta, credenciales, carpeta y rechazo genérico sin revelar texto del proveedor', () => {
+Deno.test('Cloudinary producto: clasifica asset_folder, carpeta, cuenta y credenciales sin revelar texto del proveedor', () => {
   const casos = [
     [404, 'Unknown cloud name account', 'cloud_name'],
     [401, 'Invalid Signature abc123', 'credentials'],
+    [400, 'Invalid parameter: asset_folder is not supported in this environment', 'asset_folder'],
+    [400, 'Invalid signature for asset_folder', 'credentials'],
     [400, 'Invalid folder name', 'folder'],
     [500, 'Internal error with secret-value', 'provider'],
   ] as const
@@ -176,6 +178,10 @@ Deno.test('Cloudinary producto: clasifica errores de cuenta, credenciales, carpe
     if (mensaje.includes(detail) || mensaje.includes('abc123') || mensaje.includes('secret-value')) {
       throw new Error('El mensaje seguro filtró texto o identificadores del proveedor.')
     }
+  }
+  const mensajeAssetFolder = mensajeErrorCloudinary('CLOUDINARY_asset_folder')
+  if (!mensajeAssetFolder.includes('Carpetas dinámicas') || mensajeAssetFolder.includes('secret')) {
+    throw new Error('El error de asset_folder no orienta sobre el modo dinámico o expone contenido sensible.')
   }
 })
 
