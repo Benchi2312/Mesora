@@ -580,6 +580,45 @@ async function correrPantalla(browser, vp, pantalla) {
           if (adminMovil) {
             await page.locator('.admin-drawer[role="dialog"]').waitFor({ state: 'hidden' })
           }
+          if (tab === 'Cobros') {
+            await page.getByRole('heading', { name: 'Historial de recibos', exact: true }).waitFor({ state: 'visible' })
+            const contenido = await page.locator('[data-admin-active-section="cobros"]').innerText()
+            check(`Cobros usa recibo interno sin terminología anterior ${vp.nombre}`,
+              contenido.includes('recibos internos') && !/\bboletas?\b/i.test(contenido))
+          }
+          if (tab === 'Personal' && vp.w <= 768) {
+            const control = page.locator('button[aria-label^="Desactivar a "]').first()
+            await control.waitFor({ state: 'visible' })
+            const alto = await control.evaluate((el) => el.getBoundingClientRect().height)
+            check(`desactivar personal mide al menos 44 px ${vp.nombre}`, alto >= 44, `${alto}px`)
+            if (vp.w === 390) {
+              const resultado = await page.evaluate(async () => {
+                const { getApi, apiMode } = await import('/src/lib/api.ts')
+                const personal = await getApi().getPersonal('r-demo')
+                const elegido = personal.data?.find((usuario) => usuario.activo && usuario.id !== apiMode.operadorId && usuario.rol !== 'admin_restaurante')
+                if (!elegido) return 'No hay personal simulado disponible'
+                const cambio = await getApi().cambiarEstadoPersonal(elegido.id, false, 'Prueba visual aislada')
+                return cambio.error
+              })
+              check('auditoría de prueba generada solo en el demo aislado', resultado === null, String(resultado))
+            }
+          }
+          if (tab === 'Auditoría' && vp.w === 390) {
+            const abrirDetalle = page.getByRole('button', { name: 'Ver detalle' }).first()
+            await abrirDetalle.waitFor({ state: 'visible' })
+            await abrirDetalle.click()
+            const articulo = page.locator('[data-admin-active-section="auditoria"] article').first()
+            const etiquetas = await articulo.locator('dt').allTextContents()
+            check('Auditoría presenta siete campos legibles antes del JSON',
+              ['Acción', 'Usuario', 'Fecha', 'Módulo', 'Objetivo', 'Motivo', 'Resultado'].every((etiqueta) => etiquetas.includes(etiqueta)))
+            check('Auditoría conserva el motivo simulado visible',
+              await articulo.getByText('Prueba visual aislada', { exact: true }).count() === 1)
+            const datosTecnicos = articulo.locator('details')
+            check('JSON técnico inicia plegado', await datosTecnicos.count() === 1 && !(await datosTecnicos.getAttribute('open')))
+            await datosTecnicos.locator('summary').click()
+            check('JSON técnico se puede desplegar sin perder los campos legibles',
+              await datosTecnicos.locator('pre').isVisible() && etiquetas.length === 7)
+          }
           if (tab === 'Ventas') {
             await page.getByRole('heading', { name: 'Periodo y filtros', exact: true }).waitFor({ state: 'visible', timeout: 15000 })
             check(`reportes ofrecen periodo, estado, mesero y producto ${vp.nombre}`,

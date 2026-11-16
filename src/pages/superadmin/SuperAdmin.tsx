@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { getApi } from '../../lib/api'
 import type { AdminRestaurante, UsuarioPlataforma } from '../../lib/api'
 import { fmtFecha, fmtHora } from '../../lib/format'
+import { cantidadConNombre } from '../../lib/plural'
 import { rolLabel } from '../../domain/security/roles'
 import { suSuscripcionVencida } from '../../store/auth'
 import type { Restaurante } from '../../types/database'
@@ -61,7 +62,7 @@ function GrupoBusqueda({
   children: ReactNode
 }) {
   return (
-    <section className="min-w-0 rounded-xl border border-surface-800 p-3" aria-label={`${titulo}: ${cantidad} resultados`}>
+    <section className="min-w-0 rounded-xl border border-surface-800 p-3" aria-label={`${titulo}: ${cantidadConNombre(cantidad, 'resultado', 'resultados')}`}>
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">{titulo}</h3>
         <span className="text-xs text-zinc-500">{cantidad}</span>

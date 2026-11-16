@@ -611,10 +611,10 @@ function inferirBaseImponible(total: number): { base: number; igv: number } {
   return { base, igv }
 }
 
-/** Ej.: boleta-mesa3-2026-09-21.pdf */
+/** Ej.: recibo-interno-mesa3-2026-09-21.pdf */
 function nombreArchivoBoleta(mesaNombre: string, fechaIso: string): string {
   const mesa = mesaNombre.trim().toLowerCase().replace(/\s+/g, '')
-  return `boleta-${mesa}-${fechaIso.slice(0, 10)}.pdf`
+  return `recibo-interno-${mesa}-${fechaIso.slice(0, 10)}.pdf`
 }
 
 function descargarBoletaPdf(params: {
@@ -920,14 +920,14 @@ export function Boleta({
           onClick={descargar}
           className="min-h-12 touch-manipulation rounded-lg bg-brand-500 px-5 py-3 text-base font-semibold text-surface-950 transition hover:bg-brand-400 active:scale-[0.98]"
         >
-          Descargar boleta (PDF)
+          Descargar recibo interno (PDF)
         </button>
         <button
           type="button"
           onClick={() => window.print()}
           className="min-h-12 touch-manipulation rounded-lg border border-surface-700 px-5 py-3 text-base text-zinc-300 transition hover:border-brand-500 hover:text-brand-500 active:scale-[0.98]"
         >
-          Imprimir boleta
+          Imprimir recibo interno
         </button>
         <button
           type="button"

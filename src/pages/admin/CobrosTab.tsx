@@ -13,6 +13,7 @@ import { AvisoPin, CampoPin, usePinAutorizacion } from '../../components/pin'
 import { confirmarAnulacionCuenta } from '../../domain/security/confirmaciones'
 import { mensajeOperacion } from '../../domain/security/mensajeOperacion'
 import { Boleta } from '../mesero/CerrarCuenta'
+import { cantidadConNombre, resultadosEncontrados } from '../../lib/plural'
 
 const hoyInput = () => {
   const d = new Date()
@@ -190,15 +191,15 @@ export default function CobrosTab({ onVerCaja }: { onVerCaja?: () => void } = {}
       )}
       {error && (
         <div className="aviso border-danger-500/40 bg-danger-500/10 text-danger-500">
-          No se pudieron cargar las boletas. {error}
+          No se pudieron cargar los recibos internos. {error}
         </div>
       )}
 
       <div className={`card space-y-4 p-4 ${adminExperience ? 'sm:p-5' : 'sm:p-6'}`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className={adminExperience ? 'text-base font-semibold text-zinc-100' : 'titulo-seccion text-base'}>{adminExperience ? 'Historial de recibos' : 'Cobros y boletas'}</h2>
-            <p className="mt-1 text-sm text-zinc-500">Busca por número, mesa, mesero o importe. Se muestran {total} resultados.</p>
+            <h2 className={adminExperience ? 'text-base font-semibold text-zinc-100' : 'titulo-seccion text-base'}>{adminExperience ? 'Historial de recibos' : 'Cobros y recibos internos'}</h2>
+            <p className="mt-1 text-sm text-zinc-500">Busca por número, mesa, mesero o importe. {resultadosEncontrados(total)}</p>
           </div>
           {(busqueda || estadoFiltro !== 'todas' || metodoFiltro !== 'todos' || desde !== hoyInput() || hasta !== hoyInput()) && (
             <button type="button" onClick={limpiarFiltros} className="btn btn-outline min-h-11 px-3">Limpiar filtros</button>
@@ -206,7 +207,7 @@ export default function CobrosTab({ onVerCaja }: { onVerCaja?: () => void } = {}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <label className="text-sm text-zinc-400">Buscar {adminExperience ? 'recibo' : 'boleta'}, mesa, mesero o importe
+          <label className="text-sm text-zinc-400">Buscar recibo interno, mesa, mesero o importe
             <input type="search" className="input mt-1 min-h-11 w-full" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Ej. B001-000124, Terraza o 45.50" />
           </label>
           <label className="text-sm text-zinc-400">Estado
@@ -238,14 +239,14 @@ export default function CobrosTab({ onVerCaja }: { onVerCaja?: () => void } = {}
             <Spinner />
           </div>
         ) : cuentas.length === 0 ? (
-          <EstadoVacio titulo={`No hay ${adminExperience ? 'recibos' : 'boletas'} para estos filtros.`} descripcion="Cambia las fechas o limpia los filtros para ver más resultados." className="py-8" />
+          <EstadoVacio titulo="No hay recibos internos para estos filtros." descripcion="Cambia las fechas o limpia los filtros para ver más resultados." className="py-8" />
         ) : (
           <>
           <div className={adminExperience ? '-mx-5 hidden overflow-x-auto px-5 sm:mx-0 sm:px-0 lg:block' : '-mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0'}>
             <table className="w-full min-w-[36rem] text-sm">
               <thead>
                 <tr className="border-b border-surface-700 text-left text-xs uppercase tracking-widest text-zinc-500">
-                  <th scope="col" className="py-2 pr-3 font-semibold">Boleta / hora</th>
+                  <th scope="col" className="py-2 pr-3 font-semibold">Recibo interno / hora</th>
                   <th scope="col" className="py-2 pr-3 font-semibold">Mesa y mesero</th>
                   <th scope="col" className="py-2 pr-3 font-semibold">Método</th>
                   <th scope="col" className="py-2 pr-3 text-right font-semibold">Total</th>
@@ -284,7 +285,7 @@ export default function CobrosTab({ onVerCaja }: { onVerCaja?: () => void } = {}
           {adminExperience && <ul className="grid gap-3 lg:hidden" aria-label="Recibos de la página">
             {cuentas.map((c) => (
               <li key={c.id}>
-                <article aria-label={`Recibo ${c.numero ?? c.id.slice(0, 8)}`} className={`rounded-xl border bg-surface-950/45 p-4 ${c.estado === 'anulada' ? 'border-danger-500/20' : 'border-surface-800'}`}>
+                <article aria-label={`Recibo interno ${c.numero ?? c.id.slice(0, 8)}`} className={`rounded-xl border bg-surface-950/45 p-4 ${c.estado === 'anulada' ? 'border-danger-500/20' : 'border-surface-800'}`}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Recibo interno</p>
@@ -313,7 +314,7 @@ export default function CobrosTab({ onVerCaja }: { onVerCaja?: () => void } = {}
         )}
         {!cargando && total > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-surface-700 pt-3 text-sm text-zinc-400">
-            <span>{total} {adminExperience ? 'recibos' : 'boletas'} · página {pagina + 1} de {paginas}</span>
+            <span>{cantidadConNombre(total, 'recibo interno', 'recibos internos')} · página {pagina + 1} de {paginas}</span>
             <div className={adminExperience ? 'flex w-full gap-2 sm:w-auto' : 'flex gap-2'}>
               <button type="button" className={`btn btn-outline min-h-11 px-3 ${adminExperience ? 'flex-1 sm:flex-none' : ''}`} disabled={pagina === 0 || cargando} onClick={() => setPagina((p) => p - 1)}>Anterior</button>
               <button type="button" className={`btn btn-outline min-h-11 px-3 ${adminExperience ? 'flex-1 sm:flex-none' : ''}`} disabled={pagina + 1 >= paginas || cargando} onClick={() => setPagina((p) => p + 1)}>Siguiente</button>
@@ -335,9 +336,9 @@ export default function CobrosTab({ onVerCaja }: { onVerCaja?: () => void } = {}
       )}
 
       {reimprimiendo && (
-        <Modal titulo="Reimprimir boleta" onCerrar={() => setReimprimiendo(null)}>
+        <Modal titulo="Reimprimir recibo interno" onCerrar={() => setReimprimiendo(null)}>
           <p className="text-sm leading-relaxed text-zinc-300">
-            Se volverá a imprimir el recibo interno original de <strong>{fmtPEN(reimprimiendo.total)}</strong>. No crea otro cobro ni otro número de boleta.
+            Se volverá a imprimir el recibo interno original de <strong>{fmtPEN(reimprimiendo.total)}</strong>. No crea otro cobro ni otro número de recibo interno.
           </p>
           {esCajero ? (
             <>
@@ -363,14 +364,14 @@ export default function CobrosTab({ onVerCaja }: { onVerCaja?: () => void } = {}
               onClick={() => void confirmarReimpresion()}
               className="btn min-h-11 px-4"
             >
-              {cargandoReimpresion ? 'Validando…' : 'Continuar a la boleta'}
+              {cargandoReimpresion ? 'Validando…' : 'Continuar al recibo interno'}
             </button>
           </div>
         </Modal>
       )}
 
       {boleta && (
-        <Modal titulo={`Reimpresión · ${boleta.cuenta.numero ?? 'boleta'}`} onCerrar={() => setBoleta(null)} ancho="max-w-4xl">
+        <Modal titulo={`Reimpresión · ${boleta.cuenta.numero ?? 'recibo interno'}`} onCerrar={() => setBoleta(null)} ancho="max-w-4xl">
           <p className="mb-4 text-sm text-zinc-400">Duplicado del recibo original. Esta acción no registra un nuevo pago.</p>
           <Boleta
             cuenta={boleta.cuenta}
@@ -384,7 +385,7 @@ export default function CobrosTab({ onVerCaja }: { onVerCaja?: () => void } = {}
             esCopia
             onListo={() => {
               setBoleta(null)
-              setFlash(`Boleta ${boleta.cuenta.numero ?? ''} lista para imprimir. No se registró un nuevo cobro.`)
+              setFlash(`Recibo interno ${boleta.cuenta.numero ?? ''} listo para imprimir. No se registró un nuevo cobro.`)
             }}
           />
         </Modal>
@@ -428,8 +429,8 @@ function ModalAnularCobro({
     const res = await getApi().anularCuenta(rid, cuenta.id, motivo, pin)
     if (!vivo.current) return
     setEnviando(false)
-    if (res.error) return setError(mensajeOperacion(res.error, 'No se pudo anular la boleta. Actualiza la lista e inténtalo de nuevo.'))
-    await onAnulada(`Se anuló la boleta de ${fmtPEN(cuenta.total)}. Devuelve ${fmtPEN(res.data?.monto_reembolsado ?? cuenta.total)}.`)
+    if (res.error) return setError(mensajeOperacion(res.error, 'No se pudo anular el recibo interno. Actualiza la lista e inténtalo de nuevo.'))
+    await onAnulada(`Se anuló el recibo interno de ${fmtPEN(cuenta.total)}. Devuelve ${fmtPEN(res.data?.monto_reembolsado ?? cuenta.total)}.`)
   }
 
   function revisarAnulacion() {
@@ -444,7 +445,7 @@ function ModalAnularCobro({
       {!revisandoAnulacion ? (
         <>
           <p className="text-sm leading-relaxed text-zinc-300">
-            Revisa el motivo y el PIN. Antes de devolver el dinero verás un resumen de la boleta y sus efectos.
+            Revisa el motivo y el PIN. Antes de devolver el dinero verás un resumen del recibo interno y sus efectos.
           </p>
 
           <div className="mt-4">
@@ -520,7 +521,7 @@ function ModalAnularCobro({
           disabled={enviando || consultandoPin || (requierePin && !esPinValido(pin))}
           className="btn min-h-11 px-4 bg-danger-500 text-white transition-colors hover:bg-danger-500/90"
         >
-          {enviando ? 'Anulando boleta…' : revisandoAnulacion ? 'Confirmar anulación y devolución' : 'Revisar antes de anular'}
+          {enviando ? 'Anulando recibo interno…' : revisandoAnulacion ? 'Confirmar anulación y devolución' : 'Revisar antes de anular'}
         </button>
       </div>
     </Modal>

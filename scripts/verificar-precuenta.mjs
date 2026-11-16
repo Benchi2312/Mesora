@@ -236,7 +236,7 @@ try {
     await page.getByRole('button', { name: /Mesa precuenta QA/ }).click()
     await page.getByRole('button', { name: /Cerrar cuenta ·/ }).click()
     await page.getByRole('button', { name: /^Cobrar / }).click()
-    await expect(page.getByRole('button', { name: 'Descargar boleta (PDF)' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Descargar recibo interno (PDF)' })).toBeVisible()
     await page.getByRole('button', { name: 'Listo', exact: true }).click()
     await expect(page.getByRole('button', { name: /Mesa precuenta QA.*Libre/ })).toBeVisible()
     escenarios++

@@ -98,7 +98,7 @@ try {
     await page.locator('#cfg-dominio').fill(' @Local-QA.PE/ ')
     const guardar = page.getByRole('button', { name: 'Guardar cambios', exact: true })
     await guardar.click()
-    await expect(page.getByText('Datos guardados. La próxima precuenta y boleta usarán estos datos.', { exact: true })).toBeVisible()
+    await expect(page.getByText('Datos guardados. La próxima precuenta y el recibo interno usarán estos datos.', { exact: true })).toBeVisible()
     await expect(guardar).toBeDisabled()
     await expect(page.locator('#cfg-dominio')).toHaveValue('local-qa.pe')
     const original = await page.evaluate(async () => {

@@ -389,7 +389,7 @@ export default function PersonalTab() {
                   disabled={yoId === m.id}
                   aria-label={m.activo ? `Desactivar a ${m.nombre}` : `Reactivar a ${m.nombre}`}
                   title={yoId === m.id ? 'No puedes desactivar tu propio acceso' : undefined}
-                  className={`chip min-h-9 touch-manipulation admin-person-status ${m.activo ? 'chip-ok' : 'chip-danger'} disabled:cursor-not-allowed disabled:opacity-60`}
+                  className={`chip min-h-11 touch-manipulation admin-person-status ${m.activo ? 'chip-ok' : 'chip-danger'} disabled:cursor-not-allowed disabled:opacity-60`}
                 >
                   {m.activo ? 'Activo' : 'Inactivo'}
                 </button>

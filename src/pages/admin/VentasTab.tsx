@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { strToU8, zipSync } from 'fflate'
 import { fmtFecha, fmtPEN } from '../../lib/format'
+import { cantidadConNombre } from '../../lib/plural'
 import { getApi } from '../../lib/api'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import { METODOS_PAGO_LABEL } from '../../domain/cashier/pagos'
@@ -379,7 +380,7 @@ function ResumenPeriodo({ reporte, anterior, comparar, variacion, rango }: { rep
 
 function VentasDetalladas({ reporte, abierta, setAbierta, pagina, paginas, cargando, setPagina }: { reporte: ReporteAdminDetallado; abierta: string | null; setAbierta: (id: string | null) => void; pagina: number; paginas: number; cargando: boolean; setPagina: (cambiar: (valor: number) => number) => void }) {
   return <section className="card overflow-hidden p-4 sm:p-5">
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-2"><div><h2 className="titulo-seccion">Operaciones</h2><p className="mt-1 text-sm text-zinc-500">Abre una fila para revisar productos, comandas y pagos.</p></div><span className="text-sm text-zinc-500">{reporte.total_cuentas} resultados</span></div>
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-2"><div><h2 className="titulo-seccion">Operaciones</h2><p className="mt-1 text-sm text-zinc-500">Abre una fila para revisar productos, comandas y pagos.</p></div><span className="text-sm text-zinc-500">{cantidadConNombre(reporte.total_cuentas, 'resultado', 'resultados')}</span></div>
     {!reporte.cuentas.length ? <EstadoVacio titulo="No hay operaciones con estos filtros." /> : <>
       <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[850px] text-sm"><thead><tr className="text-left text-xs text-zinc-500"><th className="p-2">Fecha y hora</th><th className="p-2">Cuenta / recibo</th><th className="p-2">Mesa</th><th className="p-2">Mesero</th><th className="p-2 text-right">Productos</th><th className="p-2">Pago</th><th className="p-2">Estado</th><th className="p-2 text-right">Importe</th></tr></thead><tbody>{reporte.cuentas.map((cuenta) => <tr key={cuenta.id} className="border-t border-surface-700"><td className="p-2 text-zinc-300">{fmtFecha(cuenta.fecha_operacion)}</td><td className="p-2"><button className="font-semibold text-brand-300 underline-offset-4 hover:underline" aria-expanded={abierta === cuenta.id} onClick={() => setAbierta(abierta === cuenta.id ? null : cuenta.id)}>{cuenta.numero ?? `Cuenta ${cuenta.id.slice(0, 8)}`}</button></td><td className="p-2">{cuenta.mesas}</td><td className="p-2">{cuenta.meseros}</td><td className="p-2 text-right tabular-nums">{cuenta.cantidad_productos}</td><td className="p-2">{metodoCuenta(cuenta)}</td><td className="p-2"><span className={cuenta.estado === 'pagada' ? 'chip chip-ok' : 'chip chip-danger'}>{etiquetaEstado(cuenta)}</span></td><td className="p-2 text-right font-semibold tabular-nums">{money(cuenta.total)}</td></tr>)}</tbody></table></div>
       <div className="space-y-2 md:hidden">{reporte.cuentas.map((cuenta) => <article key={cuenta.id} className="rounded-xl border border-surface-700 bg-surface-900/50">
