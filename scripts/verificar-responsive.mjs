@@ -599,7 +599,7 @@ async function correrPantalla(browser, vp, pantalla) {
               return { left: rect.left, right: rect.right, scrollWidth: document.documentElement.scrollWidth, width: window.innerWidth }
             })
             check(`menú de exportación abierto cabe en el viewport ${vp.nombre}`,
-              menuExportacion.left >= -1 && menuExportacion.right <= menuExportacion.width + 1 && menuExportacion.scrollWidth <= menuExportacion.width + 1,
+              menuExportacion.left >= 0 && menuExportacion.right <= menuExportacion.width && menuExportacion.scrollWidth <= menuExportacion.width,
               `${Math.round(menuExportacion.left)}..${Math.round(menuExportacion.right)} / ${menuExportacion.width}, scroll ${menuExportacion.scrollWidth}`)
             await exportaciones.click()
             if (vp.w === 390) {
