@@ -9,6 +9,17 @@ export type RangoReporteVentas = {
   limite: number
 }
 
+export type RangoReporteAdmin = {
+  desde: string
+  hasta: string
+  estado: EstadoFiltroVentas
+  mesero_id: string | null
+  producto_id: string | null
+  busqueda: string
+  offset: number
+  limite: number
+}
+
 export type ItemReporteVenta = {
   nombre: string
   cantidad: number
@@ -64,4 +75,33 @@ export type ReporteVentas = {
   ventas_por_metodo: { metodo_pago: string; ventas: number; cuentas: number }[]
   cuentas: CuentaReporteVenta[]
   total_cuentas: number
+}
+
+export type ItemReporteAdmin = ItemReporteVenta & {
+  id: string
+  producto_id: string | null
+  categoria_id: string | null
+  categoria: string
+  estacion: string | null
+}
+
+export type PedidoReporteAdmin = Omit<PedidoReporteVenta, 'items'> & {
+  mesero_id: string | null
+  zona: string | null
+  items: ItemReporteAdmin[]
+}
+
+export type CuentaReporteAdmin = Omit<CuentaReporteVenta, 'pedidos'> & {
+  fecha_operacion: string
+  cantidad_productos: number
+  pedidos: PedidoReporteAdmin[]
+}
+
+export type ReporteAdminDetallado = Omit<ReporteVentas, 'cuentas' | 'productos' | 'meseros'> & {
+  cuentas: CuentaReporteAdmin[]
+  productos: { id: string | null; nombre: string; categoria_id: string | null; categoria: string; es_bebida: boolean; cantidad: number; total: number }[]
+  categorias: { id: string | null; categoria: string; cantidad: number; total: number }[]
+  meseros: { id: string | null; nombre: string; cuentas: number; comandas: number; unidades: number; ventas: number; ticket_promedio: number; propinas: number }[]
+  comandas_por_estacion: { estacion: string; comandas: number; unidades: number; ventas: number }[]
+  productos_sin_ventas: { id: string; nombre: string; categoria_id: string | null; categoria: string; precio_actual: number; disponible: boolean }[]
 }

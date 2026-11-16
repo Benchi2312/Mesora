@@ -18,14 +18,14 @@
 --   - Si algo falla, los comentarios de bloque indican donde revisar.
 --   - Generado por npm run sql:install. Edita los fuentes, no este archivo.
 --
--- Contenido: 59 archivos · sha256(cuerpo) = e6edaa8e1b12
--- Orden: 00_schema_base.sql → ../migrations/20261022120000_password_recovery.sql → ../migrations/20261103032730_admin_email_recovery.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql → ../migrations/20261031075708_reporte_ventas_dashboard.sql → ../migrations/20261029052901_datos_local_dominio.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql → ../migrations/20261030173318_seguridad_rpc_piloto.sql → ../migrations/20261030173320_consultas_pendientes_piloto.sql → ../migrations/20261030173503_diagnostico_piloto.sql → ../migrations/20261030173925_indice_mesas_zona.sql → ../migrations/20261102081247_acotar_politicas_rls_piloto.sql → ../migrations/20261104065434_contacto_guardrails_incidentes.sql → ../migrations/20261104065733_confirmar_password_auth_trigger.sql → ../migrations/20261104172538_bandeja_comercial_alertas.sql → ../migrations/20261105033712_soporte_conversaciones_seguimiento.sql → ../migrations/20261105034329_soporte_mensajes_suscripcion.sql → ../migrations/20261105042359_cerrar_borrado_directo_soporte.sql → ../migrations/20261105042814_indexar_foreign_keys_soporte.sql → ../migrations/20261105050740_fijar_actor_historial_suscripciones.sql → ../migrations/20261105050911_revoke_direct_access_internal_tables.sql → ../migrations/20261105055856_limitar_consulta_vigencia_suscripcion.sql → ../migrations/20261105212322_transferir_mesas_y_reimprimir_boletas.sql → ../migrations/20261105212447_indizar_responsables_y_reimpresiones.sql → ../migrations/20261105212734_proteger_cierre_mesa_reasignada.sql → ../migrations/20261106064127_listar_meseros_activos_mismo_restaurante.sql → ../migrations/20261106070508_proteger_traslados_mesa_con_pin_y_auditoria.sql → ../migrations/20261106075551_auditar_operaciones_caja_mesa.sql → ../migrations/20261107043104_bloque2_seguridad_personal_auditoria.sql → ../migrations/20261107063406_auditoria_item_descripcion_utf8.sql → ../migrations/20261107201714_bloque3_impresion_comandas.sql → ../migrations/20261108120000_sistema_operativo_configurable.sql → ../migrations/20261109012624_fase3_configuracion_operativa_admin.sql → ../migrations/20261109024411_fase4_enrutamiento_comandas.sql → ../migrations/20261109045958_fase5_kds_salida_manual_comandas.sql → ../migrations/20261109061058_fase6_agente_impresion_automatica.sql → ../migrations/20261109075129_validar_modalidad_cobro_restaurante.sql → ../migrations/20261111034528_impedir_recobro_tras_anulacion_recibo.sql → ../migrations/20261112120000_idempotencia_crear_pedido.sql → ../migrations/20261113073105_bloquear_impresion_cuenta_anulada.sql → ../migrations/20261114054941_reconciliar_salidas_cuentas_anuladas.sql → ../migrations/20261114120000_motivo_obligatorio_anulacion_item.sql → ../migrations/20261115072449_producto_imagen_public_id_cloudinary.sql
+-- Contenido: 60 archivos · sha256(cuerpo) = f7ce6bd1db5b
+-- Orden: 00_schema_base.sql → ../migrations/20261022120000_password_recovery.sql → ../migrations/20261103032730_admin_email_recovery.sql → 00_seguridad_rpcs.sql → migracion_items_anulables.sql → migracion_productos_es_bebida.sql → ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql → ../migrations/20261031075708_reporte_ventas_dashboard.sql → ../migrations/20261029052901_datos_local_dominio.sql → pin_autorizacion.sql → rpc_crear_pedido.sql → rpc_cerrar_cuenta.sql → rpc_anular_cuenta.sql → caja_turnos.sql → 01_rls_completo.sql → admin_super_restaurante.sql → usuarios_super_admin.sql → estadisticas_super_admin.sql → soporte.sql → suscripciones_super_admin.sql → auditoria.sql → configuracion_global.sql → seguridad_piloto.sql → ../migrations/20261030173318_seguridad_rpc_piloto.sql → ../migrations/20261030173320_consultas_pendientes_piloto.sql → ../migrations/20261030173503_diagnostico_piloto.sql → ../migrations/20261030173925_indice_mesas_zona.sql → ../migrations/20261102081247_acotar_politicas_rls_piloto.sql → ../migrations/20261104065434_contacto_guardrails_incidentes.sql → ../migrations/20261104065733_confirmar_password_auth_trigger.sql → ../migrations/20261104172538_bandeja_comercial_alertas.sql → ../migrations/20261105033712_soporte_conversaciones_seguimiento.sql → ../migrations/20261105034329_soporte_mensajes_suscripcion.sql → ../migrations/20261105042359_cerrar_borrado_directo_soporte.sql → ../migrations/20261105042814_indexar_foreign_keys_soporte.sql → ../migrations/20261105050740_fijar_actor_historial_suscripciones.sql → ../migrations/20261105050911_revoke_direct_access_internal_tables.sql → ../migrations/20261105055856_limitar_consulta_vigencia_suscripcion.sql → ../migrations/20261105212322_transferir_mesas_y_reimprimir_boletas.sql → ../migrations/20261105212447_indizar_responsables_y_reimpresiones.sql → ../migrations/20261105212734_proteger_cierre_mesa_reasignada.sql → ../migrations/20261106064127_listar_meseros_activos_mismo_restaurante.sql → ../migrations/20261106070508_proteger_traslados_mesa_con_pin_y_auditoria.sql → ../migrations/20261106075551_auditar_operaciones_caja_mesa.sql → ../migrations/20261107043104_bloque2_seguridad_personal_auditoria.sql → ../migrations/20261107063406_auditoria_item_descripcion_utf8.sql → ../migrations/20261107201714_bloque3_impresion_comandas.sql → ../migrations/20261108120000_sistema_operativo_configurable.sql → ../migrations/20261109012624_fase3_configuracion_operativa_admin.sql → ../migrations/20261109024411_fase4_enrutamiento_comandas.sql → ../migrations/20261109045958_fase5_kds_salida_manual_comandas.sql → ../migrations/20261109061058_fase6_agente_impresion_automatica.sql → ../migrations/20261109075129_validar_modalidad_cobro_restaurante.sql → ../migrations/20261111034528_impedir_recobro_tras_anulacion_recibo.sql → ../migrations/20261112120000_idempotencia_crear_pedido.sql → ../migrations/20261113073105_bloquear_impresion_cuenta_anulada.sql → ../migrations/20261114054941_reconciliar_salidas_cuentas_anuladas.sql → ../migrations/20261114120000_motivo_obligatorio_anulacion_item.sql → ../migrations/20261115072449_producto_imagen_public_id_cloudinary.sql → ../migrations/20261116033329_reportes_admin_detallados_restaurante.sql
 -- =============================================================================
 
 
 
 -- #############################################################################
--- # 1/59 · 00_schema_base.sql
+-- # 1/60 · 00_schema_base.sql
 -- #############################################################################
 
 -- -- Mesora: schema base para instalaciones NUEVAS.
@@ -198,7 +198,7 @@ $$;
 
 
 -- #############################################################################
--- # 2/59 · ../migrations/20261022120000_password_recovery.sql
+-- # 2/60 · ../migrations/20261022120000_password_recovery.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -277,7 +277,7 @@ grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
--- # 3/59 · ../migrations/20261103032730_admin_email_recovery.sql
+-- # 3/60 · ../migrations/20261103032730_admin_email_recovery.sql
 -- #############################################################################
 
 -- -- Recuperación por correo verificado para administradores de restaurante.
@@ -434,7 +434,7 @@ comment on table private.admin_recovery_rate_limits is 'Límites por usuario par
 
 
 -- #############################################################################
--- # 4/59 · 00_seguridad_rpcs.sql
+-- # 4/60 · 00_seguridad_rpcs.sql
 -- #############################################################################
 
 -- -- Mesora · Control de acceso en el SERVIDOR (ejecutar tras 00_schema_base.sql).
@@ -545,7 +545,7 @@ grant execute on function public.validar_acceso_restaurante(uuid) to authenticat
 
 
 -- #############################################################################
--- # 5/59 · migracion_items_anulables.sql
+-- # 5/60 · migracion_items_anulables.sql
 -- #############################################################################
 
 -- -- Mesora · Edición y anulación de ítems de una comanda.
@@ -892,7 +892,7 @@ $$;
 
 
 -- #############################################################################
--- # 6/59 · migracion_productos_es_bebida.sql
+-- # 6/60 · migracion_productos_es_bebida.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -931,7 +931,7 @@ select r.nombre as restaurante,
 
 
 -- #############################################################################
--- # 7/59 · ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql
+-- # 7/60 · ../migrations/20261031073322_reporte_ventas_y_snapshot_bebidas.sql
 -- #############################################################################
 
 -- -- Conserva la clasificación de cocina/barra al momento de vender y entrega
@@ -1087,7 +1087,7 @@ grant execute on function public.reporte_ventas_restaurante(uuid, timestamptz, t
 
 
 -- #############################################################################
--- # 8/59 · ../migrations/20261031075708_reporte_ventas_dashboard.sql
+-- # 8/60 · ../migrations/20261031075708_reporte_ventas_dashboard.sql
 -- #############################################################################
 
 -- -- Conserva la clasificación de cocina/barra al momento de vender y entrega
@@ -1274,7 +1274,7 @@ grant execute on function public.reporte_ventas_restaurante(uuid, timestamptz, t
 
 
 -- #############################################################################
--- # 9/59 · ../migrations/20261029052901_datos_local_dominio.sql
+-- # 9/60 · ../migrations/20261029052901_datos_local_dominio.sql
 -- #############################################################################
 
 -- -- Datos del local: dominio opcional para identificar al personal.
@@ -1310,7 +1310,7 @@ grant update (dominio) on public.restaurantes to authenticated;
 
 
 -- #############################################################################
--- # 10/59 · pin_autorizacion.sql
+-- # 10/60 · pin_autorizacion.sql
 -- #############################################################################
 
 -- -- Mesora · PIN de autorización + anulación de cobros.
@@ -1569,7 +1569,7 @@ $$;
 
 
 -- #############################################################################
--- # 11/59 · rpc_crear_pedido.sql
+-- # 11/60 · rpc_crear_pedido.sql
 -- #############################################################################
 
 -- -- Mesora · RPC: crear pedido (comanda) de forma atómica.
@@ -1700,7 +1700,7 @@ $$;
 
 
 -- #############################################################################
--- # 12/59 · rpc_cerrar_cuenta.sql
+-- # 12/60 · rpc_cerrar_cuenta.sql
 -- #############################################################################
 
 -- -- Mesora · RPC: cerrar cuenta y registrar el pago en una sola transacción.
@@ -2023,7 +2023,7 @@ $$;
 
 
 -- #############################################################################
--- # 13/59 · rpc_anular_cuenta.sql
+-- # 13/60 · rpc_anular_cuenta.sql
 -- #############################################################################
 
 -- -- Mesora · Anulación de cobros (void de una boleta ya emitida).
@@ -2239,7 +2239,7 @@ comment on function public.anular_cuenta(uuid, uuid, text, text) is
 
 
 -- #############################################################################
--- # 14/59 · caja_turnos.sql
+-- # 14/60 · caja_turnos.sql
 -- #############################################################################
 
 -- -- Mesora · Caja por turnos: tabla `caja_turnos` + RPC de apertura y cierre.
@@ -2535,7 +2535,7 @@ $$;
 
 
 -- #############################################################################
--- # 15/59 · 01_rls_completo.sql
+-- # 15/60 · 01_rls_completo.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3432,7 +3432,7 @@ select c.relname as tabla,
 
 
 -- #############################################################################
--- # 16/59 · admin_super_restaurante.sql
+-- # 16/60 · admin_super_restaurante.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3639,7 +3639,7 @@ select a.attname as columna,
 
 
 -- #############################################################################
--- # 17/59 · usuarios_super_admin.sql
+-- # 17/60 · usuarios_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -3866,7 +3866,7 @@ select c.relname as tabla,
 
 
 -- #############################################################################
--- # 18/59 · estadisticas_super_admin.sql
+-- # 18/60 · estadisticas_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4084,7 +4084,7 @@ select p.proname,
 
 
 -- #############################################################################
--- # 19/59 · soporte.sql
+-- # 19/60 · soporte.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4219,7 +4219,7 @@ select
 
 
 -- #############################################################################
--- # 20/59 · suscripciones_super_admin.sql
+-- # 20/60 · suscripciones_super_admin.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -4659,7 +4659,7 @@ select
 
 
 -- #############################################################################
--- # 21/59 · auditoria.sql
+-- # 21/60 · auditoria.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -5017,7 +5017,7 @@ select
 
 
 -- #############################################################################
--- # 22/59 · configuracion_global.sql
+-- # 22/60 · configuracion_global.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -5305,7 +5305,7 @@ select
 
 
 -- #############################################################################
--- # 23/59 · seguridad_piloto.sql
+-- # 23/60 · seguridad_piloto.sql
 -- #############################################################################
 
 -- -- =============================================================================
@@ -5442,7 +5442,7 @@ grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
--- # 24/59 · ../migrations/20261030173318_seguridad_rpc_piloto.sql
+-- # 24/60 · ../migrations/20261030173318_seguridad_rpc_piloto.sql
 -- #############################################################################
 
 -- -- Cierra la API de funciones a anónimos y preserva el acceso autenticado real.
@@ -5485,7 +5485,7 @@ alter default privileges in schema public revoke execute on functions from publi
 
 
 -- #############################################################################
--- # 25/59 · ../migrations/20261030173320_consultas_pendientes_piloto.sql
+-- # 25/60 · ../migrations/20261030173320_consultas_pendientes_piloto.sql
 -- #############################################################################
 
 -- -- Consultas acotadas a lo pendiente. JSON evita truncar el agregado por el
@@ -5577,7 +5577,7 @@ $$;
 
 
 -- #############################################################################
--- # 26/59 · ../migrations/20261030173503_diagnostico_piloto.sql
+-- # 26/60 · ../migrations/20261030173503_diagnostico_piloto.sql
 -- #############################################################################
 
 -- -- Diagnóstico mínimo: únicamente categorías y rutas normalizadas, sin mensajes,
@@ -5603,7 +5603,7 @@ grant execute on function public.registrar_error_cliente(text,text,text) to auth
 
 
 -- #############################################################################
--- # 27/59 · ../migrations/20261030173925_indice_mesas_zona.sql
+-- # 27/60 · ../migrations/20261030173925_indice_mesas_zona.sql
 -- #############################################################################
 
 -- -- Cubre también la FK compuesta que garantiza zona y mesa del mismo local.
@@ -5611,7 +5611,7 @@ create index if not exists idx_mesas_zona_restaurante on public.mesas(zona_id, r
 
 
 -- #############################################################################
--- # 28/59 · ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
+-- # 28/60 · ../migrations/20261102081247_acotar_politicas_rls_piloto.sql
 -- #############################################################################
 
 -- -- Acota las políticas de catálogo/mesas a usuarios autenticados y separa
@@ -5725,7 +5725,7 @@ commit;
 
 
 -- #############################################################################
--- # 29/59 · ../migrations/20261104065434_contacto_guardrails_incidentes.sql
+-- # 29/60 · ../migrations/20261104065434_contacto_guardrails_incidentes.sql
 -- #############################################################################
 
 -- -- Protección del contacto comercial y registro de fallos operativos.
@@ -5902,7 +5902,7 @@ grant execute on function public.mesora_system_alerts() to authenticated;
 
 
 -- #############################################################################
--- # 30/59 · ../migrations/20261104065733_confirmar_password_auth_trigger.sql
+-- # 30/60 · ../migrations/20261104065733_confirmar_password_auth_trigger.sql
 -- #############################################################################
 
 -- -- Solo una contrasena cambiada en Supabase Auth puede desmarcar la clave temporal.
@@ -6087,7 +6087,7 @@ grant execute on function public.confirmar_cambio_password() to authenticated;
 
 
 -- #############################################################################
--- # 31/59 · ../migrations/20261104172538_bandeja_comercial_alertas.sql
+-- # 31/60 · ../migrations/20261104172538_bandeja_comercial_alertas.sql
 -- #############################################################################
 
 -- -- Bandeja comercial privada y avisos por correo con reintentos.
@@ -6371,7 +6371,7 @@ grant execute on function public.mesora_update_commercial_lead(uuid,text) to aut
 
 
 -- #############################################################################
--- # 32/59 · ../migrations/20261105033712_soporte_conversaciones_seguimiento.sql
+-- # 32/60 · ../migrations/20261105033712_soporte_conversaciones_seguimiento.sql
 -- #############################################################################
 
 -- -- Conversaciones de soporte visibles únicamente para el restaurante afectado y Mesora.
@@ -6476,7 +6476,7 @@ grant execute on function public.mesora_update_commercial_followup(uuid,text,tex
 
 
 -- #############################################################################
--- # 33/59 · ../migrations/20261105034329_soporte_mensajes_suscripcion.sql
+-- # 33/60 · ../migrations/20261105034329_soporte_mensajes_suscripcion.sql
 -- #############################################################################
 
 -- -- La suscripción vencida bloquea también las escrituras del módulo de soporte.
@@ -6502,7 +6502,7 @@ create policy soporte_mensajes_insert on public.soporte_mensajes
 
 
 -- #############################################################################
--- # 34/59 · ../migrations/20261105042359_cerrar_borrado_directo_soporte.sql
+-- # 34/60 · ../migrations/20261105042359_cerrar_borrado_directo_soporte.sql
 -- #############################################################################
 
 -- -- Revocar el privilegio SQL de borrado además de no definir una policy DELETE.
@@ -6511,7 +6511,7 @@ revoke delete on public.soporte_mensajes from public, anon, authenticated;
 
 
 -- #############################################################################
--- # 35/59 · ../migrations/20261105042814_indexar_foreign_keys_soporte.sql
+-- # 35/60 · ../migrations/20261105042814_indexar_foreign_keys_soporte.sql
 -- #############################################################################
 
 -- -- Índices para cubrir claves foráneas detectadas en el análisis de Supabase.
@@ -6524,7 +6524,7 @@ create index if not exists admin_recovery_tokens_usuario_id_idx
 
 
 -- #############################################################################
--- # 36/59 · ../migrations/20261105050740_fijar_actor_historial_suscripciones.sql
+-- # 36/60 · ../migrations/20261105050740_fijar_actor_historial_suscripciones.sql
 -- #############################################################################
 
 -- -- Evita que el cliente suplante al autor de una acción de suscripción.
@@ -6553,7 +6553,7 @@ create trigger trg_fijar_actor_historial_suscripciones
 
 
 -- #############################################################################
--- # 37/59 · ../migrations/20261105050911_revoke_direct_access_internal_tables.sql
+-- # 37/60 · ../migrations/20261105050911_revoke_direct_access_internal_tables.sql
 -- #############################################################################
 
 -- -- Estas tablas internas solo se usan desde RPC privilegiadas.
@@ -6564,7 +6564,7 @@ revoke all on public.restaurante_pins from anon, authenticated;
 
 
 -- #############################################################################
--- # 38/59 · ../migrations/20261105055856_limitar_consulta_vigencia_suscripcion.sql
+-- # 38/60 · ../migrations/20261105055856_limitar_consulta_vigencia_suscripcion.sql
 -- #############################################################################
 
 -- -- Limita la consulta directa del estado de suscripción al superadmin y a
@@ -6601,7 +6601,7 @@ comment on function public.suscripcion_vigente(uuid) is
 
 
 -- #############################################################################
--- # 39/59 · ../migrations/20261105212322_transferir_mesas_y_reimprimir_boletas.sql
+-- # 39/60 · ../migrations/20261105212322_transferir_mesas_y_reimprimir_boletas.sql
 -- #############################################################################
 
 -- -- Mesora · responsabilidad de mesas, traslado de consumo y reimpresión de recibos
@@ -7278,7 +7278,7 @@ select p.proname,
 
 
 -- #############################################################################
--- # 40/59 · ../migrations/20261105212447_indizar_responsables_y_reimpresiones.sql
+-- # 40/60 · ../migrations/20261105212447_indizar_responsables_y_reimpresiones.sql
 -- #############################################################################
 
 -- -- Indices de las nuevas claves foraneas y busquedas de responsable.
@@ -7295,7 +7295,7 @@ create index if not exists reimpresion_pin_intentos_usuario_idx
 
 
 -- #############################################################################
--- # 41/59 · ../migrations/20261105212734_proteger_cierre_mesa_reasignada.sql
+-- # 41/60 · ../migrations/20261105212734_proteger_cierre_mesa_reasignada.sql
 -- #############################################################################
 
 -- -- Una vez transferida la responsabilidad, el mesero anterior no puede cobrar
@@ -7347,7 +7347,7 @@ revoke all on function public.validar_responsable_cierre_cuenta() from public, a
 
 
 -- #############################################################################
--- # 42/59 · ../migrations/20261106064127_listar_meseros_activos_mismo_restaurante.sql
+-- # 42/60 · ../migrations/20261106064127_listar_meseros_activos_mismo_restaurante.sql
 -- #############################################################################
 
 -- -- Permite mostrar nombres de compañeros en cocina y en el traspaso de mesa.
@@ -7409,7 +7409,7 @@ commit;
 
 
 -- #############################################################################
--- # 43/59 · ../migrations/20261106070508_proteger_traslados_mesa_con_pin_y_auditoria.sql
+-- # 43/60 · ../migrations/20261106070508_proteger_traslados_mesa_con_pin_y_auditoria.sql
 -- #############################################################################
 
 -- -- Refuerza ambos traslados de mesa con motivo auditable y PIN del restaurante.
@@ -7765,7 +7765,7 @@ commit;
 
 
 -- #############################################################################
--- # 44/59 · ../migrations/20261106075551_auditar_operaciones_caja_mesa.sql
+-- # 44/60 · ../migrations/20261106075551_auditar_operaciones_caja_mesa.sql
 -- #############################################################################
 
 -- -- Registra anulaciones de ítems, boletas y cierres de caja sin abrir permisos
@@ -7933,7 +7933,7 @@ commit;
 
 
 -- #############################################################################
--- # 45/59 · ../migrations/20261107043104_bloque2_seguridad_personal_auditoria.sql
+-- # 45/60 · ../migrations/20261107043104_bloque2_seguridad_personal_auditoria.sql
 -- #############################################################################
 
 -- begin;
@@ -8278,7 +8278,7 @@ commit;
 
 
 -- #############################################################################
--- # 46/59 · ../migrations/20261107063406_auditoria_item_descripcion_utf8.sql
+-- # 46/60 · ../migrations/20261107063406_auditoria_item_descripcion_utf8.sql
 -- #############################################################################
 
 -- -- Corrige la codificación de la descripción de anulaciones nuevas.
@@ -8341,7 +8341,7 @@ commit;
 
 
 -- #############################################################################
--- # 47/59 · ../migrations/20261107201714_bloque3_impresion_comandas.sql
+-- # 47/60 · ../migrations/20261107201714_bloque3_impresion_comandas.sql
 -- #############################################################################
 
 -- -- Mesora · Bloque 3: estaciones de preparación e impresión de comandas.
@@ -8559,7 +8559,7 @@ commit;
 
 
 -- #############################################################################
--- # 48/59 · ../migrations/20261108120000_sistema_operativo_configurable.sql
+-- # 48/60 · ../migrations/20261108120000_sistema_operativo_configurable.sql
 -- #############################################################################
 
 -- -- Mesora · Sistema operativo configurable (fases 1 y 2, esquema expansivo).
@@ -9006,7 +9006,7 @@ comment on table public.autorizaciones_cobro is
 
 
 -- #############################################################################
--- # 49/59 · ../migrations/20261109012624_fase3_configuracion_operativa_admin.sql
+-- # 49/60 · ../migrations/20261109012624_fase3_configuracion_operativa_admin.sql
 -- #############################################################################
 
 -- -- Mesora · Fase 3: lectura y guardado del configurador operativo.
@@ -9420,7 +9420,7 @@ create trigger categorias_estacion_auditoria
 
 
 -- #############################################################################
--- # 50/59 · ../migrations/20261109024411_fase4_enrutamiento_comandas.sql
+-- # 50/60 · ../migrations/20261109024411_fase4_enrutamiento_comandas.sql
 -- #############################################################################
 
 -- -- Mesora · Fase 4: enrutamiento de comandas según configuración operativa.
@@ -9847,7 +9847,7 @@ commit;
 
 
 -- #############################################################################
--- # 51/59 · ../migrations/20261109045958_fase5_kds_salida_manual_comandas.sql
+-- # 51/60 · ../migrations/20261109045958_fase5_kds_salida_manual_comandas.sql
 -- #############################################################################
 
 -- -- Mesora · Fase 5: KDS operativo y salidas de impresión manual.
@@ -10424,7 +10424,7 @@ commit;
 
 
 -- #############################################################################
--- # 52/59 · ../migrations/20261109061058_fase6_agente_impresion_automatica.sql
+-- # 52/60 · ../migrations/20261109061058_fase6_agente_impresion_automatica.sql
 -- #############################################################################
 
 -- -- Mesora Fase 6. La cola y los verificadores viven fuera del esquema expuesto.
@@ -10970,7 +10970,7 @@ commit;
 
 
 -- #############################################################################
--- # 53/59 · ../migrations/20261109075129_validar_modalidad_cobro_restaurante.sql
+-- # 53/60 · ../migrations/20261109075129_validar_modalidad_cobro_restaurante.sql
 -- #############################################################################
 
 -- -- La preferencia de Fase 3 no era una autorización efectiva. NULL conserva
@@ -11463,7 +11463,7 @@ $$;
 
 
 -- #############################################################################
--- # 54/59 · ../migrations/20261111034528_impedir_recobro_tras_anulacion_recibo.sql
+-- # 54/60 · ../migrations/20261111034528_impedir_recobro_tras_anulacion_recibo.sql
 -- #############################################################################
 
 -- -- Anular un recibo revierte la venta, no deshace el vínculo histórico del pedido.
@@ -11603,7 +11603,7 @@ for each row execute function public.impedir_reapertura_estacion_cobrada();
 
 
 -- #############################################################################
--- # 55/59 · ../migrations/20261112120000_idempotencia_crear_pedido.sql
+-- # 55/60 · ../migrations/20261112120000_idempotencia_crear_pedido.sql
 -- #############################################################################
 
 -- -- Una clave identifica una comanda concreta. Los pedidos históricos conservan NULL.
@@ -11714,7 +11714,7 @@ commit;
 
 
 -- #############################################################################
--- # 56/59 · ../migrations/20261113073105_bloquear_impresion_cuenta_anulada.sql
+-- # 56/60 · ../migrations/20261113073105_bloquear_impresion_cuenta_anulada.sql
 -- #############################################################################
 
 -- -- Bloquea las salidas manuales y automáticas de comandas vinculadas a una
@@ -12574,7 +12574,7 @@ commit;
 
 
 -- #############################################################################
--- # 57/59 · ../migrations/20261114054941_reconciliar_salidas_cuentas_anuladas.sql
+-- # 57/60 · ../migrations/20261114054941_reconciliar_salidas_cuentas_anuladas.sql
 -- #############################################################################
 
 -- -- Reconcilia salidas de impresión creadas antes de la protección de cuentas
@@ -12761,7 +12761,7 @@ commit;
 
 
 -- #############################################################################
--- # 58/59 · ../migrations/20261114120000_motivo_obligatorio_anulacion_item.sql
+-- # 58/60 · ../migrations/20261114120000_motivo_obligatorio_anulacion_item.sql
 -- #############################################################################
 
 -- -- Motivo obligatorio y persistente para anulaciones nuevas de ítems.
@@ -12975,7 +12975,7 @@ commit;
 
 
 -- #############################################################################
--- # 59/59 · ../migrations/20261115072449_producto_imagen_public_id_cloudinary.sql
+-- # 59/60 · ../migrations/20261115072449_producto_imagen_public_id_cloudinary.sql
 -- #############################################################################
 
 -- begin;
@@ -12990,3 +12990,415 @@ comment on column public.productos.imagen_public_id is
   'Public ID de Cloudinary de la imagen del producto; NULL para enlaces externos e imágenes históricas.';
 
 commit;
+
+
+-- #############################################################################
+-- # 60/60 · ../migrations/20261116033329_reportes_admin_detallados_restaurante.sql
+-- #############################################################################
+
+-- -- Reportes detallados de Admin. Usa los mismos importes y fechas que
+-- reporte_ventas_restaurante; agrega cortes server-side sin crear tablas.
+create or replace function public.reporte_admin_detallado_restaurante(
+  p_restaurante_id uuid,
+  p_desde timestamptz,
+  p_hasta timestamptz,
+  p_estado text default 'todas',
+  p_mesero_id uuid default null,
+  p_producto_id uuid default null,
+  p_busqueda text default '',
+  p_offset integer default 0,
+  p_limite integer default 25
+)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = pg_catalog, public, pg_temp
+as $$
+declare
+  v_base jsonb;
+  v_productos jsonb;
+  v_categorias jsonb;
+  v_meseros jsonb;
+  v_estaciones jsonb;
+  v_sin_ventas jsonb;
+  v_cuentas jsonb;
+  v_total bigint;
+  v_resultado jsonb;
+  v_busqueda text := btrim(coalesce(p_busqueda, ''));
+begin
+  perform public.validar_acceso_restaurante(p_restaurante_id);
+  if not public.soy_del_restaurante(p_restaurante_id)
+     or not public.tengo_rol(array['admin_restaurante']) then
+    raise exception 'Sin permiso para consultar los reportes del restaurante';
+  end if;
+  if p_desde is null or p_hasta is null or p_desde >= p_hasta then
+    raise exception 'El periodo del reporte no es válido';
+  end if;
+  if p_estado is null or p_estado not in ('todas', 'pagada', 'anulada') then
+    raise exception 'El estado del reporte no es válido';
+  end if;
+  if length(v_busqueda) > 160 then
+    raise exception 'La búsqueda del reporte excede el límite permitido';
+  end if;
+  if p_mesero_id is not null and not exists (
+    select 1 from public.usuarios u
+     where u.id = p_mesero_id and u.restaurante_id = p_restaurante_id
+  ) then
+    raise exception 'El mesero seleccionado no pertenece a este restaurante';
+  end if;
+  if p_producto_id is not null and not exists (
+    select 1 from public.productos pr
+     where pr.id = p_producto_id and pr.restaurante_id = p_restaurante_id
+  ) then
+    raise exception 'El producto seleccionado no pertenece a este restaurante';
+  end if;
+
+  -- Conserva exactamente el resumen, métodos de pago y series del Dashboard.
+  v_base := public.reporte_ventas_restaurante(
+    p_restaurante_id, p_desde, p_hasta, 'todas', '', 0, 1
+  ) - 'cuentas' - 'total_cuentas';
+
+  with cuentas_periodo as materialized (
+    select c.id, c.restaurante_id, c.estado::text as estado, c.total,
+           c.propina, c.vuelto, c.metodo_pago::text as metodo_pago,
+           c.pagado_at, c.anulada_at, c.motivo_anulacion,
+           c.monto_reembolsado, c.created_at,
+           coalesce(c.anulada_at, c.pagado_at, c.created_at) as fecha_operacion
+      from public.cuentas c
+     where c.restaurante_id = p_restaurante_id
+       and c.estado::text in ('pagada', 'anulada')
+       and coalesce(c.anulada_at, c.pagado_at, c.created_at) >= p_desde
+       and coalesce(c.anulada_at, c.pagado_at, c.created_at) < p_hasta
+  ), detalle as materialized (
+    select c.id as cuenta_id, c.estado, cp.pedido_id,
+           p.created_at as pedido_fecha, p.mesero_id,
+           coalesce(u.nombre, 'Sin mesero') as mesero_nombre,
+           m.id as mesa_id, coalesce(m.nombre, 'Sin mesa') as mesa_nombre,
+           pi.id as item_id, pi.producto_id, pi.nombre_producto,
+           pi.cantidad, pi.precio_unitario, coalesce(pi.anulado, false) as item_anulado,
+           coalesce(pi.es_bebida, false) as es_bebida, pi.estacion,
+           pi.nota, pr.categoria_id, coalesce(cat.nombre, 'Sin categoría') as categoria_nombre
+      from cuentas_periodo c
+      join public.cuenta_pedidos cp on cp.cuenta_id = c.id
+      join public.pedidos p on p.id = cp.pedido_id and p.restaurante_id = p_restaurante_id
+      left join public.usuarios u on u.id = p.mesero_id and u.restaurante_id = p_restaurante_id
+      left join public.mesas m on m.id = p.mesa_id and m.restaurante_id = p_restaurante_id
+      left join public.pedido_items pi on pi.pedido_id = p.id
+      left join public.productos pr on pr.id = pi.producto_id and pr.restaurante_id = p_restaurante_id
+      left join public.categorias_productos cat
+        on cat.id = pr.categoria_id and cat.restaurante_id = p_restaurante_id
+  ), ventas_validas as materialized (
+    select d.*
+      from detalle d
+     where d.estado = 'pagada' and d.item_id is not null and not d.item_anulado
+       and (p_mesero_id is null or d.mesero_id = p_mesero_id)
+       and (p_producto_id is null or d.producto_id = p_producto_id)
+  )
+  select coalesce(jsonb_agg(to_jsonb(x) order by x.total desc, x.cantidad desc, x.nombre), '[]'::jsonb)
+    into v_productos
+    from (
+      select producto_id as id, nombre_producto as nombre, categoria_id,
+             categoria_nombre as categoria, es_bebida,
+             sum(cantidad)::integer as cantidad,
+             round(sum(cantidad * precio_unitario), 2) as total
+        from ventas_validas
+       group by producto_id, nombre_producto, categoria_id, categoria_nombre, es_bebida
+    ) x;
+
+  with cuentas_periodo as materialized (
+    select c.id, c.restaurante_id, c.estado::text as estado, c.pagado_at,
+           c.anulada_at, c.created_at
+      from public.cuentas c
+     where c.restaurante_id = p_restaurante_id
+       and c.estado::text in ('pagada', 'anulada')
+       and coalesce(c.anulada_at, c.pagado_at, c.created_at) >= p_desde
+       and coalesce(c.anulada_at, c.pagado_at, c.created_at) < p_hasta
+  ), detalle as materialized (
+     select c.id as cuenta_id, c.estado, p.mesero_id, pi.producto_id, pi.nombre_producto,
+           pi.cantidad, pi.precio_unitario, coalesce(pi.anulado, false) as item_anulado,
+           pr.categoria_id, coalesce(cat.nombre, 'Sin categoría') as categoria_nombre
+      from cuentas_periodo c
+      join public.cuenta_pedidos cp on cp.cuenta_id = c.id
+      join public.pedidos p on p.id = cp.pedido_id and p.restaurante_id = p_restaurante_id
+      join public.pedido_items pi on pi.pedido_id = p.id
+      left join public.productos pr on pr.id = pi.producto_id and pr.restaurante_id = p_restaurante_id
+      left join public.categorias_productos cat
+        on cat.id = pr.categoria_id and cat.restaurante_id = p_restaurante_id
+  )
+  select coalesce(jsonb_agg(to_jsonb(x) order by x.total desc, x.cantidad desc, x.categoria), '[]'::jsonb)
+    into v_categorias
+    from (
+      select categoria_id as id, categoria_nombre as categoria,
+             sum(cantidad)::integer as cantidad,
+             round(sum(cantidad * precio_unitario), 2) as total
+        from detalle
+        where estado = 'pagada' and not item_anulado
+          and (p_mesero_id is null or mesero_id = p_mesero_id)
+          and (p_producto_id is null or producto_id = p_producto_id)
+       group by categoria_id, categoria_nombre
+    ) x;
+
+  with cuentas_periodo as materialized (
+    select c.id, c.restaurante_id, c.estado::text as estado, c.propina,
+           c.pagado_at, c.anulada_at, c.created_at
+      from public.cuentas c
+     where c.restaurante_id = p_restaurante_id
+       and c.estado::text in ('pagada', 'anulada')
+       and coalesce(c.anulada_at, c.pagado_at, c.created_at) >= p_desde
+       and coalesce(c.anulada_at, c.pagado_at, c.created_at) < p_hasta
+  ), detalle as materialized (
+    select c.id as cuenta_id, c.estado, c.propina, p.id as pedido_id,
+           p.mesero_id, coalesce(u.nombre, 'Sin mesero') as mesero_nombre,
+           pi.id as item_id, pi.producto_id, pi.cantidad, pi.precio_unitario,
+           coalesce(pi.anulado, false) as item_anulado
+      from cuentas_periodo c
+      join public.cuenta_pedidos cp on cp.cuenta_id = c.id
+      join public.pedidos p on p.id = cp.pedido_id and p.restaurante_id = p_restaurante_id
+      left join public.usuarios u on u.id = p.mesero_id and u.restaurante_id = p_restaurante_id
+      join public.pedido_items pi on pi.pedido_id = p.id
+  ), ventas_mesero_cuenta as (
+    select cuenta_id, mesero_id, mesero_nombre,
+           count(distinct pedido_id)::integer as comandas,
+           sum(cantidad)::integer as unidades,
+           round(sum(cantidad * precio_unitario), 2) as ventas,
+           max(propina) as propina_cuenta
+      from detalle
+      where estado = 'pagada' and not item_anulado
+        and (p_mesero_id is null or mesero_id = p_mesero_id)
+        and (p_producto_id is null or producto_id = p_producto_id)
+     group by cuenta_id, mesero_id, mesero_nombre
+  ), propinas_prorrateadas as (
+    select v.*,
+           case when sum(v.ventas) over (partition by v.cuenta_id) > 0
+             then v.propina_cuenta * v.ventas / sum(v.ventas) over (partition by v.cuenta_id)
+             else 0 end as propina_atribuida
+      from ventas_mesero_cuenta v
+  )
+  select coalesce(jsonb_agg(to_jsonb(x) order by x.ventas desc, x.comandas desc, x.nombre), '[]'::jsonb)
+    into v_meseros
+    from (
+      select mesero_id as id, mesero_nombre as nombre,
+             count(*)::integer as cuentas,
+             sum(comandas)::integer as comandas,
+             sum(unidades)::integer as unidades,
+             round(sum(ventas), 2) as ventas,
+             case when count(*) > 0 then round(sum(ventas) / count(*), 2) else 0 end as ticket_promedio,
+             round(sum(propina_atribuida), 2) as propinas
+        from propinas_prorrateadas
+       group by mesero_id, mesero_nombre
+    ) x;
+
+  with cuentas_periodo as materialized (
+    select c.id, c.restaurante_id, c.estado::text as estado,
+           c.pagado_at, c.anulada_at, c.created_at
+      from public.cuentas c
+     where c.restaurante_id = p_restaurante_id
+       and c.estado::text in ('pagada', 'anulada')
+       and coalesce(c.anulada_at, c.pagado_at, c.created_at) >= p_desde
+       and coalesce(c.anulada_at, c.pagado_at, c.created_at) < p_hasta
+  ), ventas_validas as (
+     select c.id as cuenta_id, p.id as pedido_id, p.mesero_id, pi.id as item_id, pi.producto_id,
+           pi.cantidad, pi.precio_unitario,
+           case when pi.estacion in ('cocina', 'bar', 'otros') then pi.estacion else 'sin_clasificar' end as estacion
+      from cuentas_periodo c
+      join public.cuenta_pedidos cp on cp.cuenta_id = c.id
+      join public.pedidos p on p.id = cp.pedido_id and p.restaurante_id = p_restaurante_id
+      join public.pedido_items pi on pi.pedido_id = p.id
+      where c.estado = 'pagada' and not coalesce(pi.anulado, false)
+        and (p_mesero_id is null or p.mesero_id = p_mesero_id)
+        and (p_producto_id is null or pi.producto_id = p_producto_id)
+  )
+  select coalesce(jsonb_agg(to_jsonb(x) order by x.orden, x.estacion), '[]'::jsonb)
+    into v_estaciones
+    from (
+      select estacion, count(distinct pedido_id)::integer as comandas,
+             sum(cantidad)::integer as unidades,
+             round(sum(cantidad * precio_unitario), 2) as ventas,
+             case estacion when 'cocina' then 1 when 'bar' then 2 when 'otros' then 3 else 4 end as orden
+        from ventas_validas
+       group by estacion
+    ) x;
+
+  with cuentas_periodo as materialized (
+    select c.id, c.restaurante_id, c.estado::text as estado,
+           c.pagado_at, c.anulada_at, c.created_at
+      from public.cuentas c
+     where c.restaurante_id = p_restaurante_id
+       and c.estado::text in ('pagada', 'anulada')
+       and coalesce(c.anulada_at, c.pagado_at, c.created_at) >= p_desde
+       and coalesce(c.anulada_at, c.pagado_at, c.created_at) < p_hasta
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'id', pr.id, 'nombre', pr.nombre, 'categoria_id', pr.categoria_id,
+           'categoria', coalesce(cat.nombre, 'Sin categoría'), 'precio_actual', pr.precio
+         ) order by pr.nombre), '[]'::jsonb)
+    into v_sin_ventas
+    from public.productos pr
+    left join public.categorias_productos cat
+      on cat.id = pr.categoria_id and cat.restaurante_id = p_restaurante_id
+   where pr.restaurante_id = p_restaurante_id
+     and pr.disponible
+     and not exists (
+       select 1
+         from cuentas_periodo c
+         join public.cuenta_pedidos cp on cp.cuenta_id = c.id
+         join public.pedidos p on p.id = cp.pedido_id and p.restaurante_id = p_restaurante_id
+         join public.pedido_items pi on pi.pedido_id = p.id
+        where c.estado = 'pagada' and pi.producto_id = pr.id
+          and not coalesce(pi.anulado, false)
+     );
+
+  with cuentas_periodo as materialized (
+    select c.*,
+           coalesce(c.anulada_at, c.pagado_at, c.created_at) as fecha_operacion
+      from public.cuentas c
+     where c.restaurante_id = p_restaurante_id
+       and c.estado::text in ('pagada', 'anulada')
+       and coalesce(c.anulada_at, c.pagado_at, c.created_at) >= p_desde
+       and coalesce(c.anulada_at, c.pagado_at, c.created_at) < p_hasta
+  ), filtradas as materialized (
+    select c.*
+      from cuentas_periodo c
+     where (p_estado = 'todas' or c.estado::text = p_estado)
+       and (p_mesero_id is null or exists (
+         select 1 from public.cuenta_pedidos cp
+         join public.pedidos p on p.id = cp.pedido_id and p.restaurante_id = p_restaurante_id
+         where cp.cuenta_id = c.id and p.mesero_id = p_mesero_id
+       ))
+       and (p_producto_id is null or exists (
+         select 1 from public.cuenta_pedidos cp
+         join public.pedidos p on p.id = cp.pedido_id and p.restaurante_id = p_restaurante_id
+         join public.pedido_items pi on pi.pedido_id = p.id
+         where cp.cuenta_id = c.id and pi.producto_id = p_producto_id
+       ))
+       and (v_busqueda = '' or c.numero ilike '%' || v_busqueda || '%' or exists (
+         select 1 from public.cuenta_pedidos cp
+         join public.pedidos p on p.id = cp.pedido_id and p.restaurante_id = p_restaurante_id
+         left join public.mesas m on m.id = p.mesa_id and m.restaurante_id = p_restaurante_id
+         left join public.usuarios u on u.id = p.mesero_id and u.restaurante_id = p_restaurante_id
+         left join public.pedido_items pi on pi.pedido_id = p.id
+         where cp.cuenta_id = c.id
+           and concat_ws(' ', m.nombre, u.nombre, pi.nombre_producto) ilike '%' || v_busqueda || '%'
+       ))
+  )
+  select count(*) into v_total from filtradas;
+
+  with cuentas_periodo as materialized (
+    select c.*,
+           coalesce(c.anulada_at, c.pagado_at, c.created_at) as fecha_operacion
+      from public.cuentas c
+     where c.restaurante_id = p_restaurante_id
+       and c.estado::text in ('pagada', 'anulada')
+       and coalesce(c.anulada_at, c.pagado_at, c.created_at) >= p_desde
+       and coalesce(c.anulada_at, c.pagado_at, c.created_at) < p_hasta
+  ), filtradas as materialized (
+    select c.*
+      from cuentas_periodo c
+     where (p_estado = 'todas' or c.estado::text = p_estado)
+       and (p_mesero_id is null or exists (
+         select 1 from public.cuenta_pedidos cp
+         join public.pedidos p on p.id = cp.pedido_id and p.restaurante_id = p_restaurante_id
+         where cp.cuenta_id = c.id and p.mesero_id = p_mesero_id
+       ))
+       and (p_producto_id is null or exists (
+         select 1 from public.cuenta_pedidos cp
+         join public.pedidos p on p.id = cp.pedido_id and p.restaurante_id = p_restaurante_id
+         join public.pedido_items pi on pi.pedido_id = p.id
+         where cp.cuenta_id = c.id and pi.producto_id = p_producto_id
+       ))
+       and (v_busqueda = '' or c.numero ilike '%' || v_busqueda || '%' or exists (
+         select 1 from public.cuenta_pedidos cp
+         join public.pedidos p on p.id = cp.pedido_id and p.restaurante_id = p_restaurante_id
+         left join public.mesas m on m.id = p.mesa_id and m.restaurante_id = p_restaurante_id
+         left join public.usuarios u on u.id = p.mesero_id and u.restaurante_id = p_restaurante_id
+         left join public.pedido_items pi on pi.pedido_id = p.id
+         where cp.cuenta_id = c.id
+           and concat_ws(' ', m.nombre, u.nombre, pi.nombre_producto) ilike '%' || v_busqueda || '%'
+       ))
+  ), pagina as materialized (
+    select * from filtradas
+     order by fecha_operacion desc, id desc
+     offset greatest(coalesce(p_offset, 0), 0)
+     limit least(greatest(coalesce(p_limite, 25), 1), 100)
+  )
+  select coalesce(jsonb_agg(to_jsonb(x) order by x.fecha_operacion desc, x.id desc), '[]'::jsonb)
+    into v_cuentas
+    from (
+      select c.id, c.numero, c.estado::text as estado, c.total, c.propina, c.vuelto,
+             c.metodo_pago::text as metodo_pago, c.pagado_at, c.anulada_at,
+             c.motivo_anulacion, c.monto_reembolsado, c.created_at,
+             c.fecha_operacion,
+             coalesce((select string_agg(distinct m.nombre, ', ' order by m.nombre)
+                 from public.cuenta_pedidos cp join public.pedidos p on p.id = cp.pedido_id and p.restaurante_id = p_restaurante_id
+                 join public.mesas m on m.id = p.mesa_id and m.restaurante_id = p_restaurante_id
+                where cp.cuenta_id = c.id), 'Sin mesa') as mesas,
+             coalesce((select string_agg(distinct u.nombre, ', ' order by u.nombre)
+                 from public.cuenta_pedidos cp join public.pedidos p on p.id = cp.pedido_id and p.restaurante_id = p_restaurante_id
+                 join public.usuarios u on u.id = p.mesero_id and u.restaurante_id = p_restaurante_id
+                where cp.cuenta_id = c.id), '—') as meseros,
+             coalesce((select jsonb_agg(jsonb_build_object('metodo_pago', pg.metodo_pago::text, 'monto', pg.monto)
+                         order by pg.created_at, pg.id)
+                 from public.cuenta_pagos pg
+                where pg.cuenta_id = c.id and pg.restaurante_id = p_restaurante_id), '[]'::jsonb) as pagos,
+             coalesce((select sum(pi.cantidad)::integer
+                 from public.cuenta_pedidos cp join public.pedidos p on p.id = cp.pedido_id and p.restaurante_id = p_restaurante_id
+                 join public.pedido_items pi on pi.pedido_id = p.id
+                where cp.cuenta_id = c.id
+                  and (p_mesero_id is null or p.mesero_id = p_mesero_id)
+                  and (p_producto_id is null or pi.producto_id = p_producto_id)
+                  and not coalesce(pi.anulado, false)), 0) as cantidad_productos,
+             coalesce((select jsonb_agg(jsonb_build_object(
+                 'pedido_id', q.pedido_id, 'created_at', q.created_at,
+                 'mesa', q.mesa, 'zona', q.zona, 'mesero_id', q.mesero_id, 'mesero', q.mesero,
+                 'items', q.items
+               ) order by q.created_at, q.pedido_id)
+                 from (
+                   select p.id as pedido_id, p.created_at, m.nombre as mesa, z.nombre as zona,
+                          p.mesero_id, u.nombre as mesero,
+                          coalesce((select jsonb_agg(jsonb_build_object(
+                              'id', pi.id, 'producto_id', pi.producto_id,
+                              'nombre', pi.nombre_producto, 'cantidad', pi.cantidad,
+                              'precio_unitario', pi.precio_unitario,
+                              'total', round(pi.cantidad * pi.precio_unitario, 2),
+                              'categoria_id', pr.categoria_id,
+                              'categoria', coalesce(cat.nombre, 'Sin categoría'),
+                              'es_bebida', coalesce(pi.es_bebida, false), 'estacion', pi.estacion,
+                              'anulado', coalesce(pi.anulado, false), 'nota', pi.nota
+                            ) order by pi.created_at, pi.id)
+                            from public.pedido_items pi
+                            left join public.productos pr on pr.id = pi.producto_id and pr.restaurante_id = p_restaurante_id
+                            left join public.categorias_productos cat on cat.id = pr.categoria_id and cat.restaurante_id = p_restaurante_id
+                           where pi.pedido_id = p.id and (p_producto_id is null or pi.producto_id = p_producto_id)), '[]'::jsonb) as items
+                     from public.cuenta_pedidos cp
+                     join public.pedidos p on p.id = cp.pedido_id and p.restaurante_id = p_restaurante_id
+                     left join public.mesas m on m.id = p.mesa_id and m.restaurante_id = p_restaurante_id
+                     left join public.zonas z on z.id = m.zona_id and z.restaurante_id = p_restaurante_id
+                     left join public.usuarios u on u.id = p.mesero_id and u.restaurante_id = p_restaurante_id
+                    where cp.cuenta_id = c.id and (p_mesero_id is null or p.mesero_id = p_mesero_id)
+                      and (p_producto_id is null or exists (
+                        select 1 from public.pedido_items pi2 where pi2.pedido_id = p.id and pi2.producto_id = p_producto_id
+                      ))
+                 ) q), '[]'::jsonb) as pedidos
+        from pagina c
+    ) x;
+
+  v_resultado := v_base || jsonb_build_object(
+    'productos', coalesce(v_productos, '[]'::jsonb),
+    'categorias', coalesce(v_categorias, '[]'::jsonb),
+    'meseros', coalesce(v_meseros, '[]'::jsonb),
+    'comandas_por_estacion', coalesce(v_estaciones, '[]'::jsonb),
+    'productos_sin_ventas', coalesce(v_sin_ventas, '[]'::jsonb),
+    'cuentas', coalesce(v_cuentas, '[]'::jsonb),
+    'total_cuentas', coalesce(v_total, 0)
+  );
+  return v_resultado;
+end;
+$$;
+
+comment on function public.reporte_admin_detallado_restaurante(uuid, timestamptz, timestamptz, text, uuid, uuid, text, integer, integer) is
+  'Reportes administrativos por restaurante. Reutiliza la semántica de reporte_ventas_restaurante y añade detalle paginado, productos, categorías actuales, meseros, estaciones y filtros. Las fechas/series están en America/Lima.';
+
+revoke all on function public.reporte_admin_detallado_restaurante(uuid, timestamptz, timestamptz, text, uuid, uuid, text, integer, integer) from public, anon;
+grant execute on function public.reporte_admin_detallado_restaurante(uuid, timestamptz, timestamptz, text, uuid, uuid, text, integer, integer) to authenticated;
+notify pgrst, 'reload schema';

@@ -104,6 +104,7 @@ export default function Admin() {
   const nombreRestaurante = restaurante?.nombre ?? 'Restaurante activo'
   const encabezadoPorSeccion: Partial<Record<SeccionTab, { titulo: string; descripcion: string }>> = {
     dashboard: { titulo: 'Resumen de ventas', descripcion: 'Revisa los resultados reales del periodo y cómo se distribuyen las ventas.' },
+    ventas: { titulo: 'Reportes del restaurante', descripcion: 'Consulta ventas, rendimiento y anulaciones por mes o rango de fechas.' },
     caja: { titulo: 'Caja del turno', descripcion: 'Consulta el estado del turno, cobra mesas autorizadas y revisa el arqueo.' },
     cobros: { titulo: 'Cobros y recibos internos', descripcion: 'Consulta lo cobrado y anulado; las cuentas pendientes se atienden desde Caja.' },
     mesas: { titulo: 'Mesas y zonas', descripcion: 'Consulta la disponibilidad del salón y organiza las mesas por zona.' },

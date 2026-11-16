@@ -1106,6 +1106,43 @@ if (cuentaParaBuscar?.numero) {
   check('14p · la búsqueda por boleta devuelve la coincidencia', filtradoDetallado.data?.cuentas.length === 1 && filtradoDetallado.data.cuentas[0].id === cuentaParaBuscar.id)
 }
 
+const operadorPrevioReportesAdmin = apiMode.operadorId
+const adminReportesQA = localSeed.usuarios.find((u) => u.restaurante_id === RID && u.rol === 'admin_restaurante' && u.activo !== false)
+apiMode.operadorId = adminReportesQA?.id ?? ''
+const rangoReportesAdmin = {
+  desde: '2000-01-01T00:00:00.000Z', hasta: '2101-01-01T00:00:00.000Z',
+  estado: 'todas', mesero_id: null, producto_id: null, busqueda: '', offset: 0, limite: 100,
+}
+const reporteAdminDetallado = await api.getReporteAdminDetallado(RID, rangoReportesAdmin)
+check('14q · Admin carga el reporte extendido desde el backend local', !reporteAdminDetallado.error && !!reporteAdminDetallado.data, reporteAdminDetallado.error ?? '')
+check('14r · el total cobrado conserva la semántica del reporte actual',
+  reporteAdminDetallado.data?.resumen.ventas === reporteDetallado.data?.resumen.ventas)
+check('14s · cuentas detalladas incluyen número, operación, productos y método',
+  Boolean(reporteAdminDetallado.data?.cuentas.some((cuenta) => cuenta.fecha_operacion && cuenta.pedidos.some((pedido) => pedido.items.some((item) => item.id && item.categoria !== undefined)))))
+check('14t · meseros separan ventas, cuentas atendidas y comandas',
+  Boolean(reporteAdminDetallado.data?.meseros.every((mesero) => typeof mesero.ventas === 'number' && typeof mesero.cuentas === 'number' && typeof mesero.comandas === 'number' && typeof mesero.ticket_promedio === 'number')))
+check('14u · método dividido no suma propinas ni vuelto como venta',
+  Math.abs((reporteAdminDetallado.data?.ventas_por_metodo.reduce((suma, fila) => suma + fila.ventas, 0) ?? 0) - (reporteAdminDetallado.data?.resumen.ventas ?? 0)) < 0.01)
+const primerMeseroReporte = reporteAdminDetallado.data?.meseros.find((fila) => fila.id)
+if (primerMeseroReporte?.id) {
+  const reporteFiltradoMesero = await api.getReporteAdminDetallado(RID, { ...rangoReportesAdmin, mesero_id: primerMeseroReporte.id })
+  check('14v · filtro de mesero devuelve solo comandas del mesero elegido',
+    !reporteFiltradoMesero.error && reporteFiltradoMesero.data?.cuentas.every((cuenta) => cuenta.pedidos.every((pedido) => pedido.mesero_id === primerMeseroReporte.id)))
+}
+const primerProductoReporte = reporteAdminDetallado.data?.productos.find((fila) => fila.id)
+if (primerProductoReporte?.id) {
+  const reporteFiltradoProducto = await api.getReporteAdminDetallado(RID, { ...rangoReportesAdmin, producto_id: primerProductoReporte.id })
+  check('14w · filtro de producto devuelve solo ese producto y sus cuentas',
+    !reporteFiltradoProducto.error && reporteFiltradoProducto.data?.productos.every((producto) => producto.id === primerProductoReporte.id) &&
+    reporteFiltradoProducto.data.cuentas.every((cuenta) => cuenta.pedidos.every((pedido) => pedido.items.every((item) => item.producto_id === primerProductoReporte.id))))
+}
+const reporteSinVentasQA = await api.getReporteAdminDetallado(RID, { ...rangoReportesAdmin, desde: '2100-01-01T00:00:00.000Z', hasta: '2100-01-02T00:00:00.000Z' })
+check('14x · un periodo sin ventas muestra ceros y resultados vacíos',
+  !reporteSinVentasQA.error && reporteSinVentasQA.data?.resumen.ventas === 0 && reporteSinVentasQA.data.cuentas.length === 0)
+const otroRestauranteReporte = await api.getReporteAdminDetallado('r-nuevo', rangoReportesAdmin)
+check('14y · Admin no puede consultar reportes de otro restaurante', !!otroRestauranteReporte.error)
+apiMode.operadorId = operadorPrevioReportesAdmin
+
 // ---------------------------------------------------------------------------
 titulo('15 · Caja por turnos (apertura y arqueo)')
 // ---------------------------------------------------------------------------
