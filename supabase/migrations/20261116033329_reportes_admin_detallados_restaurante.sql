@@ -233,14 +233,14 @@ begin
   )
   select coalesce(jsonb_agg(jsonb_build_object(
            'id', pr.id, 'nombre', pr.nombre, 'categoria_id', pr.categoria_id,
-           'categoria', coalesce(cat.nombre, 'Sin categoría'), 'precio_actual', pr.precio
+            'categoria', coalesce(cat.nombre, 'Sin categoría'), 'precio_actual', pr.precio,
+            'disponible', pr.disponible
          ) order by pr.nombre), '[]'::jsonb)
     into v_sin_ventas
     from public.productos pr
     left join public.categorias_productos cat
       on cat.id = pr.categoria_id and cat.restaurante_id = p_restaurante_id
    where pr.restaurante_id = p_restaurante_id
-     and pr.disponible
      and not exists (
        select 1
          from cuentas_periodo c
