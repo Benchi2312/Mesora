@@ -50,7 +50,8 @@ console.error = (...a) => {
   if (String(a[0]).includes('VITE_SUPABASE_URL')) return
   errorReal(...a)
 }
-const { getApi, esModoLocal, apiMode, enDemo, reiniciarDemoDatos } = await servidor.ssrLoadModule('/src/lib/api.ts')
+const { getApi, esFalloDeRed, esModoLocal, apiMode, enDemo, reiniciarDemoDatos } = await servidor.ssrLoadModule('/src/lib/api.ts')
+const { ejecutarTrasladoConReconciliacion } = await servidor.ssrLoadModule('/src/domain/restaurant/trasladoConsumo.ts')
 const { localSeed, restablecerDatosLocal, cargarDatosLocal, localCredenciales, verificarCredencialLocal, PASSWORD_DE_PRUEBA } =
   await servidor.ssrLoadModule('/src/lib/localSeed.ts')
 const { mockZonas, mockRestaurante } = await servidor.ssrLoadModule('/src/lib/mockData.ts')
@@ -3797,11 +3798,110 @@ check('29c · con PIN correcto María recibe la mesa', !traspasoCorrectoQa.error
 const auditoriaTraspasoQa = localSeed.auditLogs.find((l) => l.accion === 'mesa_transferir_responsable' && l.entidad_id === mesaTraspasoQa.data.id)
 check('29d · el registro incluye Carlos, María y el motivo', auditoriaTraspasoQa?.actor_id === meseroCarlosQa.id && auditoriaTraspasoQa.detalle?.mesero_nuevo_id === meseroMariaQa.id && auditoriaTraspasoQa.detalle?.motivo === 'Cambio de turno' && localSeed.auditLogs.length === auditoriaAntesTraspasoQa + 1)
 apiMode.operadorId = meseroMariaQa.id
+const auditoriasAntesPinMaloMoverQa = localSeed.auditLogs.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaTraspasoQa.data.id).length
 const pinMaloMoverQa = await api.moverConsumoMesa(RID, mesaTraspasoQa.data.id, mesaDestinoQa.data.id, '0000', 'Cliente cambió de mesa')
-check('29e · el PIN incorrecto tampoco mueve el consumo', pinMaloMoverQa.error === MENSAJE_PIN_INCORRECTO && localSeed.pedidos.find((p) => p.id === pedidoTraspasoQa.data).mesa_id === mesaTraspasoQa.data.id)
+check('29e · error antes de guardar por PIN conserva origen y no crea auditoría', pinMaloMoverQa.error === MENSAJE_PIN_INCORRECTO && localSeed.pedidos.find((p) => p.id === pedidoTraspasoQa.data).mesa_id === mesaTraspasoQa.data.id && localSeed.auditLogs.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaTraspasoQa.data.id).length === auditoriasAntesPinMaloMoverQa)
 const movimientoCorrectoQa = await api.moverConsumoMesa(RID, mesaTraspasoQa.data.id, mesaDestinoQa.data.id, '4321', 'Cliente cambió de mesa')
 const auditoriaMovimientoQa = localSeed.auditLogs.find((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaTraspasoQa.data.id)
 check('29f · con PIN correcto se mueve la comanda y queda auditada', !movimientoCorrectoQa.error && localSeed.pedidos.find((p) => p.id === pedidoTraspasoQa.data).mesa_id === mesaDestinoQa.data.id && auditoriaMovimientoQa?.detalle?.mesa_destino_id === mesaDestinoQa.data.id && auditoriaMovimientoQa.detalle?.motivo === 'Cliente cambió de mesa')
+const estadoMesasTraslado = await api.getMesas(RID)
+const origenTrasladoConfirmado = estadoMesasTraslado.data.find((m) => m.id === mesaTraspasoQa.data.id)
+const destinoTrasladoConfirmado = estadoMesasTraslado.data.find((m) => m.id === mesaDestinoQa.data.id)
+const pedidosOrigenTraslado = await api.getPedidosDeMesa(RID, mesaTraspasoQa.data.id)
+const pedidosDestinoTraslado = await api.getPedidosDeMesa(RID, mesaDestinoQa.data.id)
+check('29g · lectura posterior confirma origen libre, destino ocupado y comanda en destino', origenTrasladoConfirmado?.estado === 'libre' && destinoTrasladoConfirmado?.estado === 'ocupada' && pedidosOrigenTraslado.data.length === 0 && pedidosDestinoTraslado.data.some((p) => p.id === pedidoTraspasoQa.data))
+const auditoriasAntesReintentoTraslado = localSeed.auditLogs.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaTraspasoQa.data.id).length
+const reintentoTrasladoIdempotente = await ejecutarTrasladoConReconciliacion(
+  () => api.moverConsumoMesa(RID, mesaTraspasoQa.data.id, mesaDestinoQa.data.id, '4321', 'Cliente cambió de mesa'),
+  async () => {
+    const [mesas, origen, destino] = await Promise.all([
+      api.getMesas(RID),
+      api.getPedidosDeMesa(RID, mesaTraspasoQa.data.id),
+      api.getPedidosDeMesa(RID, mesaDestinoQa.data.id),
+    ])
+    return {
+      ok: !mesas.error && !origen.error && !destino.error,
+      origenEstado: mesas.data.find((m) => m.id === mesaTraspasoQa.data.id)?.estado,
+      destinoEstado: mesas.data.find((m) => m.id === mesaDestinoQa.data.id)?.estado,
+      pedidosOrigen: origen.data.map(({ id }) => ({ id })),
+      pedidosDestino: destino.data.map(({ id }) => ({ id })),
+    }
+  },
+  [pedidoTraspasoQa.data],
+  esFalloDeRed,
+)
+check('29h · el reintento tras respuesta perdida se reconcilia como éxito sin segunda auditoría', reintentoTrasladoIdempotente.estado === 'confirmado' && localSeed.auditLogs.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaTraspasoQa.data.id).length === auditoriasAntesReintentoTraslado && localSeed.pedidos.find((p) => p.id === pedidoTraspasoQa.data)?.mesa_id === mesaDestinoQa.data.id)
+
+const estadoLento = await ejecutarTrasladoConReconciliacion(
+  async () => { await new Promise((resolve) => setTimeout(resolve, 80)); return { error: null } },
+  async () => { throw new Error('No debe releer cuando la RPC confirmó') },
+  ['pedido-lento'],
+  esFalloDeRed,
+)
+check('29i · una respuesta lenta pero exitosa no se clasifica como fallo', estadoLento.estado === 'confirmado')
+const estadoAntesDeTimeout = {
+  ok: true,
+  origenEstado: 'ocupada',
+  destinoEstado: 'libre',
+  pedidosOrigen: [{ id: 'pedido-timeout' }],
+  pedidosDestino: [],
+}
+let estadoTimeout = estadoAntesDeTimeout
+const timeoutDespuesDeCommit = await ejecutarTrasladoConReconciliacion(
+  async () => {
+    estadoTimeout = { ok: true, origenEstado: 'libre', destinoEstado: 'ocupada', pedidosOrigen: [], pedidosDestino: [{ id: 'pedido-timeout' }] }
+    return { error: 'La conexión se interrumpió; la solicitud pudo haberse completado.' }
+  },
+  async () => estadoTimeout,
+  ['pedido-timeout'],
+  esFalloDeRed,
+)
+check('29j · timeout posterior al commit se reconoce como traslado confirmado', timeoutDespuesDeCommit.estado === 'confirmado')
+const errorAntesDeGuardar = await ejecutarTrasladoConReconciliacion(
+  async () => ({ error: 'El PIN no coincide.' }),
+  async () => estadoAntesDeTimeout,
+  ['pedido-timeout'],
+  esFalloDeRed,
+)
+check('29k · error de validación previo al guardado conserva error solo al confirmar que no hubo cambios', errorAntesDeGuardar.estado === 'rechazado' && errorAntesDeGuardar.error === 'El PIN no coincide.')
+const respuestaAmbiguaSinCambio = await ejecutarTrasladoConReconciliacion(
+  async () => ({ error: 'La conexión se interrumpió; la solicitud pudo haberse completado.' }),
+  async () => estadoAntesDeTimeout,
+  ['pedido-timeout'],
+  esFalloDeRed,
+)
+check('29k1 · conexión perdida y lectura sin resolución mantienen el traslado pendiente, sin habilitar un reenvío', respuestaAmbiguaSinCambio.estado === 'pendiente')
+check('29l · el mensaje normalizado de conexión se identifica como respuesta ambigua', esFalloDeRed('No se pudo conectar. Revisa internet y actualiza la pantalla antes de repetir la operación.'))
+
+const mesaTimeoutOrigenQa = await api.crearMesa(RID, { zona_id: zonaTraspasoQa.data.id, nombre: 'Mesa QA timeout origen' })
+const mesaTimeoutDestinoQa = await api.crearMesa(RID, { zona_id: zonaTraspasoQa.data.id, nombre: 'Mesa QA timeout destino' })
+const pedidoTimeoutQa = await api.crearPedido(RID, mesaTimeoutOrigenQa.data.id, [pedir(prod('p-1'), 1)])
+const auditoriasAntesTimeoutRealQa = localSeed.auditLogs.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaTimeoutOrigenQa.data.id).length
+const recuperacionTimeoutRealQa = await ejecutarTrasladoConReconciliacion(
+  async () => {
+    const confirmadoServidor = await api.moverConsumoMesa(RID, mesaTimeoutOrigenQa.data.id, mesaTimeoutDestinoQa.data.id, '4321', 'Respuesta perdida en QA')
+    return confirmadoServidor.error ? confirmadoServidor : { data: null, error: 'La conexión se interrumpió; la solicitud pudo haberse completado.' }
+  },
+  async () => {
+    const [mesas, origen, destino] = await Promise.all([
+      api.getMesas(RID),
+      api.getPedidosDeMesa(RID, mesaTimeoutOrigenQa.data.id),
+      api.getPedidosDeMesa(RID, mesaTimeoutDestinoQa.data.id),
+    ])
+    return {
+      ok: !mesas.error && !origen.error && !destino.error,
+      origenEstado: mesas.data.find((m) => m.id === mesaTimeoutOrigenQa.data.id)?.estado,
+      destinoEstado: mesas.data.find((m) => m.id === mesaTimeoutDestinoQa.data.id)?.estado,
+      pedidosOrigen: origen.data.map(({ id }) => ({ id })),
+      pedidosDestino: destino.data.map(({ id }) => ({ id })),
+    }
+  },
+  [pedidoTimeoutQa.data],
+  esFalloDeRed,
+)
+const estadoTimeoutRealQa = await api.getMesas(RID)
+check('29m · timeout simulado tras commit confirma el movimiento real y mantiene estado origen/destino', recuperacionTimeoutRealQa.estado === 'confirmado' && estadoTimeoutRealQa.data.find((m) => m.id === mesaTimeoutOrigenQa.data.id)?.estado === 'libre' && estadoTimeoutRealQa.data.find((m) => m.id === mesaTimeoutDestinoQa.data.id)?.estado === 'ocupada' && localSeed.pedidos.find((p) => p.id === pedidoTimeoutQa.data)?.mesa_id === mesaTimeoutDestinoQa.data.id)
+check('29n · el timeout real genera una sola auditoría y no duplica la comanda', localSeed.auditLogs.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaTimeoutOrigenQa.data.id).length === auditoriasAntesTimeoutRealQa + 1 && localSeed.pedidos.filter((p) => p.id === pedidoTimeoutQa.data).length === 1)
 
 titulo('30 · Impresión térmica por estación, auditoría idempotente y reimpresión')
 const impresionDomain = await servidor.ssrLoadModule('/src/domain/restaurant/impresionComandas.ts')

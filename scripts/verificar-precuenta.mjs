@@ -240,6 +240,103 @@ try {
     await page.getByRole('button', { name: 'Listo', exact: true }).click()
     await expect(page.getByRole('button', { name: /Mesa precuenta QA.*Libre/ })).toBeVisible()
     escenarios++
+
+    async function prepararMesaTraslado(prefijo) {
+      return page.evaluate(async (nombre) => {
+        const { getApi } = await import('/src/lib/api.ts')
+        const api = getApi()
+        const dato = (r) => { if (r.error || r.data == null) throw new Error(r.error ?? 'Respuesta vacía'); return r.data }
+        const zona = dato(await api.getZonas('r-demo')).find((fila) => fila.nombre === 'Salón QA')
+        const producto = dato(await api.getProductos('r-demo')).find((fila) => fila.nombre === 'Producto motivo UI QA')
+        const origen = dato(await api.crearMesa('r-demo', { nombre: `Mesa ${nombre} origen`, zona_id: zona.id }))
+        const destino = dato(await api.crearMesa('r-demo', { nombre: `Mesa ${nombre} destino`, zona_id: zona.id }))
+        const pedidoId = dato(await api.crearPedido('r-demo', origen.id, [{ producto_id: producto.id, nombre_producto: producto.nombre, cantidad: 1, precio_unitario: producto.precio }]))
+        return { origen: origen.nombre, destino: destino.nombre, origenId: origen.id, destinoId: destino.id, pedidoId }
+      }, prefijo)
+    }
+
+    const trasladoUi = await prepararMesaTraslado('reconciliación UI QA')
+    await visitar('/demo/mesero')
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      window.__apiMoverOriginalUiQa = api.moverConsumoMesa
+      window.__moverIntentosUiQa = 0
+      api.moverConsumoMesa = async (...args) => {
+        window.__moverIntentosUiQa++
+        const confirmado = await window.__apiMoverOriginalUiQa(...args)
+        return confirmado.error ? confirmado : { data: null, error: 'Failed to fetch' }
+      }
+    })
+    await page.getByRole('button', { name: new RegExp(trasladoUi.origen) }).click()
+    await page.getByRole('button', { name: 'Mover consumo a otra mesa', exact: true }).click()
+    await page.locator('#mesa-destino-consumo').selectOption({ value: trasladoUi.destinoId })
+    await page.locator('#mesa-motivo-operacion').fill('Cambio de mesa comprobado por QA')
+    await page.getByRole('button', { name: 'Revisar y confirmar' }).click()
+    await page.getByRole('button', { name: 'Confirmar y guardar' }).click()
+    await expect(page.getByText(`Consumo movido correctamente de ${trasladoUi.origen} a ${trasladoUi.destino}`, { exact: true })).toBeVisible()
+    const lecturaTrasladoUi = await page.evaluate(async ({ origenId, destinoId, pedidoId }) => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      const [mesas, origen, destino] = await Promise.all([api.getMesas('r-demo'), api.getPedidosDeMesa('r-demo', origenId), api.getPedidosDeMesa('r-demo', destinoId)])
+      return {
+        origen: mesas.data.find((m) => m.id === origenId)?.estado,
+        destino: mesas.data.find((m) => m.id === destinoId)?.estado,
+        pedidosOrigen: origen.data.map((p) => p.id),
+        pedidosDestino: destino.data.map((p) => p.id),
+        intentos: window.__moverIntentosUiQa,
+        pedido: pedidoId,
+      }
+    }, trasladoUi)
+    assert.equal(lecturaTrasladoUi.origen, 'libre')
+    assert.equal(lecturaTrasladoUi.destino, 'ocupada')
+    assert.deepEqual(lecturaTrasladoUi.pedidosOrigen, [])
+    assert.deepEqual(lecturaTrasladoUi.pedidosDestino, [trasladoUi.pedidoId])
+    assert.equal(lecturaTrasladoUi.intentos, 1, 'Un solo envío debe resolver el timeout con la lectura de estado')
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      api.moverConsumoMesa = window.__apiMoverOriginalUiQa
+    })
+    escenarios++
+
+    const trasladoPendienteUi = await prepararMesaTraslado('pendiente UI QA')
+    await visitar('/demo/mesero')
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      window.__apiMoverOriginalUiQa = api.moverConsumoMesa
+      window.__moverIntentosUiQa = 0
+      api.moverConsumoMesa = async () => {
+        window.__moverIntentosUiQa++
+        return { data: null, error: 'Failed to fetch' }
+      }
+    })
+    await page.getByRole('button', { name: new RegExp(trasladoPendienteUi.origen) }).click()
+    await page.getByRole('button', { name: 'Mover consumo a otra mesa', exact: true }).click()
+    await page.locator('#mesa-destino-consumo').selectOption({ value: trasladoPendienteUi.destinoId })
+    await page.locator('#mesa-motivo-operacion').fill('Verificación manual de QA')
+    await page.getByRole('button', { name: 'Revisar y confirmar' }).click()
+    await page.getByRole('button', { name: 'Confirmar y guardar' }).click()
+    await expect(page.locator('p').filter({ hasText: 'No se pudo confirmar el resultado. Actualiza las mesas antes de volver a intentarlo' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Verificar resultado' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Confirmar y guardar' })).toHaveCount(0)
+    assert.equal(await page.evaluate(() => window.__moverIntentosUiQa), 1, 'La solicitud pendiente no debe reenviarse automáticamente')
+    await page.getByRole('button', { name: 'Verificar resultado' }).click()
+    await expect(page.getByText('Las mesas siguen en su estado original; el traslado no se registró. Ya puedes revisar y volver a intentar.')).toBeVisible()
+    await expect(page.locator('#mesa-motivo-operacion')).toHaveValue('Verificación manual de QA')
+    const estadoSinCambioUi = await page.evaluate(async ({ origenId, destinoId }) => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      const [mesas, origen, destino] = await Promise.all([api.getMesas('r-demo'), api.getPedidosDeMesa('r-demo', origenId), api.getPedidosDeMesa('r-demo', destinoId)])
+      return { origen: mesas.data.find((m) => m.id === origenId)?.estado, destino: mesas.data.find((m) => m.id === destinoId)?.estado, origenCount: origen.data.length, destinoCount: destino.data.length }
+    }, trasladoPendienteUi)
+    assert.deepEqual(estadoSinCambioUi, { origen: 'ocupada', destino: 'libre', origenCount: 1, destinoCount: 0 })
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      api.moverConsumoMesa = window.__apiMoverOriginalUiQa
+    })
+    await page.getByRole('button', { name: 'Revisar y confirmar' }).click()
+    await page.getByRole('button', { name: 'Confirmar y guardar' }).click()
+    await expect(page.getByText(`Consumo movido correctamente de ${trasladoPendienteUi.origen} a ${trasladoPendienteUi.destino}`, { exact: true })).toBeVisible()
+    assert.equal(await page.evaluate(() => window.__moverIntentosUiQa), 1)
+    escenarios++
+
     assert.deepEqual(errores, [])
     escenarios++
     await context.close()

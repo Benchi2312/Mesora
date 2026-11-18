@@ -129,7 +129,7 @@ export type PaginaAuditoria = { items: AuditLog[]; total: number }
 
 /** Detecta errores de transporte cuya operacion pudo confirmarse en el servidor. */
 export function esFalloDeRed(error: string | null | undefined): boolean {
-  return Boolean(error && /network|fetch|timeout|timed out|connection|conexi[oó]n|offline|aborted|request may have completed/i.test(error))
+  return Boolean(error && /network|fetch|timeout|timed out|connection|conexi[oó]n|conect|offline|aborted|request may have completed/i.test(error))
 }
 
 const apiConErroresNormalizados = new WeakMap<DataApi, DataApi>()
@@ -457,7 +457,12 @@ export interface DataApi {
   getMeseros(rid: string): Promise<Res<MeseroResumen[]>>
   /** Reasigna una mesa ocupada con autorización PIN (si está configurado) y motivo auditable. */
   asignarMesaMesero(rid: string, mesaId: string, meseroId: string, pin: string | null, motivo: string): Promise<Res<null>>
-  /** Mueve comandas no cobradas con autorización PIN (si está configurado) y motivo auditable. */
+  /**
+   * Mueve comandas no cobradas con autorización PIN y motivo. La RPC bloquea
+   * las dos mesas en una transacción; un replay tras el commit no puede mover
+   * ni auditar otra vez porque el origen ya no conserva el consumo. La UI debe
+   * reconciliar el estado en vez de presentar un error de transporte como fallo.
+   */
   moverConsumoMesa(rid: string, origenId: string, destinoId: string, pin: string | null, motivo: string): Promise<Res<null>>
   /** Meseros + cocina del restaurante (personal), para el panel de admin. */
   getPersonal(rid: string): Promise<Res<UsuarioResumen[]>>
