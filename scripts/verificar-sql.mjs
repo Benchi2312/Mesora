@@ -49,6 +49,21 @@ try {
   }
   assert.equal((await pg.query("select count(*)::int as n from pg_tables where schemaname='public'")).rows[0].n, 27)
   console.log('SQL QA: tablas, RPC, RLS y pgcrypto instalados')
+  await pg.exec(readFileSync(new URL('../supabase/qa/soporte_mensajes_no_leidos_rollback.sql', import.meta.url), 'utf8'))
+  const seguridadNoLeidos = await pg.query(`
+    select p.proname, p.prosecdef,
+           coalesce(array_to_string(p.proconfig, ','), '') as config,
+           has_function_privilege('authenticated', p.oid, 'execute') as autenticado,
+           has_function_privilege('anon', p.oid, 'execute') as anonimo
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public'
+       and p.proname in ('superadmin_conteo_mensajes_soporte_no_leidos','superadmin_marcar_mensajes_soporte_leidos')
+     order by p.proname
+  `)
+  assert.equal(seguridadNoLeidos.rows.length, 2)
+  assert.ok(seguridadNoLeidos.rows.every((f) => !f.prosecdef && f.config.includes('search_path=""') && f.autenticado && !f.anonimo))
+  assert.equal((await pg.query("select relrowsecurity from pg_class where oid='public.soporte_mensajes'::regclass")).rows[0].relrowsecurity, true)
+  console.log('SQL QA: conteo 2→0, recarga sin duplicación, mensaje posterior, lectura por ticket, RLS multi-restaurante y RPC con permisos acotados aprobados')
   const qaImagenProducto = readFileSync(new URL('../supabase/qa/imagenes_producto_cloudinary_rollback.sql', import.meta.url), 'utf8')
   const migracionImagenProducto = readFileSync(new URL('../supabase/migrations/20261115072449_producto_imagen_public_id_cloudinary.sql', import.meta.url), 'utf8')
     .replace(/^\s*begin;\s*/i, '')
@@ -369,6 +384,26 @@ try {
     assert.equal((await pgUpgrade.query("select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='entregas_comanda' and column_name='cancelada_por_anulacion_cuenta'")).rows[0].n, 1)
     assert.equal((await pgUpgrade.query("select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='pedidos_con_cuenta_anulada'")).rows[0].n, 1)
     console.log('SQL QA: motivo obligatorio instalado sobre esquema existente; motivo histórico nulo y pedidos históricos intactos')
+
+    // Simula mensajes ya almacenados antes de activar el seguimiento de lectura.
+    await pgUpgrade.exec(`
+      insert into public.soporte_tickets(id, restaurante_id, usuario_id, asunto, descripcion)
+        values ('00000000-0000-4000-8000-000000000008','00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001','Ticket anterior','Historial previo a la migración');
+      insert into public.soporte_mensajes(id, ticket_id, autor_id, autor_super_admin, mensaje, created_at)
+        values ('00000000-0000-4000-8000-000000000009','00000000-0000-4000-8000-000000000008','00000000-0000-4000-8000-000000000001',false,'Mensaje histórico','2026-11-17T08:00:00Z');
+    `)
+    const migracionSoporteNoLeidos = readFileSync(new URL('../supabase/migrations/20261118045754_soporte_mensajes_no_leidos.sql', import.meta.url), 'utf8')
+    await pgUpgrade.exec(migracionSoporteNoLeidos)
+    assert.equal((await pgUpgrade.query("select leido_superadmin_at=created_at as leido, leido_superadmin_por is null as actor_historico_desconocido from public.soporte_mensajes where id='00000000-0000-4000-8000-000000000009'")).rows[0].leido, true)
+    assert.equal((await pgUpgrade.query("select leido_superadmin_por is null as actor_historico_desconocido from public.soporte_mensajes where id='00000000-0000-4000-8000-000000000009'")).rows[0].actor_historico_desconocido, true)
+    await pgUpgrade.exec(`
+      insert into public.soporte_mensajes(id, ticket_id, autor_id, autor_super_admin, mensaje)
+        values ('00000000-0000-4000-8000-00000000000a','00000000-0000-4000-8000-000000000008','00000000-0000-4000-8000-000000000001',false,'Mensaje posterior a la migración');
+    `)
+    await pgUpgrade.exec(migracionSoporteNoLeidos)
+    assert.equal((await pgUpgrade.query("select leido_superadmin_at is null as sigue_no_leido from public.soporte_mensajes where id='00000000-0000-4000-8000-00000000000a'")).rows[0].sigue_no_leido, true)
+    assert.equal((await pgUpgrade.query("select count(*)::int as n from public.soporte_mensajes where id in ('00000000-0000-4000-8000-000000000009','00000000-0000-4000-8000-00000000000a')")).rows[0].n, 2)
+    console.log('SQL QA: mensajes históricos se marcan leídos una sola vez; reejecutar migración no altera mensajes nuevos')
   } finally { await pgUpgrade.close() }
 } catch (e) {
   console.error(e.message, e.position ? `SQL position ${e.position}` : '', e.detail ?? '', e.hint ?? '', e.where ?? '')

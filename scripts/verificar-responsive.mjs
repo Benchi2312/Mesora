@@ -1192,6 +1192,31 @@ async function correrSuperAdminResponsive(browser, vp) {
       await page.goto(URL + '/super-admin', { waitUntil: 'networkidle' })
       await page.getByRole('heading', { name: 'Búsqueda rápida' }).waitFor({ state: 'visible' })
       await page.getByRole('heading', { name: 'Requiere atención' }).waitFor({ state: 'visible' })
+      const menuSoporte = page.getByRole('button', { name: 'Abrir menú de superadministración' })
+      let navSoporte
+      if (vp.w < 1024) {
+        await menuSoporte.click()
+        navSoporte = page.getByRole('dialog', { name: 'Menú de superadministración' }).locator('a[href="/super-admin/soporte"]')
+      } else {
+        navSoporte = page.getByRole('complementary', { name: 'Navegación de Superadmin' }).locator('a[href="/super-admin/soporte"]')
+      }
+      await navSoporte.waitFor({ state: 'visible' })
+      const badgePrueba = await navSoporte.evaluate((link) => {
+        const badge = document.createElement('span')
+        badge.className = 'sa-unread-badge'
+        badge.setAttribute('aria-label', '2 mensajes no leídos')
+        badge.textContent = '2'
+        link.appendChild(badge)
+        const rect = badge.getBoundingClientRect()
+        const correcto = rect.width >= 21 && rect.height >= 21 && rect.right <= innerWidth + 1 && getComputedStyle(badge).visibility === 'visible'
+        badge.remove()
+        return correcto
+      })
+      check('superadmin ' + vp.nombre + ' · insignia de 2 mensajes legible en navegación', badgePrueba)
+      if (vp.w < 1024) {
+        await page.keyboard.press('Escape')
+        await page.getByRole('dialog', { name: 'Menú de superadministración' }).waitFor({ state: 'hidden' })
+      }
       const busquedaCentro = page.getByRole('searchbox', { name: 'Buscar en la plataforma' })
       await busquedaCentro.fill('Restaurante Demo')
       const resultadoRestaurante = page.getByRole('link', { name: /Restaurante Demo/ }).first()

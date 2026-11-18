@@ -464,6 +464,8 @@ export type SoporteMensaje = {
   autor_super_admin: boolean
   mensaje: string
   created_at: string
+  leido_superadmin_at: string | null
+  leido_superadmin_por: string | null
 }
 
 /** Configuración general de la plataforma (fila única id = 1). */
@@ -698,6 +700,14 @@ export interface Database {
       mesora_commercial_inbox: { Args: Record<string, never>; Returns: unknown }
       mesora_update_commercial_lead: { Args: { p_id: string; p_estado: ConsultaComercial['estado'] }; Returns: void }
       mesora_update_commercial_followup: { Args: { p_id: string; p_responsable: string; p_nota_interna: string; p_proximo_contacto: string | null }; Returns: void }
+      superadmin_conteo_mensajes_soporte_no_leidos: {
+        Args: Record<string, never>
+        Returns: { ticket_id: string; cantidad: number }[]
+      }
+      superadmin_marcar_mensajes_soporte_leidos: {
+        Args: { p_ticket_id: string; p_mensaje_ids: string[] }
+        Returns: { mensaje_id: string; leido_at: string }[]
+      }
       crear_pedido: { Args: { p_restaurante_id: string; p_mesa_id: string; p_items: { producto_id: string; cantidad: number; nota?: string }[]; p_solicitud_id?: string }; Returns: string }
       listar_meseros_activos_restaurante: {
         Args: { p_restaurante_id: string }

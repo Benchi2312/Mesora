@@ -78,6 +78,7 @@ import {
   type DatosConfiguracionGlobal,
 } from '../domain/restaurant/configuracion'
 import { PRIORIDADES_TICKET, ESTADOS_TICKET, TIPOS_TICKET } from '../domain/platform/soporte'
+import type { ConteoMensajesSoporteNoLeidos, MensajeSoporteLeido } from '../domain/platform/soporteMensajes'
 import {
   mockPlanes,
   mockRestaurante,
@@ -646,6 +647,9 @@ export interface DataApi {
   actualizarTicket(ticketId: string, cambios: CambiosTicket): Promise<Res<SoporteTicket>>
   getMensajesSoporte(ticketId: string): Promise<Res<SoporteMensaje[]>>
   enviarMensajeSoporte(ticketId: string, autorId: string, autorSuperAdmin: boolean, mensaje: string): Promise<Res<SoporteMensaje>>
+  getConteoMensajesSoporteNoLeidos(): Promise<Res<ConteoMensajesSoporteNoLeidos[]>>
+  marcarMensajesSoporteLeidos(ticketId: string, mensajeIds: string[]): Promise<Res<MensajeSoporteLeido[]>>
+  subscribeSoporteMensajes(onChange: () => void, onError?: () => void, ticketId?: string): Promise<() => void>
   /** Consultas anónimas de la landing, solo superadministrador. */
   getBandejaComercial(): Promise<Res<BandejaComercial>>
   actualizarConsultaComercial(id: string, estado: ConsultaComercial['estado']): Promise<Res<void>>
@@ -1630,6 +1634,32 @@ const realApi: DataApi = {
   async getMensajesSoporte(ticketId) {
     const { data, error } = await supabase.from('soporte_mensajes').select('*').eq('ticket_id', ticketId).order('created_at')
     return { data: error ? null : (data ?? []) as SoporteMensaje[], error: error?.message ?? null }
+  },
+  async getConteoMensajesSoporteNoLeidos() {
+    const { data, error } = await supabase.rpc('superadmin_conteo_mensajes_soporte_no_leidos')
+    return { data: error ? null : (data ?? []) as ConteoMensajesSoporteNoLeidos[], error: error?.message ?? null }
+  },
+  async marcarMensajesSoporteLeidos(ticketId, mensajeIds) {
+    if (mensajeIds.length === 0) return { data: [], error: null }
+    const { data, error } = await supabase.rpc('superadmin_marcar_mensajes_soporte_leidos', {
+      p_ticket_id: ticketId,
+      p_mensaje_ids: mensajeIds,
+    })
+    return { data: error ? null : (data ?? []) as MensajeSoporteLeido[], error: error?.message ?? null }
+  },
+  async subscribeSoporteMensajes(onChange, onError, ticketId) {
+    let channel = supabase.channel(ticketId
+      ? `superadmin-soporte-ticket-${ticketId}`
+      : 'superadmin-soporte-mensajes-no-leidos')
+    const cambio = () => onChange()
+    channel = ticketId
+      ? channel.on('postgres_changes', { event: '*', schema: 'public', table: 'soporte_mensajes', filter: `ticket_id=eq.${ticketId}` }, cambio)
+      : channel.on('postgres_changes', { event: '*', schema: 'public', table: 'soporte_mensajes' }, cambio)
+    channel = channel
+      .subscribe((estado) => {
+        if (estado === 'CHANNEL_ERROR' || estado === 'TIMED_OUT' || estado === 'CLOSED') onError?.()
+      })
+    return async () => { await supabase.removeChannel(channel) }
   },
   async enviarMensajeSoporte(ticketId, autorId, autorSuperAdmin, mensaje) {
     const texto = mensaje.trim()
@@ -4139,6 +4169,21 @@ function crearApiDesde(
   async getMensajesSoporte() {
     await espera()
     return { data: [], error: null }
+  },
+  async getConteoMensajesSoporteNoLeidos() {
+    const denegado = denialSuperAdmin('Solo el superadministrador puede consultar mensajes no leídos.')
+    if (denegado) return { data: null, error: denegado }
+    await espera()
+    return { data: [], error: null }
+  },
+  async marcarMensajesSoporteLeidos() {
+    const denegado = denialSuperAdmin('Solo el superadministrador puede marcar mensajes como leídos.')
+    if (denegado) return { data: null, error: denegado }
+    await espera()
+    return { data: [], error: null }
+  },
+  async subscribeSoporteMensajes() {
+    return () => undefined
   },
   async enviarMensajeSoporte() {
     return { data: null, error: 'Los mensajes de soporte requieren una cuenta real.' }

@@ -68,6 +68,7 @@ const ORDEN = [
   'auditoria.sql',
   'configuracion_global.sql',
   'seguridad_piloto.sql',
+  'soporte_mensajes_no_leidos.sql',
 ]
 
 const fallos = []

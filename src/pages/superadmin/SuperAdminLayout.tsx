@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import PageHeader from '../../components/PageHeader'
+import { enDemo, getApi } from '../../lib/api'
+import { useCurrentContext } from '../../lib/useCurrentContext'
+import { mapaConteosSoporteNoLeidos, totalSoporteNoLeidos } from '../../domain/platform/soporteMensajes'
+import { SoporteNoLeidosContext } from './SoporteNoLeidosContext'
 import './superadmin.css'
 
 type GrupoSA = 'general' | 'clientes' | 'plataforma'
@@ -94,15 +98,18 @@ const GRUPOS: { id: GrupoSA; label: string }[] = [
   { id: 'plataforma', label: 'PLATAFORMA' },
 ]
 
-function NavegacionSuperAdmin({
+export function NavegacionSuperAdmin({
   id,
   movil = false,
   onNavigate,
+  conteosNoLeidos,
 }: {
   id: string
   movil?: boolean
   onNavigate?: () => void
+  conteosNoLeidos: Record<string, number>
 }) {
+  const totalNoLeidos = totalSoporteNoLeidos(conteosNoLeidos)
   return (
     <nav
       id={id}
@@ -122,7 +129,12 @@ function NavegacionSuperAdmin({
                 className={({ isActive }) => 'sa-nav-link' + (isActive ? ' is-active' : '')}
               >
                 <span className="sa-nav-indicator" aria-hidden="true" />
-                <span>{seccion.label}</span>
+                <span className="sa-nav-label">{seccion.label}</span>
+                {seccion.path === '/super-admin/soporte' && totalNoLeidos > 0 && (
+                  <span className="sa-unread-badge" aria-label={`${totalNoLeidos} mensajes no leídos`} aria-live="polite">
+                    {totalNoLeidos}
+                  </span>
+                )}
               </NavLink>
             ))}
           </div>
@@ -134,9 +146,59 @@ function NavegacionSuperAdmin({
 
 export default function SuperAdminLayout() {
   const { pathname } = useLocation()
+  const { usuario } = useCurrentContext()
   const [menuAbierto, setMenuAbierto] = useState(false)
+  const [conteosNoLeidos, setConteosNoLeidos] = useState<Record<string, number>>({})
+  const [errorNoLeidos, setErrorNoLeidos] = useState<string | null>(null)
   const botonMenuRef = useRef<HTMLButtonElement>(null)
   const drawerRef = useRef<HTMLElement>(null)
+  const versionConsultaRef = useRef(0)
+
+  const actualizarConteos = useCallback(async () => {
+    const version = ++versionConsultaRef.current
+    const res = await getApi().getConteoMensajesSoporteNoLeidos()
+    if (version !== versionConsultaRef.current) return
+    if (res.error) {
+      setErrorNoLeidos(res.error)
+      return
+    }
+    setConteosNoLeidos(mapaConteosSoporteNoLeidos(res.data ?? []))
+    setErrorNoLeidos(null)
+  }, [])
+
+  useEffect(() => {
+    if (usuario?.rol !== 'super_admin' || enDemo()) {
+      setConteosNoLeidos({})
+      setErrorNoLeidos(null)
+      return
+    }
+
+    let activo = true
+    let cancelarRealtime: (() => void) | null = null
+    let temporizador: ReturnType<typeof setTimeout> | null = null
+    void actualizarConteos()
+
+    getApi().subscribeSoporteMensajes(() => {
+      if (!activo) return
+      if (temporizador) clearTimeout(temporizador)
+      // Realtime puede entregar un evento por mensaje. Se consulta el agregado
+      // del servidor una vez por lote, en lugar de incrementar localmente.
+      temporizador = setTimeout(() => void actualizarConteos(), 80)
+    }, () => {
+      if (activo) setErrorNoLeidos('La actualización en vivo se interrumpió. Puedes actualizar el contador manualmente.')
+    }).then((cancelar) => {
+      if (!activo) cancelar()
+      else cancelarRealtime = cancelar
+    }).catch(() => {
+      if (activo) setErrorNoLeidos('No se pudo activar la actualización en vivo del soporte.')
+    })
+
+    return () => {
+      activo = false
+      if (temporizador) clearTimeout(temporizador)
+      cancelarRealtime?.()
+    }
+  }, [actualizarConteos, usuario?.id, usuario?.rol])
 
   const activa =
     SECCIONES_SA.find((seccion) =>
@@ -191,14 +253,17 @@ export default function SuperAdminLayout() {
   }, [menuAbierto])
 
   return (
-    <div className="superadmin-shell">
+    <SoporteNoLeidosContext.Provider
+      value={{ conteos: conteosNoLeidos, error: errorNoLeidos, actualizar: actualizarConteos }}
+    >
+      <div className="superadmin-shell">
       <aside className="sa-sidebar" aria-label="Navegación de Superadmin">
         <div className="sa-sidebar-heading">
           <span className="sa-sidebar-eyebrow">PLATAFORMA</span>
           <p className="sa-sidebar-title">Centro de control</p>
           <p className="sa-sidebar-description">Gestión de restaurantes y servicio</p>
         </div>
-        <NavegacionSuperAdmin id="superadmin-nav-desktop" />
+        <NavegacionSuperAdmin id="superadmin-nav-desktop" conteosNoLeidos={conteosNoLeidos} />
       </aside>
 
       <div className="superadmin-main">
@@ -263,12 +328,14 @@ export default function SuperAdminLayout() {
               <NavegacionSuperAdmin
                 id="superadmin-nav-mobile-links"
                 movil
+                conteosNoLeidos={conteosNoLeidos}
                 onNavigate={() => setMenuAbierto(false)}
               />
             </div>
           </aside>
         </div>
       )}
-    </div>
+      </div>
+    </SoporteNoLeidosContext.Provider>
   )
 }

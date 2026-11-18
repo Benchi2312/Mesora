@@ -22,6 +22,7 @@ import BandejaComercial from './BandejaComercial'
 import { etiquetaTipoTicket } from '../../domain/platform/soporte'
 import { useCurrentContext } from '../../lib/useCurrentContext'
 import ConversacionSoporte from '../../components/ConversacionSoporte'
+import { useSoporteNoLeidos } from './SoporteNoLeidosContext'
 
 const COLOR_PRIORIDAD: Record<TicketPrioridad, string> = {
   baja: 'border-surface-600 bg-surface-800 text-zinc-400',
@@ -65,6 +66,7 @@ function ResumenSoporte({ etiqueta, valor, alerta = false }: { etiqueta: string;
 
 function BandejaTickets() {
   const { usuario } = useCurrentContext()
+  const { conteos: conteosNoLeidos, error: errorConteos, actualizar: actualizarConteos } = useSoporteNoLeidos()
   const [searchParams] = useSearchParams()
   const ticketQuery = searchParams.get('ticket')
   const busquedaQuery = searchParams.get('busqueda') ?? ''
@@ -196,6 +198,15 @@ function BandejaTickets() {
           </ul>
         </div>}
       </section>
+
+      {errorConteos && (
+        <div className="aviso mb-5 border-amber-500/30 bg-amber-500/10 text-amber-300" role="status">
+          <p>No se pudo actualizar automáticamente el contador de mensajes no leídos.</p>
+          <button type="button" className="btn btn-outline mt-2 min-h-11 px-4" onClick={() => void actualizarConteos()}>
+            Actualizar contador
+          </button>
+        </div>
+      )}
       <div className="sa-controls mb-5 flex flex-wrap items-center gap-3">
         <input
           type="search"
@@ -296,11 +307,23 @@ function BandejaTickets() {
                 {filtrados.map((t) => (
                   <tr key={t.id} className="transition-colors hover:bg-surface-800/60">
                     <td className="px-4 py-3.5 font-mono text-xs font-semibold text-brand-400">
-                      {t.codigo}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{t.codigo}</span>
+                        {(conteosNoLeidos[t.id] ?? 0) > 0 && (
+                          <span className="sa-unread-badge" aria-label={`${conteosNoLeidos[t.id]} mensajes no leídos en ${t.codigo}`}>
+                            {conteosNoLeidos[t.id]} sin leer
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3.5">
                       <p className="font-semibold text-zinc-100">{t.asunto}</p>
                       <p className="max-w-xs truncate text-xs text-zinc-500">{etiquetaTipoTicket(t.tipo ?? 'error')} · {t.descripcion}</p>
+                      {(conteosNoLeidos[t.id] ?? 0) > 0 && (
+                        <span className="mt-1 inline-flex rounded-full border border-brand-500/40 bg-brand-500/10 px-2 py-0.5 text-xs font-semibold text-brand-400">
+                          {conteosNoLeidos[t.id]} mensajes no leídos
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3.5 text-zinc-300">
                       {nombreRestaurante(t.restaurante_id) ?? '—'}
@@ -419,7 +442,12 @@ function BandejaTickets() {
               labelGuardar="Guardar cambios"
             />
           </form>
-          <ConversacionSoporte ticket={editando.ticket} autorId={usuario?.id ?? null} superAdmin />
+          <ConversacionSoporte
+            ticket={editando.ticket}
+            autorId={usuario?.id ?? null}
+            superAdmin
+            onMensajesLeidos={actualizarConteos}
+          />
         </Modal>
       )}
     </div>
