@@ -11,6 +11,9 @@ import { createServer } from 'vite'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { MemoryRouter } from 'react-router-dom'
 
 const RAIZ = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 
@@ -111,6 +114,13 @@ const {
 } = await servidor.ssrLoadModule('/src/lib/usuarios.ts')
 const { suSuscripcionVencida, useAuthStore } = await servidor.ssrLoadModule('/src/store/auth.ts')
 const { filtrarPersonal } = await servidor.ssrLoadModule('/src/domain/security/personal.ts')
+const {
+  aplicarLecturasMensajesSoporte,
+  idsMensajesSoporteNoLeidos,
+  mapaConteosSoporteNoLeidos,
+  totalSoporteNoLeidos,
+} = await servidor.ssrLoadModule('/src/domain/platform/soporteMensajes.ts')
+const { NavegacionSuperAdmin } = await servidor.ssrLoadModule('/src/pages/superadmin/SuperAdminLayout.tsx')
 const { cantidadConNombre, resultadosEncontrados } = await servidor.ssrLoadModule('/src/lib/plural.ts')
 const { presentarAuditoria, textoReciboInterno } = await servidor.ssrLoadModule('/src/domain/platform/presentarAuditoria.ts')
 // Lógica pura del panel "Estadísticas" del super admin.
@@ -3314,6 +3324,53 @@ check(
     ) &&
     hayFiltrosTickets({ ...CRITERIOS_TICKETS_VACIOS, restaurante: RID25 }) &&
     !hayFiltrosTickets(CRITERIOS_TICKETS_VACIOS),
+)
+
+const mensajesNoLeidosQA = [
+  { id: 'm-a-1', ticket_id: 'ticket-restaurante-a', autor_id: 'admin-a', autor_super_admin: false, mensaje: 'Consulta 1', created_at: '2026-11-18T10:00:00Z', leido_superadmin_at: null, leido_superadmin_por: null },
+  { id: 'm-a-2', ticket_id: 'ticket-restaurante-a', autor_id: 'admin-a', autor_super_admin: false, mensaje: 'Consulta 2', created_at: '2026-11-18T10:01:00Z', leido_superadmin_at: null, leido_superadmin_por: null },
+  { id: 'm-a-sa', ticket_id: 'ticket-restaurante-a', autor_id: SUPER25.id, autor_super_admin: true, mensaje: 'Respuesta', created_at: '2026-11-18T10:02:00Z', leido_superadmin_at: null, leido_superadmin_por: null },
+  { id: 'm-b-1', ticket_id: 'ticket-restaurante-b', autor_id: 'admin-b', autor_super_admin: false, mensaje: 'Otro restaurante', created_at: '2026-11-18T10:03:00Z', leido_superadmin_at: null, leido_superadmin_por: null },
+]
+const idsNoLeidosQA = idsMensajesSoporteNoLeidos(mensajesNoLeidosQA)
+const conteosNoLeidosQA = mapaConteosSoporteNoLeidos([
+  { ticket_id: 'ticket-restaurante-a', cantidad: 2 },
+  { ticket_id: 'ticket-restaurante-b', cantidad: 1 },
+])
+const vistaNavegacionSoporteQA = renderToStaticMarkup(createElement(
+  MemoryRouter,
+  { initialEntries: ['/super-admin/soporte'] },
+  createElement(NavegacionSuperAdmin, { id: 'nav-qa', conteosNoLeidos: conteosNoLeidosQA }),
+))
+check(
+  '25q3 · dos mensajes individuales generan el conteo de conversación y el menú muestra el total 3',
+  idsNoLeidosQA.length === 3 && idsNoLeidosQA.slice(0, 2).join(',') === 'm-a-1,m-a-2' &&
+    conteosNoLeidosQA['ticket-restaurante-a'] === 2 && totalSoporteNoLeidos(conteosNoLeidosQA) === 3 &&
+    vistaNavegacionSoporteQA.includes('3') && vistaNavegacionSoporteQA.includes('3 mensajes no leídos'),
+)
+const leidosTicketAQA = aplicarLecturasMensajesSoporte(
+  mensajesNoLeidosQA,
+  idsNoLeidosQA.slice(0, 2).map((mensaje_id) => ({ mensaje_id, leido_at: '2026-11-18T10:05:00Z' })),
+  SUPER25.id,
+)
+check(
+  '25q4 · abrir conversación marca solo sus dos mensajes, conserva respuestas del superadmin y restaura el contador a 0',
+  leidosTicketAQA.filter((m) => !m.autor_super_admin && m.ticket_id === 'ticket-restaurante-a' && m.leido_superadmin_at === null).length === 0 &&
+    leidosTicketAQA.find((m) => m.id === 'm-a-sa')?.leido_superadmin_at === null &&
+    mapaConteosSoporteNoLeidos([{ ticket_id: 'ticket-restaurante-b', cantidad: 1 }])['ticket-restaurante-a'] === undefined,
+)
+const conteosRecargadosQA = mapaConteosSoporteNoLeidos([
+  { ticket_id: 'ticket-restaurante-b', cantidad: 1 },
+  { ticket_id: 'ticket-restaurante-b', cantidad: 1 },
+])
+const conteosConMensajeNuevoQA = mapaConteosSoporteNoLeidos([
+  { ticket_id: 'ticket-restaurante-a', cantidad: 1 },
+  { ticket_id: 'ticket-restaurante-b', cantidad: 1 },
+])
+check(
+  '25q5 · recarga reemplaza el estado sin duplicar; un mensaje posterior vuelve a sumar 1 por ticket',
+  conteosRecargadosQA['ticket-restaurante-b'] === 1 && totalSoporteNoLeidos(conteosRecargadosQA) === 1 &&
+    conteosConMensajeNuevoQA['ticket-restaurante-a'] === 1 && totalSoporteNoLeidos(conteosConMensajeNuevoQA) === 2,
 )
 
 // -- Configuración global ---------------------------------------------------
