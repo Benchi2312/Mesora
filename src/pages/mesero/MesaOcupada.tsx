@@ -16,7 +16,16 @@ import {
 import { mensajeOperacion } from '../../domain/security/mensajeOperacion'
 import { errorAlAnularItem } from '../../domain/security/autorizacion'
 import { ejecutarAnulacionItem } from '../../domain/security/anulacionItem'
-import { evaluarTrasladoConsumo, ejecutarTrasladoConReconciliacion, type ObservacionTrasladoConsumo } from '../../domain/restaurant/trasladoConsumo'
+import {
+  esErrorDestinoOcupadoTraslado,
+  esErrorPinIncorrectoTraslado,
+  evaluarTrasladoConsumo,
+  ejecutarTrasladoConReconciliacion,
+  mensajeDestinoNoDisponible,
+  validarPrecondicionesTraslado,
+  type EstadoPrevalidacionTraslado,
+  type ObservacionTrasladoConsumo,
+} from '../../domain/restaurant/trasladoConsumo'
 import Precuenta from '../../components/Precuenta'
 import type { Zona } from '../../types/database'
 
@@ -129,8 +138,10 @@ export default function MesaOcupada({
   const [errorOperacion, setErrorOperacion] = useState<string | null>(null)
   const [cargandoOpcionesMesa, setCargandoOpcionesMesa] = useState(false)
   const [confirmandoOperacion, setConfirmandoOperacion] = useState(false)
+  const [prevalidandoTraslado, setPrevalidandoTraslado] = useState(false)
   // El servidor vuelve a validar el PIN en las operaciones sensibles.
-  const { pin, setPin, requierePin, cargando: cargandoPin } = usePinAutorizacion(anulando || operacionMesa ? restaurante?.id : null)
+  const debeConsultarPin = Boolean(anulando || (operacionMesa && (operacionMesa === 'pasar-mesero' || confirmandoOperacion)))
+  const { pin, setPin, requierePin, cargando: cargandoPin } = usePinAutorizacion(debeConsultarPin ? restaurante?.id : null)
   const meseroResponsable = meseros.find((m) => m.id === meseroResponsableId)
   const meserosDisponibles = meseros.filter((m) => m.id !== meseroResponsableId)
   const asignadaAOtro = usuario?.rol === 'mesero' && Boolean(meseroResponsableId) && meseroResponsableId !== usuario?.id
@@ -157,7 +168,7 @@ export default function MesaOcupada({
       setMeseros((usuarios.data ?? []).filter((u) => u.activo !== false && u.rol === 'mesero'))
       if (mesasActualizadas) {
         const listaMesas = mesasActualizadas.data ?? []
-        setMesasLibres(listaMesas.filter((m) => m.id !== mesa.id && m.estado === 'libre'))
+        setMesasLibres(listaMesas.filter((m) => m.id !== mesa.id && m.estado === 'libre' && !m.mesero_responsable_id))
         setMeseroResponsableId(listaMesas.find((m) => m.id === mesa.id)?.mesero_responsable_id ?? mesa.mesero_responsable_id ?? null)
       }
       setOperacionMesa(operacion)
@@ -182,7 +193,7 @@ export default function MesaOcupada({
       const listaMeseros = (uRes.data ?? []).filter((u) => u.activo !== false)
       const listaMesas = mRes.data ?? []
       setMeseros(listaMeseros)
-      setMesasLibres(listaMesas.filter((m) => m.id !== mesa.id && m.estado === 'libre'))
+      setMesasLibres(listaMesas.filter((m) => m.id !== mesa.id && m.estado === 'libre' && !m.mesero_responsable_id))
       setZonas(zRes.data ?? [])
       setMeseroResponsableId(listaMesas.find((m) => m.id === mesa.id)?.mesero_responsable_id ?? mesa.mesero_responsable_id ?? null)
       setErrorOperacion(null)
@@ -197,7 +208,7 @@ export default function MesaOcupada({
   /** Evita escribir estado si la pantalla ya se cerró (o si cambió la mesa). */
   const vivo = useRef(true)
 
-  async function observarTraslado(traslado: TrasladoPendiente): Promise<ObservacionTrasladoConsumo> {
+  async function leerEstadoTraslado(traslado: Pick<TrasladoPendiente, 'restauranteId' | 'origenId' | 'destinoId'>) {
     const api = getApi()
     try {
       const [mesasRes, origenRes, destinoRes] = await Promise.all([
@@ -206,20 +217,58 @@ export default function MesaOcupada({
         api.getPedidosDeMesa(traslado.restauranteId, traslado.destinoId),
       ])
       if (mesasRes.error || origenRes.error || destinoRes.error || !mesasRes.data || !origenRes.data || !destinoRes.data) {
-        return { ok: false }
+        return { mesas: null, observacion: { ok: false } satisfies ObservacionTrasladoConsumo }
       }
       const origen = mesasRes.data.find((m) => m.id === traslado.origenId)
       const destino = mesasRes.data.find((m) => m.id === traslado.destinoId)
-      if (!origen || !destino) return { ok: false }
+      if (!origen || !destino) return { mesas: mesasRes.data, observacion: { ok: false } satisfies ObservacionTrasladoConsumo }
       return {
-        ok: true,
-        origenEstado: origen.estado,
-        destinoEstado: destino.estado,
-        pedidosOrigen: origenRes.data.map(({ id }) => ({ id })),
-        pedidosDestino: destinoRes.data.map(({ id }) => ({ id })),
+        mesas: mesasRes.data,
+        observacion: {
+          ok: true,
+          origenEstado: origen.estado,
+          destinoEstado: destino.estado,
+          destinoResponsableId: destino.mesero_responsable_id,
+          pedidosOrigen: origenRes.data.map(({ id }) => ({ id })),
+          pedidosDestino: destinoRes.data.map(({ id }) => ({ id })),
+        } satisfies ObservacionTrasladoConsumo,
       }
     } catch {
-      return { ok: false }
+      return { mesas: null, observacion: { ok: false } satisfies ObservacionTrasladoConsumo }
+    }
+  }
+
+  async function observarTraslado(traslado: TrasladoPendiente): Promise<ObservacionTrasladoConsumo> {
+    return (await leerEstadoTraslado(traslado)).observacion
+  }
+
+  function aplicarMesasActualizadas(mesas: readonly Mesa[] | null) {
+    if (!mesas) return
+    setMesasLibres(mesas.filter((m) => m.id !== mesa.id && m.estado === 'libre' && !m.mesero_responsable_id))
+  }
+
+  async function prevalidarTraslado(destinoId: string, pedidoIds: readonly string[]) {
+    if (!restaurante) return { estado: 'incierto' as EstadoPrevalidacionTraslado, destinoNombre: null as string | null }
+    const lectura = await leerEstadoTraslado({ restauranteId: restaurante.id, origenId: mesa.id, destinoId })
+    aplicarMesasActualizadas(lectura.mesas)
+    const destino = lectura.mesas?.find((fila) => fila.id === destinoId)
+    return {
+      estado: validarPrecondicionesTraslado(pedidoIds, lectura.observacion),
+      destinoNombre: destino?.nombre ?? null,
+    }
+  }
+
+  function explicarPrevalidacion(estado: EstadoPrevalidacionTraslado, destinoNombre: string | null) {
+    setConfirmandoOperacion(false)
+    setPin('')
+    if (estado === 'destino_no_disponible') {
+      setMesaSeleccionada('')
+      setErrorOperacion(mensajeDestinoNoDisponible(destinoNombre ?? 'seleccionada'))
+    } else if (estado === 'origen_cambio') {
+      setErrorOperacion('La mesa de origen cambió o sus comandas ya no coinciden. Actualiza las mesas antes de continuar.')
+      void cargar(true)
+    } else if (estado === 'incierto') {
+      setErrorOperacion('No se pudo verificar el estado actual de ambas mesas. Actualízalas antes de continuar.')
     }
   }
 
@@ -452,6 +501,13 @@ export default function MesaOcupada({
         pedidoIds,
         iniciadoAt: new Date().toISOString(),
       }
+      setPrevalidandoTraslado(true)
+      const prevalidacion = await prevalidarTraslado(destino.id, pedidoIds)
+      setPrevalidandoTraslado(false)
+      if (prevalidacion.estado !== 'disponible') {
+        explicarPrevalidacion(prevalidacion.estado, prevalidacion.destinoNombre ?? destino.nombre)
+        return
+      }
       guardarTrasladoPendiente(traslado)
       const resultado = await ejecutarTrasladoConReconciliacion(
         () => api.moverConsumoMesa(restaurante.id, mesa.id, destino.id, requierePin ? pin : null, motivo),
@@ -465,6 +521,23 @@ export default function MesaOcupada({
       }
       if (resultado.estado === 'rechazado') {
         limpiarTrasladoPendiente(traslado)
+        if (esErrorPinIncorrectoTraslado(resultado.error)) {
+          setPin('')
+          setErrorOperacion('PIN incorrecto. No se realizó el traslado')
+          return
+        }
+        if (esErrorDestinoOcupadoTraslado(resultado.error)) {
+          const estadoActual = await prevalidarTraslado(destino.id, pedidoIds)
+          setPin('')
+          setConfirmandoOperacion(false)
+          if (estadoActual.estado === 'destino_no_disponible') {
+            setMesaSeleccionada('')
+            setErrorOperacion(mensajeDestinoNoDisponible(estadoActual.destinoNombre ?? destino.nombre))
+          } else {
+            setErrorOperacion('El estado de la mesa cambió durante la operación. Actualiza las mesas antes de volver a intentarlo.')
+          }
+          return
+        }
         setErrorOperacion(mensajeOperacion(resultado.error, 'No se pudo completar el traslado. Revisa los datos e inténtalo de nuevo.'))
         return
       }
@@ -474,8 +547,38 @@ export default function MesaOcupada({
     } catch {
       setErrorOperacion(MENSAJE_TRASLADO_INCIERTO)
     } finally {
+      setPrevalidandoTraslado(false)
       guardandoOperacionRef.current = false
       setGuardandoOperacion(false)
+    }
+  }
+
+  async function revisarYConfirmarOperacion() {
+    if (operacionMesa !== 'mover-consumo') {
+      setErrorOperacion(null)
+      setConfirmandoOperacion(true)
+      return
+    }
+    if (!restaurante || !mesaSeleccionada || pedidos.length === 0 || guardandoOperacionRef.current) return
+    guardandoOperacionRef.current = true
+    setPrevalidandoTraslado(true)
+    setErrorOperacion(null)
+    try {
+      const destino = mesasLibres.find((fila) => fila.id === mesaSeleccionada)
+      if (!destino) {
+        setErrorOperacion('Elige una mesa disponible para recibir el consumo.')
+        return
+      }
+      const estado = await prevalidarTraslado(destino.id, pedidos.map(({ id }) => id))
+      if (estado.estado !== 'disponible') {
+        explicarPrevalidacion(estado.estado, estado.destinoNombre ?? destino.nombre)
+        return
+      }
+      setErrorOperacion(null)
+      setConfirmandoOperacion(true)
+    } finally {
+      guardandoOperacionRef.current = false
+      setPrevalidandoTraslado(false)
     }
   }
 
@@ -744,7 +847,6 @@ export default function MesaOcupada({
                 maxLength={300}
                 placeholder={operacionMesa === 'pasar-mesero' ? 'Ej. Cambio de turno' : 'Ej. Cliente pidió cambiar de mesa'}
               />
-              {requierePin ? <CampoPin pin={pin} onChange={setPin} etiqueta="PIN del administrador o gerente" /> : null}
             </>
           ) : trasladoPendiente ? (
             <div className="rounded-xl border border-brand-500/30 bg-brand-500/10 p-4 text-sm leading-relaxed text-zinc-200">
@@ -755,31 +857,34 @@ export default function MesaOcupada({
               </p>
             </div>
           ) : (
-            <ResumenConfirmacionAccion pinVerificando={cargandoPin} resumen={operacionMesa === 'pasar-mesero'
-              ? confirmarCambioMesero({
-                mesa: mesa.nombre,
-                anterior: meseroResponsable?.nombre ?? 'Sin asignar',
-                nuevo: meseros.find((m) => m.id === meseroSeleccionado)?.nombre ?? 'Mesero seleccionado',
-                comandas: pedidos.length,
-                importe: fmtPEN(total),
-                motivo: motivoOperacion.trim(),
-                requierePin,
-              })
-              : confirmarMovimientoConsumo({
-                origen: mesa.nombre,
-                destino: mesasLibres.find((m) => m.id === mesaSeleccionada)?.nombre ?? 'Mesa seleccionada',
-                comandas: pedidos.length,
-                importe: fmtPEN(total),
-                motivo: motivoOperacion.trim(),
-                requierePin,
-              })} />
+            <>
+              <ResumenConfirmacionAccion pinVerificando={cargandoPin} resumen={operacionMesa === 'pasar-mesero'
+                ? confirmarCambioMesero({
+                  mesa: mesa.nombre,
+                  anterior: meseroResponsable?.nombre ?? 'Sin asignar',
+                  nuevo: meseros.find((m) => m.id === meseroSeleccionado)?.nombre ?? 'Mesero seleccionado',
+                  comandas: pedidos.length,
+                  importe: fmtPEN(total),
+                  motivo: motivoOperacion.trim(),
+                  requierePin,
+                })
+                : confirmarMovimientoConsumo({
+                  origen: mesa.nombre,
+                  destino: mesasLibres.find((m) => m.id === mesaSeleccionada)?.nombre ?? 'Mesa seleccionada',
+                  comandas: pedidos.length,
+                  importe: fmtPEN(total),
+                  motivo: motivoOperacion.trim(),
+                  requierePin,
+                })} />
+              {requierePin ? <CampoPin pin={pin} onChange={setPin} etiqueta="PIN del administrador o gerente" /> : null}
+            </>
           )}
           {errorOperacion && !trasladoPendiente ? <div role="alert" className="aviso mt-4 border-danger-500/40 bg-danger-500/10 text-danger-500">{errorOperacion}</div> : null}
           {trasladoPendiente ? <div role="status" aria-live="polite" className="sr-only">{MENSAJE_TRASLADO_INCIERTO}</div> : null}
           {guardandoOperacion ? (
             <div role="status" aria-live="polite" className="aviso mt-4 border-brand-500/30 bg-brand-500/10 text-brand-300"><Spinner className="mr-2 h-4 w-4 align-middle" />Guardando el cambio de mesa…</div>
           ) : null}
-          {verificandoTraslado ? (
+          {verificandoTraslado || prevalidandoTraslado ? (
             <div role="status" aria-live="polite" className="aviso mt-4 border-brand-500/30 bg-brand-500/10 text-brand-300"><Spinner className="mr-2 h-4 w-4 align-middle" />Verificando el estado de ambas mesas…</div>
           ) : null}
           <div className="mt-6 flex flex-wrap justify-end gap-2">
@@ -794,7 +899,7 @@ export default function MesaOcupada({
                 ) : (
                   <button
                     type="button"
-                    disabled={guardandoOperacion || verificandoTraslado || cargandoPin || (requierePin && pin.length === 0)}
+                    disabled={guardandoOperacion || verificandoTraslado || prevalidandoTraslado || cargandoPin || (requierePin && pin.length === 0)}
                     onClick={() => void confirmarOperacionMesa()}
                     className="btn min-h-11 px-4"
                   >
@@ -805,8 +910,8 @@ export default function MesaOcupada({
             ) : (
               <button
                 type="button"
-                disabled={guardandoOperacion || cargandoPin || motivoOperacion.trim().length < 5 || (requierePin && pin.length === 0) || (operacionMesa === 'pasar-mesero' ? !meseroSeleccionado : !mesaSeleccionada)}
-                onClick={() => { setErrorOperacion(null); setConfirmandoOperacion(true) }}
+                disabled={guardandoOperacion || prevalidandoTraslado || (operacionMesa === 'pasar-mesero' && cargandoPin) || motivoOperacion.trim().length < 5 || (operacionMesa === 'pasar-mesero' && requierePin && pin.length === 0) || (operacionMesa === 'pasar-mesero' ? !meseroSeleccionado : !mesaSeleccionada)}
+                onClick={() => void revisarYConfirmarOperacion()}
                 className="btn min-h-11 px-4"
               >
                 Revisar y confirmar

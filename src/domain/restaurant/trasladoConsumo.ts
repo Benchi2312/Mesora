@@ -2,16 +2,65 @@ export type ObservacionTrasladoConsumo = {
   ok: boolean
   origenEstado?: string
   destinoEstado?: string
+  destinoResponsableId?: string | null
   pedidosOrigen?: readonly { id: string }[]
   pedidosDestino?: readonly { id: string }[]
 }
 
 export type EstadoTrasladoConsumo = 'confirmado' | 'sin_cambios' | 'incierto'
+export type EstadoPrevalidacionTraslado = 'disponible' | 'destino_no_disponible' | 'origen_cambio' | 'incierto'
 
 export type ResultadoIntentoTraslado =
   | { estado: 'confirmado' }
   | { estado: 'rechazado'; error: string }
   | { estado: 'pendiente' }
+
+/**
+ * Valida una lectura reciente antes de mostrar la confirmación y justo antes
+ * de invocar la RPC. No basta con el estado que quedó en el selector.
+ */
+export function validarPrecondicionesTraslado(
+  pedidoIds: readonly string[],
+  observacion: ObservacionTrasladoConsumo,
+): EstadoPrevalidacionTraslado {
+  if (!observacion.ok || pedidoIds.length === 0 || !observacion.pedidosOrigen || !observacion.pedidosDestino) {
+    return 'incierto'
+  }
+
+  if (
+    observacion.destinoEstado !== 'libre' ||
+    observacion.destinoResponsableId != null ||
+    observacion.pedidosDestino.length > 0
+  ) {
+    return 'destino_no_disponible'
+  }
+
+  const origenIds = observacion.pedidosOrigen.map(({ id }) => id)
+  const esperaba = new Set(pedidoIds)
+  if (
+    observacion.origenEstado !== 'ocupada' ||
+    origenIds.length !== esperaba.size ||
+    origenIds.some((id) => !esperaba.has(id))
+  ) {
+    return 'origen_cambio'
+  }
+
+  return 'disponible'
+}
+
+export function esErrorPinIncorrectoTraslado(error: string): boolean {
+  return /(?:pin\s+de\s+autorizaci[oó]n\s+incorrecto|pin\s+no\s+coincide)/i.test(error)
+}
+
+export function esErrorDestinoOcupadoTraslado(error: string): boolean {
+  return /mesa de destino debe estar libre|mesa de destino.*consumo pendiente|mesa de destino.*responsable/i.test(error)
+}
+
+export function mensajeDestinoNoDisponible(nombre: string): string {
+  const nombreMesa = nombre.trim()
+  const prefijo = /^mesa\b/i.test(nombreMesa) ? '' : 'Mesa '
+  return `${prefijo}${nombreMesa} no está disponible porque tiene consumo pendiente. Elige otra mesa`
+}
 
 /**
  * Compara las comandas que se iban a mover con una lectura nueva del servidor.
@@ -81,6 +130,38 @@ export async function ejecutarTrasladoConReconciliacion(
   }
 
   if (!respuesta.error) return { estado: 'confirmado' }
+
+  // Un PIN inválido es un rechazo de negocio conocido. La RPC valida antes de
+  // escribir y su transacción no puede dejar un traslado parcial. Intentamos
+  // releer para que la interfaz actualice el estado, pero nunca lo clasificamos
+  // como error de transporte ni dejamos el modal bloqueado como incierto.
+  if (esErrorPinIncorrectoTraslado(respuesta.error)) {
+    try {
+      const lectura = await observar()
+      if (evaluarTrasladoConsumo(pedidoIds, lectura) === 'confirmado') {
+        return { estado: 'confirmado' }
+      }
+    } catch {
+      // El error del PIN sigue siendo determinista aunque la lectura no responda.
+    }
+    return { estado: 'rechazado', error: respuesta.error }
+  }
+
+  // La RPC verifica disponibilidad dentro del mismo lock transaccional antes
+  // de validar el PIN o tocar pedidos. Si detecta una mesa destino ocupada,
+  // releemos para actualizar el selector, pero no tratamos el rechazo como una
+  // operación de resultado incierto.
+  if (esErrorDestinoOcupadoTraslado(respuesta.error)) {
+    try {
+      const lectura = await observar()
+      if (evaluarTrasladoConsumo(pedidoIds, lectura) === 'confirmado') {
+        return { estado: 'confirmado' }
+      }
+    } catch {
+      // El rechazo de validación SQL ya garantiza rollback transaccional.
+    }
+    return { estado: 'rechazado', error: respuesta.error }
+  }
 
   try {
     const lectura = await observar()

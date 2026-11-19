@@ -2841,8 +2841,6 @@ function crearApiDesde(
       if (!actor || !['mesero', 'admin_restaurante'].includes(actor.rol)) {
         return { data: null, error: 'Solo el mesero responsable o el administrador puede mover este consumo.' }
       }
-      const errorPin = errorDePin(ds, rid, pin)
-      if (errorPin) return { data: null, error: errorPin }
       const origen = ds.mesas.find((m) => m.id === origenId && m.restaurante_id === rid)
       const destino = ds.mesas.find((m) => m.id === destinoId && m.restaurante_id === rid)
       if (!origen || !destino) return { data: null, error: 'Una de las mesas no pertenece al restaurante.' }
@@ -2860,6 +2858,10 @@ function crearApiDesde(
           return { data: null, error: 'Solo el administrador puede mover esta mesa porque tiene comandas de otro mesero.' }
         }
       }
+      // Igual que la RPC: primero se valida bajo locks el estado de ambas
+      // mesas; solo si el destino está disponible se comprueba el PIN.
+      const errorPin = errorDePin(ds, rid, pin)
+      if (errorPin) return { data: null, error: errorPin }
       const ahora = new Date().toISOString()
       for (const pedido of pedidos) {
         pedido.mesa_id = destinoId

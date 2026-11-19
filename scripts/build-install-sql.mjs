@@ -131,6 +131,7 @@ const ORDEN = [
   '../migrations/20261116033329_reportes_admin_detallados_restaurante.sql',
   '../migrations/20261116090000_reportes_reembolsos_por_dia.sql',
   '../migrations/20261118045754_soporte_mensajes_no_leidos.sql',
+  '../migrations/20261119052736_ignorar_comandas_anuladas_al_mover_consumo.sql',
 ]
 
 const fallos = []
