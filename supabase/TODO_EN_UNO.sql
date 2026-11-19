@@ -7027,7 +7027,7 @@ begin
        and exists (select 1 from public.pedido_items pi where pi.pedido_id = p.id and pi.anulado is not true)
        and not exists (
          select 1 from public.cuenta_pedidos cp join public.cuentas c on c.id = cp.cuenta_id
-          where cp.pedido_id = p.id and c.estado = 'pagada'
+          where cp.pedido_id = p.id and c.estado in ('pagada', 'anulada')
        )
   ) into v_hay_consumo;
   if v_hay_consumo then
@@ -7042,7 +7042,7 @@ begin
        and exists (select 1 from public.pedido_items pi where pi.pedido_id = p.id and pi.anulado is not true)
        and not exists (
          select 1 from public.cuenta_pedidos cp join public.cuentas c on c.id = cp.cuenta_id
-          where cp.pedido_id = p.id and c.estado = 'pagada'
+          where cp.pedido_id = p.id and c.estado in ('pagada', 'anulada')
        )
   ) into v_hay_consumo;
   if not v_hay_consumo then
@@ -7062,7 +7062,7 @@ begin
          and exists (select 1 from public.pedido_items pi where pi.pedido_id = p.id and pi.anulado is not true)
          and not exists (
            select 1 from public.cuenta_pedidos cp join public.cuentas c on c.id = cp.cuenta_id
-            where cp.pedido_id = p.id and c.estado = 'pagada'
+            where cp.pedido_id = p.id and c.estado in ('pagada', 'anulada')
          )
     ) into v_hay_comanda_ajena;
     select exists (
@@ -7074,7 +7074,7 @@ begin
          and exists (select 1 from public.pedido_items pi where pi.pedido_id = p.id and pi.anulado is not true)
          and not exists (
            select 1 from public.cuenta_pedidos cp join public.cuentas c on c.id = cp.cuenta_id
-            where cp.pedido_id = p.id and c.estado = 'pagada'
+            where cp.pedido_id = p.id and c.estado in ('pagada', 'anulada')
          )
     ) into v_hay_comanda_propia;
     if v_origen.mesero_responsable_id is null and (v_hay_comanda_ajena or not v_hay_comanda_propia) then
@@ -7094,7 +7094,7 @@ begin
        and exists (select 1 from public.pedido_items pi where pi.pedido_id = p.id and pi.anulado is not true)
        and not exists (
          select 1 from public.cuenta_pedidos cp join public.cuentas c on c.id = cp.cuenta_id
-          where cp.pedido_id = p.id and c.estado = 'pagada'
+          where cp.pedido_id = p.id and c.estado in ('pagada', 'anulada')
        )
      order by p.created_at
      limit 1;
@@ -7108,7 +7108,7 @@ begin
      and exists (select 1 from public.pedido_items pi where pi.pedido_id = p.id and pi.anulado is not true)
      and not exists (
        select 1 from public.cuenta_pedidos cp join public.cuentas c on c.id = cp.cuenta_id
-        where cp.pedido_id = p.id and c.estado = 'pagada'
+        where cp.pedido_id = p.id and c.estado in ('pagada', 'anulada')
      );
   get diagnostics v_pedidos_movidos = row_count;
   if v_pedidos_movidos = 0 then
@@ -7636,7 +7636,7 @@ begin
        and exists (select 1 from public.pedido_items pi where pi.pedido_id = p.id and pi.anulado is not true)
        and not exists (
          select 1 from public.cuenta_pedidos cp join public.cuentas c on c.id = cp.cuenta_id
-          where cp.pedido_id = p.id and c.estado = 'pagada'
+          where cp.pedido_id = p.id and c.estado in ('pagada', 'anulada')
        )
   ) into v_hay_consumo;
   if v_hay_consumo then
@@ -7651,7 +7651,7 @@ begin
        and exists (select 1 from public.pedido_items pi where pi.pedido_id = p.id and pi.anulado is not true)
        and not exists (
          select 1 from public.cuenta_pedidos cp join public.cuentas c on c.id = cp.cuenta_id
-          where cp.pedido_id = p.id and c.estado = 'pagada'
+          where cp.pedido_id = p.id and c.estado in ('pagada', 'anulada')
        )
   ) into v_hay_consumo;
   if not v_hay_consumo then
@@ -7671,7 +7671,7 @@ begin
          and exists (select 1 from public.pedido_items pi where pi.pedido_id = p.id and pi.anulado is not true)
          and not exists (
            select 1 from public.cuenta_pedidos cp join public.cuentas c on c.id = cp.cuenta_id
-            where cp.pedido_id = p.id and c.estado = 'pagada'
+            where cp.pedido_id = p.id and c.estado in ('pagada', 'anulada')
          )
     ) into v_hay_comanda_ajena;
     select exists (
@@ -7683,7 +7683,7 @@ begin
          and exists (select 1 from public.pedido_items pi where pi.pedido_id = p.id and pi.anulado is not true)
          and not exists (
            select 1 from public.cuenta_pedidos cp join public.cuentas c on c.id = cp.cuenta_id
-            where cp.pedido_id = p.id and c.estado = 'pagada'
+            where cp.pedido_id = p.id and c.estado in ('pagada', 'anulada')
          )
     ) into v_hay_comanda_propia;
     if v_origen.mesero_responsable_id is null and (v_hay_comanda_ajena or not v_hay_comanda_propia) then
@@ -7705,7 +7705,7 @@ begin
        and exists (select 1 from public.pedido_items pi where pi.pedido_id = p.id and pi.anulado is not true)
        and not exists (
          select 1 from public.cuenta_pedidos cp join public.cuentas c on c.id = cp.cuenta_id
-          where cp.pedido_id = p.id and c.estado = 'pagada'
+          where cp.pedido_id = p.id and c.estado in ('pagada', 'anulada')
        )
      order by p.created_at
      limit 1;
@@ -7721,7 +7721,7 @@ begin
      and exists (select 1 from public.pedido_items pi where pi.pedido_id = p.id and pi.anulado is not true)
      and not exists (
        select 1 from public.cuenta_pedidos cp join public.cuentas c on c.id = cp.cuenta_id
-        where cp.pedido_id = p.id and c.estado = 'pagada'
+        where cp.pedido_id = p.id and c.estado in ('pagada', 'anulada')
      );
   get diagnostics v_pedidos_movidos = row_count;
   if v_pedidos_movidos = 0 then

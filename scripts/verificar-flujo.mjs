@@ -51,7 +51,13 @@ console.error = (...a) => {
   errorReal(...a)
 }
 const { getApi, esFalloDeRed, esModoLocal, apiMode, enDemo, reiniciarDemoDatos } = await servidor.ssrLoadModule('/src/lib/api.ts')
-const { ejecutarTrasladoConReconciliacion } = await servidor.ssrLoadModule('/src/domain/restaurant/trasladoConsumo.ts')
+const {
+  ejecutarTrasladoConReconciliacion,
+  validarPrecondicionesTraslado,
+  esErrorPinIncorrectoTraslado,
+  esErrorDestinoOcupadoTraslado,
+  mensajeDestinoNoDisponible,
+} = await servidor.ssrLoadModule('/src/domain/restaurant/trasladoConsumo.ts')
 const { localSeed, restablecerDatosLocal, cargarDatosLocal, localCredenciales, verificarCredencialLocal, PASSWORD_DE_PRUEBA } =
   await servidor.ssrLoadModule('/src/lib/localSeed.ts')
 const { mockZonas, mockRestaurante } = await servidor.ssrLoadModule('/src/lib/mockData.ts')
@@ -3799,6 +3805,10 @@ const auditoriaTraspasoQa = localSeed.auditLogs.find((l) => l.accion === 'mesa_t
 check('29d · el registro incluye Carlos, María y el motivo', auditoriaTraspasoQa?.actor_id === meseroCarlosQa.id && auditoriaTraspasoQa.detalle?.mesero_nuevo_id === meseroMariaQa.id && auditoriaTraspasoQa.detalle?.motivo === 'Cambio de turno' && localSeed.auditLogs.length === auditoriaAntesTraspasoQa + 1)
 apiMode.operadorId = meseroMariaQa.id
 const auditoriasAntesPinMaloMoverQa = localSeed.auditLogs.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaTraspasoQa.data.id).length
+const mesaDestinoOcupadaQa = await api.crearMesa(RID, { zona_id: zonaTraspasoQa.data.id, nombre: 'Mesa QA destino ocupada' })
+const pedidoDestinoOcupadoQa = await api.crearPedido(RID, mesaDestinoOcupadaQa.data.id, [pedir(prod('p-1'), 1)])
+const intentoDestinoOcupadoConPinMaloQa = await api.moverConsumoMesa(RID, mesaTraspasoQa.data.id, mesaDestinoOcupadaQa.data.id, '0000', 'No mover a mesa ocupada')
+check('29e0 · el destino inválido se rechaza antes de validar el PIN, sin cambiar mesas ni auditar', intentoDestinoOcupadoConPinMaloQa.error === 'La mesa de destino debe estar libre y sin consumo pendiente.' && localSeed.pedidos.find((p) => p.id === pedidoTraspasoQa.data).mesa_id === mesaTraspasoQa.data.id && localSeed.pedidos.find((p) => p.id === pedidoDestinoOcupadoQa.data).mesa_id === mesaDestinoOcupadaQa.data.id && localSeed.auditLogs.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaTraspasoQa.data.id).length === auditoriasAntesPinMaloMoverQa)
 const pinMaloMoverQa = await api.moverConsumoMesa(RID, mesaTraspasoQa.data.id, mesaDestinoQa.data.id, '0000', 'Cliente cambió de mesa')
 check('29e · error antes de guardar por PIN conserva origen y no crea auditoría', pinMaloMoverQa.error === MENSAJE_PIN_INCORRECTO && localSeed.pedidos.find((p) => p.id === pedidoTraspasoQa.data).mesa_id === mesaTraspasoQa.data.id && localSeed.auditLogs.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaTraspasoQa.data.id).length === auditoriasAntesPinMaloMoverQa)
 const movimientoCorrectoQa = await api.moverConsumoMesa(RID, mesaTraspasoQa.data.id, mesaDestinoQa.data.id, '4321', 'Cliente cambió de mesa')
@@ -3832,6 +3842,25 @@ const reintentoTrasladoIdempotente = await ejecutarTrasladoConReconciliacion(
 )
 check('29h · el reintento tras respuesta perdida se reconcilia como éxito sin segunda auditoría', reintentoTrasladoIdempotente.estado === 'confirmado' && localSeed.auditLogs.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaTraspasoQa.data.id).length === auditoriasAntesReintentoTraslado && localSeed.pedidos.find((p) => p.id === pedidoTraspasoQa.data)?.mesa_id === mesaDestinoQa.data.id)
 
+// Una cuenta anulada conserva las comandas históricas, pero no debe bloquear
+// una mesa libre ni confundirse con consumo disponible para mover.
+const mesaOrigenHistorialAnuladoQa = await api.crearMesa(RID, { zona_id: zonaTraspasoQa.data.id, nombre: 'Mesa QA origen con historial anulado' })
+const mesaDestinoHistorialAnuladoQa = await api.crearMesa(RID, { zona_id: zonaTraspasoQa.data.id, nombre: 'Mesa QA destino con historial anulado' })
+const pedidoOrigenHistorialAnuladoQa = await api.crearPedido(RID, mesaOrigenHistorialAnuladoQa.data.id, [pedir(prod('p-1'), 1)])
+const pedidoHistoricoAnuladoQa = await api.crearPedido(RID, mesaDestinoHistorialAnuladoQa.data.id, [pedir(prod('p-1'), 1)])
+const cuentaHistoricaAnuladaQa = `cuenta-anulada-${pedidoHistoricoAnuladoQa.data}`
+localSeed.pedidos.find((p) => p.id === pedidoHistoricoAnuladoQa.data).estado = 'entregado'
+localSeed.cuentas.push({ id: cuentaHistoricaAnuladaQa, restaurante_id: RID, mesa_id: mesaDestinoHistorialAnuladoQa.data.id, total: 10, estado: 'anulada', created_at: new Date().toISOString() })
+localSeed.cuentaPedidos.push({ cuenta_id: cuentaHistoricaAnuladaQa, pedido_id: pedidoHistoricoAnuladoQa.data, subtotal: 10 })
+const destinoHistorialAnulado = localSeed.mesas.find((m) => m.id === mesaDestinoHistorialAnuladoQa.data.id)
+destinoHistorialAnulado.estado = 'libre'
+destinoHistorialAnulado.mesero_responsable_id = null
+const pedidosAntesMovimientoHistorialAnulado = await api.getPedidosDeMesa(RID, mesaDestinoHistorialAnuladoQa.data.id)
+const auditoriasAntesMovimientoHistorialAnulado = localSeed.auditLogs.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaOrigenHistorialAnuladoQa.data.id).length
+const movimientoConHistorialAnuladoQa = await api.moverConsumoMesa(RID, mesaOrigenHistorialAnuladoQa.data.id, mesaDestinoHistorialAnuladoQa.data.id, '4321', 'Traslado con cuenta histórica anulada')
+const pedidosDespuesMovimientoHistorialAnulado = await api.getPedidosDeMesa(RID, mesaDestinoHistorialAnuladoQa.data.id)
+check('29h1 · historial vinculado a cuenta anulada no bloquea el destino libre ni reaparece como pendiente', pedidosAntesMovimientoHistorialAnulado.data.length === 0 && !movimientoConHistorialAnuladoQa.error && localSeed.pedidos.find((p) => p.id === pedidoOrigenHistorialAnuladoQa.data)?.mesa_id === mesaDestinoHistorialAnuladoQa.data.id && localSeed.pedidos.find((p) => p.id === pedidoHistoricoAnuladoQa.data)?.mesa_id === mesaDestinoHistorialAnuladoQa.data.id && pedidosDespuesMovimientoHistorialAnulado.data.length === 1 && pedidosDespuesMovimientoHistorialAnulado.data[0].id === pedidoOrigenHistorialAnuladoQa.data && localSeed.auditLogs.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaOrigenHistorialAnuladoQa.data.id).length === auditoriasAntesMovimientoHistorialAnulado + 1)
+
 const estadoLento = await ejecutarTrasladoConReconciliacion(
   async () => { await new Promise((resolve) => setTimeout(resolve, 80)); return { error: null } },
   async () => { throw new Error('No debe releer cuando la RPC confirmó') },
@@ -3864,6 +3893,27 @@ const errorAntesDeGuardar = await ejecutarTrasladoConReconciliacion(
   esFalloDeRed,
 )
 check('29k · error de validación previo al guardado conserva error solo al confirmar que no hubo cambios', errorAntesDeGuardar.estado === 'rechazado' && errorAntesDeGuardar.error === 'El PIN no coincide.')
+const observacionTrasladoDisponible = {
+  ok: true,
+  origenEstado: 'ocupada',
+  destinoEstado: 'libre',
+  destinoResponsableId: null,
+  pedidosOrigen: [{ id: 'pedido-preflight' }],
+  pedidosDestino: [],
+}
+check('29k2 · prevalidación permite mesa libre y comandas de origen intactas', validarPrecondicionesTraslado(['pedido-preflight'], observacionTrasladoDisponible) === 'disponible')
+check('29k3 · mesa ocupada se bloquea antes de solicitar PIN', validarPrecondicionesTraslado(['pedido-preflight'], { ...observacionTrasladoDisponible, destinoEstado: 'ocupada' }) === 'destino_no_disponible')
+check('29k4 · pedidos pendientes bloquean aunque la mesa figure libre', validarPrecondicionesTraslado(['pedido-preflight'], { ...observacionTrasladoDisponible, pedidosDestino: [{ id: 'pendiente-destino' }] }) === 'destino_no_disponible')
+check('29k5 · responsable asignado bloquea el destino', validarPrecondicionesTraslado(['pedido-preflight'], { ...observacionTrasladoDisponible, destinoResponsableId: 'mesero-destino' }) === 'destino_no_disponible')
+check('29k6 · una lectura desconocida o un origen cambiado no permite mover', validarPrecondicionesTraslado(['pedido-preflight'], { ...observacionTrasladoDisponible, pedidosOrigen: [{ id: 'pedido-nuevo' }] }) === 'origen_cambio' && validarPrecondicionesTraslado(['pedido-preflight'], { ...observacionTrasladoDisponible, ok: false }) === 'incierto')
+check('29k7 · nombre de destino produce el mensaje de bloqueo pedido', mensajeDestinoNoDisponible('Mesa 2') === 'Mesa 2 no está disponible porque tiene consumo pendiente. Elige otra mesa' && esErrorDestinoOcupadoTraslado('La mesa de destino debe estar libre y sin consumo pendiente.') && esErrorPinIncorrectoTraslado('El PIN no coincide.'))
+const pinInvalidoSinLectura = await ejecutarTrasladoConReconciliacion(
+  async () => ({ error: 'El PIN no coincide.' }),
+  async () => ({ ok: false }),
+  ['pedido-timeout'],
+  esFalloDeRed,
+)
+check('29k8 · PIN incorrecto sigue siendo rechazo claro aunque falle la lectura posterior', pinInvalidoSinLectura.estado === 'rechazado' && pinInvalidoSinLectura.error === 'El PIN no coincide.')
 const respuestaAmbiguaSinCambio = await ejecutarTrasladoConReconciliacion(
   async () => ({ error: 'La conexión se interrumpió; la solicitud pudo haberse completado.' }),
   async () => estadoAntesDeTimeout,

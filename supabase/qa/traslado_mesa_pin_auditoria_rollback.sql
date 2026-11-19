@@ -12,9 +12,16 @@ declare
   v_z uuid := gen_random_uuid();
   v_mesa_a uuid := gen_random_uuid();
   v_mesa_b uuid := gen_random_uuid();
+  v_mesa_c uuid := gen_random_uuid();
+  v_mesa_d uuid := gen_random_uuid();
   v_producto uuid := gen_random_uuid();
   v_pedido uuid := gen_random_uuid();
+  v_pedido_destino uuid := gen_random_uuid();
+  v_pedido_cuenta_anulada uuid := gen_random_uuid();
   v_item uuid := gen_random_uuid();
+  v_item_destino uuid := gen_random_uuid();
+  v_item_cuenta_anulada uuid := gen_random_uuid();
+  v_cuenta_anulada uuid := gen_random_uuid();
   v_denegado boolean;
 begin
   insert into auth.users(id) values(v_admin), (v_carlos), (v_maria), (v_otro_admin);
@@ -29,14 +36,32 @@ begin
   insert into public.zonas(id, restaurante_id, nombre) values(v_z, v_r, 'Salón QA');
   insert into public.mesas(id, restaurante_id, zona_id, nombre, estado, mesero_responsable_id)
     values(v_mesa_a, v_r, v_z, 'Mesa QA A', 'ocupada', v_carlos),
-          (v_mesa_b, v_r, v_z, 'Mesa QA B', 'libre', null);
+          (v_mesa_b, v_r, v_z, 'Mesa QA B', 'libre', null),
+          (v_mesa_c, v_r, v_z, 'Mesa QA C', 'ocupada', null),
+          (v_mesa_d, v_r, v_z, 'Mesa QA D', 'libre', null);
   insert into public.productos(id, restaurante_id, nombre, precio) values(v_producto, v_r, 'Producto QA', 10);
   insert into public.pedidos(id, restaurante_id, mesa_id, mesero_id) values(v_pedido, v_r, v_mesa_a, v_carlos);
   insert into public.pedido_items(id, pedido_id, producto_id, nombre_producto, cantidad, precio_unitario)
     values(v_item, v_pedido, v_producto, 'Producto QA', 1, 10);
+  insert into public.pedidos(id, restaurante_id, mesa_id, mesero_id) values(v_pedido_destino, v_r, v_mesa_c, v_carlos);
+  insert into public.pedido_items(id, pedido_id, producto_id, nombre_producto, cantidad, precio_unitario)
+    values(v_item_destino, v_pedido_destino, v_producto, 'Producto QA', 1, 10);
+  insert into public.pedidos(id, restaurante_id, mesa_id, mesero_id, estado)
+    values(v_pedido_cuenta_anulada, v_r, v_mesa_d, v_carlos, 'entregado');
+  insert into public.pedido_items(id, pedido_id, producto_id, nombre_producto, cantidad, precio_unitario)
+    values(v_item_cuenta_anulada, v_pedido_cuenta_anulada, v_producto, 'Producto QA histórico', 1, 10);
+  insert into public.cuentas(id, restaurante_id, mesa_id, total, metodo_pago, estado,
+    pagado_at, anulada_at, anulada_por, motivo_anulacion, numero)
+    values(v_cuenta_anulada, v_r, v_mesa_d, 10, 'efectivo', 'anulada', now(), now(), v_admin,
+      'Cuenta QA anulada antes del traslado', 'BQA-' || left(v_cuenta_anulada::text, 8));
+  insert into public.cuenta_pedidos(cuenta_id, pedido_id, subtotal)
+    values(v_cuenta_anulada, v_pedido_cuenta_anulada, 10);
 
   perform set_config('request.jwt.claim.sub', v_admin::text, true);
   execute 'set local role authenticated';
+  if jsonb_array_length(public.pedidos_pendientes_mesa(v_r, v_mesa_d)) <> 0 then
+    raise exception 'Una comanda ligada a cuenta anulada aparece como consumo pendiente';
+  end if;
   perform public.configurar_pin_autorizacion(v_r, '4321');
   execute format('set local role %I', v_owner);
 
@@ -86,6 +111,23 @@ begin
   execute 'set local role authenticated';
   v_denegado := false;
   begin
+    perform public.mover_consumo_mesa(v_r, v_mesa_a, v_mesa_c, '0000', 'No mover a mesa ocupada');
+  exception when others then
+    if sqlerrm not like '%mesa de destino debe estar libre%' then raise; end if;
+    v_denegado := true;
+  end;
+  if not v_denegado then raise exception 'El destino ocupado no se bloqueó antes de validar el PIN'; end if;
+  execute format('set local role %I', v_owner);
+  if (select mesa_id from public.pedidos where id=v_pedido) <> v_mesa_a
+     or (select mesa_id from public.pedidos where id=v_pedido_destino) <> v_mesa_c
+     or exists(select 1 from public.audit_logs where entidad_id=v_mesa_a and accion='mesa_mover_consumo') then
+    raise exception 'El bloqueo del destino ocupado cambió o auditó el traslado';
+  end if;
+
+  perform set_config('request.jwt.claim.sub', v_maria::text, true);
+  execute 'set local role authenticated';
+  v_denegado := false;
+  begin
     perform public.mover_consumo_mesa(v_r, v_mesa_a, v_mesa_b, '0000', 'Cliente cambió de mesa');
   exception when others then
     if sqlerrm not like '%PIN de autorizacion incorrecto%' then raise; end if;
@@ -113,6 +155,31 @@ begin
        and detalle->>'motivo'='Cliente cambió de mesa'
        and created_at is not null
   ) then raise exception 'Falta auditoría completa del movimiento de consumo'; end if;
+
+  -- Una comanda histórica de una cuenta anulada no debe bloquear un destino
+  -- libre ni aparecer entre los pedidos pendientes que usa la interfaz.
+  perform set_config('request.jwt.claim.sub', v_maria::text, true);
+  execute 'set local role authenticated';
+  perform public.mover_consumo_mesa(v_r, v_mesa_b, v_mesa_d, '4321', 'Cliente cambia de mesa');
+  if exists (
+    select 1 from jsonb_array_elements(public.pedidos_pendientes_mesa(v_r, v_mesa_d)) p
+    where p->>'id'=v_pedido_cuenta_anulada::text
+  ) or not exists (
+    select 1 from jsonb_array_elements(public.pedidos_pendientes_mesa(v_r, v_mesa_d)) p
+    where p->>'id'=v_pedido::text
+  ) then
+    raise exception 'El destino libre no separó el historial anulado del nuevo consumo pendiente';
+  end if;
+  execute format('set local role %I', v_owner);
+  if (select mesa_id from public.pedidos where id=v_pedido) <> v_mesa_d
+     or (select mesa_id from public.pedidos where id=v_pedido_cuenta_anulada) <> v_mesa_d
+     or (select estado from public.mesas where id=v_mesa_b) <> 'libre'
+     or (select estado from public.mesas where id=v_mesa_d) <> 'ocupada'
+     or (select count(*) from public.audit_logs where actor_id=v_maria
+         and entidad_id=v_mesa_b and accion='mesa_mover_consumo'
+         and detalle->>'mesa_destino_id'=v_mesa_d::text) <> 1 then
+    raise exception 'Mover a un destino con historial de cuenta anulada no quedó íntegro';
+  end if;
 
   perform set_config('request.jwt.claim.sub', v_otro_admin::text, true);
   execute 'set local role authenticated';

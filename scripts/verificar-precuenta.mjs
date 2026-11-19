@@ -241,8 +241,8 @@ try {
     await expect(page.getByRole('button', { name: /Mesa precuenta QA.*Libre/ })).toBeVisible()
     escenarios++
 
-    async function prepararMesaTraslado(prefijo) {
-      return page.evaluate(async (nombre) => {
+    async function prepararMesaTraslado(prefijo, crearComanda = true) {
+      return page.evaluate(async ({ nombre, crearComanda }) => {
         const { getApi } = await import('/src/lib/api.ts')
         const api = getApi()
         const dato = (r) => { if (r.error || r.data == null) throw new Error(r.error ?? 'Respuesta vacía'); return r.data }
@@ -250,9 +250,11 @@ try {
         const producto = dato(await api.getProductos('r-demo')).find((fila) => fila.nombre === 'Producto motivo UI QA')
         const origen = dato(await api.crearMesa('r-demo', { nombre: `Mesa ${nombre} origen`, zona_id: zona.id }))
         const destino = dato(await api.crearMesa('r-demo', { nombre: `Mesa ${nombre} destino`, zona_id: zona.id }))
-        const pedidoId = dato(await api.crearPedido('r-demo', origen.id, [{ producto_id: producto.id, nombre_producto: producto.nombre, cantidad: 1, precio_unitario: producto.precio }]))
+        const pedidoId = crearComanda
+          ? dato(await api.crearPedido('r-demo', origen.id, [{ producto_id: producto.id, nombre_producto: producto.nombre, cantidad: 1, precio_unitario: producto.precio }]))
+          : null
         return { origen: origen.nombre, destino: destino.nombre, origenId: origen.id, destinoId: destino.id, pedidoId }
-      }, prefijo)
+      }, { nombre: prefijo, crearComanda })
     }
 
     const trasladoUi = await prepararMesaTraslado('reconciliación UI QA')
@@ -335,6 +337,184 @@ try {
     await page.getByRole('button', { name: 'Confirmar y guardar' }).click()
     await expect(page.getByText(`Consumo movido correctamente de ${trasladoPendienteUi.origen} a ${trasladoPendienteUi.destino}`, { exact: true })).toBeVisible()
     assert.equal(await page.evaluate(() => window.__moverIntentosUiQa), 1)
+    escenarios++
+
+    // La lista del selector puede quedar obsoleta mientras el modal está abierto.
+    await visitar('/demo/admin')
+    const trasladoMesaOcupadaUi = await prepararMesaTraslado('destino ocupado UI QA')
+    await visitar('/demo/mesero')
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      window.__apiMoverOriginalUiQa = api.moverConsumoMesa
+      window.__moverIntentosUiQa = 0
+      api.moverConsumoMesa = async (...args) => {
+        window.__moverIntentosUiQa++
+        return window.__apiMoverOriginalUiQa(...args)
+      }
+    })
+    await page.getByRole('button', { name: new RegExp(trasladoMesaOcupadaUi.origen) }).click()
+    await page.getByRole('button', { name: 'Mover consumo a otra mesa', exact: true }).click()
+    await page.locator('#mesa-destino-consumo').selectOption({ value: trasladoMesaOcupadaUi.destinoId })
+    await page.locator('#mesa-motivo-operacion').fill('Verificación del destino ocupado en QA')
+    const estadoAntesBloqueo = await page.evaluate(async (ids) => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      const antes = JSON.parse(localStorage.getItem('mesora.demo.datos.v2') ?? '{}').auditLogs ?? []
+      const producto = (await api.getProductos('r-demo')).data.find((p) => p.nombre === 'Producto motivo UI QA')
+      const resultado = await api.crearPedido('r-demo', ids.destinoId, [{ producto_id: producto.id, nombre_producto: producto.nombre, cantidad: 1, precio_unitario: producto.precio }])
+      if (resultado.error) throw new Error(resultado.error)
+      return { auditorias: antes.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === ids.origenId).length, pedidoDestinoId: resultado.data }
+    }, trasladoMesaOcupadaUi)
+    await page.getByRole('button', { name: 'Revisar y confirmar' }).click()
+    await expect(page.getByRole('alert')).toHaveText(`${trasladoMesaOcupadaUi.destino} no está disponible porque tiene consumo pendiente. Elige otra mesa`)
+    await expect(page.locator('#campo-pin-autorizacion')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Confirmar y guardar' })).toHaveCount(0)
+    const bloqueoMesaOcupada = await page.evaluate(async (ids) => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      const [origen, destino] = await Promise.all([api.getPedidosDeMesa('r-demo', ids.origenId), api.getPedidosDeMesa('r-demo', ids.destinoId)])
+      const auditoria = JSON.parse(localStorage.getItem('mesora.demo.datos.v2') ?? '{}').auditLogs ?? []
+      return {
+        intentos: window.__moverIntentosUiQa,
+        origen: origen.data.map((p) => p.id),
+        destino: destino.data.map((p) => p.id),
+        auditorias: auditoria.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === ids.origenId).length,
+      }
+    }, trasladoMesaOcupadaUi)
+    assert.equal(bloqueoMesaOcupada.intentos, 0, 'La prevalidación debe impedir la RPC para destino ocupado')
+    assert.deepEqual(bloqueoMesaOcupada.origen, [trasladoMesaOcupadaUi.pedidoId])
+    assert.deepEqual(bloqueoMesaOcupada.destino, [estadoAntesBloqueo.pedidoDestinoId])
+    assert.equal(bloqueoMesaOcupada.auditorias, estadoAntesBloqueo.auditorias)
+    await page.evaluate(async () => { (await import('/src/lib/api.ts')).getApi().moverConsumoMesa = window.__apiMoverOriginalUiQa })
+    await page.getByRole('button', { name: 'Cancelar', exact: true }).click()
+    escenarios++
+
+    // Una ocupación que aparece entre la primera revisión y el RPC se reconcilia
+    // automáticamente; el backend conserva el último bloqueo transaccional.
+    await visitar('/demo/admin')
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      const configuracion = await api.configurarPinAutorizacion('r-demo', '4321')
+      if (configuracion.error) throw new Error(configuracion.error)
+      ;(await import('/src/components/pin.tsx')).olvidarPinCacheado()
+    })
+    const trasladoCarreraUi = await prepararMesaTraslado('carrera destino UI QA')
+    await visitar('/demo/mesero')
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      window.__apiMoverOriginalUiQa = api.moverConsumoMesa
+      window.__moverIntentosUiQa = 0
+      api.moverConsumoMesa = async (...args) => {
+        window.__moverIntentosUiQa++
+        const producto = (await api.getProductos('r-demo')).data.find((p) => p.nombre === 'Producto motivo UI QA')
+        const entrada = await api.crearPedido(args[0], args[2], [{ producto_id: producto.id, nombre_producto: producto.nombre, cantidad: 1, precio_unitario: producto.precio }])
+        if (entrada.error) throw new Error(entrada.error)
+        return window.__apiMoverOriginalUiQa(...args)
+      }
+    })
+    await page.getByRole('button', { name: new RegExp(trasladoCarreraUi.origen) }).click()
+    await page.getByRole('button', { name: 'Mover consumo a otra mesa', exact: true }).click()
+    await page.locator('#mesa-destino-consumo').selectOption({ value: trasladoCarreraUi.destinoId })
+    await page.locator('#mesa-motivo-operacion').fill('Carrera de ocupación durante revisión')
+    await page.getByRole('button', { name: 'Revisar y confirmar' }).click()
+    await expect(page.locator('#campo-pin-autorizacion')).toBeVisible()
+    await page.locator('#campo-pin-autorizacion').fill('4321')
+    await page.getByRole('button', { name: 'Confirmar y guardar' }).click()
+    await expect(page.getByRole('alert')).toHaveText(`${trasladoCarreraUi.destino} no está disponible porque tiene consumo pendiente. Elige otra mesa`)
+    await expect(page.locator('#campo-pin-autorizacion')).toHaveCount(0)
+    const carreraReconciliada = await page.evaluate(async (ids) => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      const [origen, destino] = await Promise.all([api.getPedidosDeMesa('r-demo', ids.origenId), api.getPedidosDeMesa('r-demo', ids.destinoId)])
+      const auditoria = JSON.parse(localStorage.getItem('mesora.demo.datos.v2') ?? '{}').auditLogs ?? []
+      return {
+        intentos: window.__moverIntentosUiQa,
+        origen: origen.data.map((p) => p.id),
+        destino: destino.data.map((p) => p.id),
+        auditorias: auditoria.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === ids.origenId).length,
+      }
+    }, trasladoCarreraUi)
+    assert.equal(carreraReconciliada.intentos, 1)
+    assert.deepEqual(carreraReconciliada.origen, [trasladoCarreraUi.pedidoId])
+    assert.equal(carreraReconciliada.destino.length, 1)
+    assert.equal(carreraReconciliada.auditorias, 0)
+    await page.evaluate(async () => { (await import('/src/lib/api.ts')).getApi().moverConsumoMesa = window.__apiMoverOriginalUiQa })
+    await page.getByRole('button', { name: 'Cancelar', exact: true }).click()
+    escenarios++
+
+    // PIN inválido conserva el diálogo, no audita y no cambia las mesas; el PIN
+    // válido permite después el único traslado y la única auditoría.
+    await visitar('/demo/admin')
+    const trasladoPinUi = await prepararMesaTraslado('pin traslado UI QA', false)
+    await visitar('/demo/mesero')
+    trasladoPinUi.pedidoId = await page.evaluate(async (origenId) => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      const producto = (await api.getProductos('r-demo')).data.find((p) => p.nombre === 'Producto motivo UI QA')
+      const resultado = await api.crearPedido('r-demo', origenId, [{ producto_id: producto.id, nombre_producto: producto.nombre, cantidad: 1, precio_unitario: producto.precio }])
+      if (resultado.error) throw new Error(resultado.error)
+      return resultado.data
+    }, trasladoPinUi.origenId)
+    await visitar('/demo/mesero')
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      window.__apiMoverOriginalUiQa = api.moverConsumoMesa
+      window.__moverIntentosUiQa = 0
+      api.moverConsumoMesa = async (...args) => {
+        window.__moverIntentosUiQa++
+        return window.__apiMoverOriginalUiQa(...args)
+      }
+      ;(await import('/src/components/pin.tsx')).olvidarPinCacheado()
+    })
+    await page.getByRole('button', { name: new RegExp(trasladoPinUi.origen) }).click()
+    await page.getByRole('button', { name: 'Mover consumo a otra mesa', exact: true }).click()
+    await page.locator('#mesa-destino-consumo').selectOption({ value: trasladoPinUi.destinoId })
+    await page.locator('#mesa-motivo-operacion').fill('Traslado con PIN validado por QA')
+    await page.getByRole('button', { name: 'Revisar y confirmar' }).click()
+    await expect(page.locator('#campo-pin-autorizacion')).toBeVisible()
+    const auditoriasAntesPinUi = await page.evaluate(async (origenId) => {
+      return (JSON.parse(localStorage.getItem('mesora.demo.datos.v2') ?? '{}').auditLogs ?? []).filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === origenId).length
+    }, trasladoPinUi.origenId)
+    await page.locator('#campo-pin-autorizacion').fill('0000')
+    await page.getByRole('button', { name: 'Confirmar y guardar' }).click()
+    await expect(page.getByRole('alert')).toHaveText('PIN incorrecto. No se realizó el traslado')
+    await expect(page.locator('#campo-pin-autorizacion')).toBeVisible()
+    const pinRechazadoUi = await page.evaluate(async (ids) => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      const [mesas, origen, destino] = await Promise.all([api.getMesas('r-demo'), api.getPedidosDeMesa('r-demo', ids.origenId), api.getPedidosDeMesa('r-demo', ids.destinoId)])
+      const auditoria = JSON.parse(localStorage.getItem('mesora.demo.datos.v2') ?? '{}').auditLogs ?? []
+      return {
+        origenEstado: mesas.data.find((m) => m.id === ids.origenId)?.estado,
+        destinoEstado: mesas.data.find((m) => m.id === ids.destinoId)?.estado,
+        origen: origen.data.map((p) => p.id),
+        destino: destino.data.map((p) => p.id),
+        auditorias: auditoria.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === ids.origenId).length,
+        pinGuardado: Array.from({ length: sessionStorage.length }, (_, i) => sessionStorage.getItem(sessionStorage.key(i))).some((valor) => valor?.includes('0000')),
+      }
+    }, trasladoPinUi)
+    assert.equal(pinRechazadoUi.origenEstado, 'ocupada')
+    assert.equal(pinRechazadoUi.destinoEstado, 'libre')
+    assert.deepEqual(pinRechazadoUi.origen, [trasladoPinUi.pedidoId])
+    assert.deepEqual(pinRechazadoUi.destino, [])
+    assert.equal(pinRechazadoUi.auditorias, auditoriasAntesPinUi)
+    assert.equal(pinRechazadoUi.pinGuardado, false)
+    await page.locator('#campo-pin-autorizacion').fill('4321')
+    await page.getByRole('button', { name: 'Confirmar y guardar' }).click()
+    await expect(page.getByText(`Consumo movido correctamente de ${trasladoPinUi.origen} a ${trasladoPinUi.destino}`, { exact: true })).toBeVisible()
+    const trasladoPinValidoUi = await page.evaluate(async (ids) => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      const [origen, destino] = await Promise.all([api.getPedidosDeMesa('r-demo', ids.origenId), api.getPedidosDeMesa('r-demo', ids.destinoId)])
+      const auditoria = JSON.parse(localStorage.getItem('mesora.demo.datos.v2') ?? '{}').auditLogs ?? []
+      return {
+        origen: origen.data.map((p) => p.id),
+        destino: destino.data.map((p) => p.id),
+        auditorias: auditoria.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === ids.origenId).length,
+        intentos: window.__moverIntentosUiQa,
+        pinGuardado: Array.from({ length: sessionStorage.length }, (_, i) => sessionStorage.getItem(sessionStorage.key(i))).some((valor) => valor?.includes('4321')),
+      }
+    }, trasladoPinUi)
+    assert.deepEqual(trasladoPinValidoUi.origen, [])
+    assert.deepEqual(trasladoPinValidoUi.destino, [trasladoPinUi.pedidoId])
+    assert.equal(trasladoPinValidoUi.auditorias, auditoriasAntesPinUi + 1)
+    assert.equal(trasladoPinValidoUi.intentos, 2)
+    assert.equal(trasladoPinValidoUi.pinGuardado, false)
+    await page.evaluate(async () => { (await import('/src/lib/api.ts')).getApi().moverConsumoMesa = window.__apiMoverOriginalUiQa })
     escenarios++
 
     assert.deepEqual(errores, [])
