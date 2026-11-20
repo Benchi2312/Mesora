@@ -69,7 +69,7 @@ try {
   assert.equal(payloads[0].dominio, 'local-qa.pe')
   await restPage.close()
 
-  for (const width of [390, 1280]) {
+  for (const width of [390, 768, 1024, 1440]) {
     console.log(`Configuración QA: guardado, errores y persistencia ${width}px`)
     const context = await browser.newContext({ viewport: { width, height: 900 } })
     const page = await context.newPage()
@@ -137,11 +137,28 @@ try {
     await expect(page.locator('#cfg-nombre')).toHaveValue('Local actualizado QA')
     await expect(page.locator('#cfg-direccion')).toHaveValue('Av. Reintento 456')
     await expect(page.locator('#cfg-dominio')).toHaveValue('local-qa.pe')
+    const compatibilidadLocal = await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      const categoria = await api.crearCategoria('r-demo', 'Categoría de conservación QA')
+      if (categoria.error || !categoria.data) return { error: categoria.error ?? 'No se creó la categoría QA', categoriaId: null }
+      const configuracion = await api.getConfiguracionOperativa('r-demo')
+      if (configuracion.error || !configuracion.data) return { error: configuracion.error ?? 'No se leyó la configuración QA', categoriaId: null }
+      const estaciones = configuracion.data.estaciones.map((estacion) => estacion.codigo === 'otros'
+        ? { ...estacion, destinos: [...estacion.destinos, { id: null, tipo: 'impresora', grupo: 'respaldo', nombre: 'Respaldo de Otros QA', papel_mm: 58, configuracion: { copias: 2 }, activo: true }] }
+        : estacion)
+      const categorias = configuracion.data.categorias.map((item) => item.id === categoria.data.id ? { ...item, estacion_codigo: 'bar' } : item)
+      const guardado = await api.guardarConfiguracionOperativa('r-demo', { modalidad_cobro: configuracion.data.modalidad_cobro, estaciones, categorias })
+      return { error: guardado.error, categoriaId: categoria.data.id }
+    })
+    assert.equal(compatibilidadLocal.error, null, 'El fixture local de compatibilidad debe guardarse')
     await irSeccion('Configuración operativa')
     const cobro = page.getByRole('region', { name: '¿Quién puede cobrar?' })
     await expect(cobro.getByText('Regla aún no activada', { exact: false })).toBeVisible()
     await cobro.getByRole('radio', { name: /Mixto/ }).check()
-    const activar = cobro.getByRole('button', { name: 'Revisar y activar modalidad' })
+    const activar = cobro.getByRole('button', { name: 'Activar permisos' })
+    const boundsActivar = await activar.boundingBox()
+    assert(boundsActivar && boundsActivar.height >= 44, `Activar permisos debe medir al menos 44px en ${width}px`)
+    assert(await activar.evaluate((el) => el.classList.contains('btn')), 'El botón de permisos debe usar el estilo global de Mesora')
     await expect(activar).toBeDisabled()
     await expect(cobro.getByText('Marca por lo menos un cajero y un mesero', { exact: false })).toBeVisible()
     await cobro.getByRole('button', { name: 'Ir al personal pendiente' }).click()
@@ -160,79 +177,97 @@ try {
     await activar.click()
     await expect(page.getByText('El cambio y sus autorizaciones quedarán registrados en auditoría.')).toBeVisible()
     await expect(page.getByText('Mesora genera recibos internos, no boletas electrónicas SUNAT.', { exact: false })).toBeVisible()
-    await page.getByRole('button', { name: 'Activar modalidad de cobro', exact: true }).click()
+    await page.getByRole('button', { name: 'Guardar permisos', exact: true }).click()
     await expect(cobro.getByText('Regla activa: Solo caja', { exact: false })).toBeVisible()
+    await expect(cobro.getByText('Permisos guardados. Aplican a los próximos cobros; los recibos anteriores no cambian.', { exact: true })).toBeVisible()
     await expect(cobro.getByText('Actualizada el', { exact: false })).toBeVisible()
     await cobro.getByRole('radio', { name: /Mixto/ }).check()
     await cobro.getByRole('checkbox', { name: /Mesero/ }).first().check()
     await page.evaluate(async () => {
       const api = (await import('/src/lib/api.ts')).getApi()
       window.__guardarPolitica = api.guardarPoliticaCobro
-      api.guardarPoliticaCobro = async () => ({ data: null, error: 'Sin conexión con el servidor QA' })
+      api.guardarPoliticaCobro = async () => new Promise((resolve) => { window.__resolverPoliticaQA = resolve })
     })
-    await cobro.getByRole('button', { name: 'Guardar cambios de permisos' }).click()
-    await page.getByRole('button', { name: 'Confirmar cambios' }).click()
+    await cobro.getByRole('button', { name: 'Guardar permisos' }).click()
+    const dialogoPermisos = page.getByRole('dialog', { name: 'Confirmar permisos de cobro' })
+    const confirmarPermisos = dialogoPermisos.getByRole('button').filter({ hasText: /Guardar permisos|Guardando permisos/ })
+    await confirmarPermisos.click()
+    await expect(confirmarPermisos).toBeDisabled()
+    await expect(confirmarPermisos).toContainText('Guardando permisos')
+    await expect(confirmarPermisos).toHaveAttribute('aria-busy', 'true')
+    await page.evaluate(() => window.__resolverPoliticaQA({ data: null, error: 'Sin conexión con el servidor QA' }))
     await expect(cobro.getByRole('alert')).toContainText('Sin conexión con el servidor QA')
     await expect(cobro.getByRole('checkbox', { name: /Mesero/ }).first()).toBeChecked()
     await page.evaluate(async () => { (await import('/src/lib/api.ts')).getApi().guardarPoliticaCobro = window.__guardarPolitica })
     await page.getByRole('button', { name: 'Cancelar', exact: true }).click()
 
-    // Los seis modos operativos se representan con dos controles claros por área.
-    // La matriz de enrutamiento y los snapshots se verifican además en verificar:enrutamiento.
-    const comandas = page.getByRole('region', { name: 'Cómo reciben comandas Cocina y Barra' })
-    const destinos = {
-      cocina: {
-        kds: comandas.getByRole('checkbox', { name: 'Pantalla KDS de Cocina' }),
-        ticketera: comandas.getByRole('checkbox', { name: 'Ticketera de Cocina' }),
-      },
-      bar: {
-        kds: comandas.getByRole('checkbox', { name: 'Pantalla KDS de Barra' }),
-        ticketera: comandas.getByRole('checkbox', { name: 'Ticketera de Barra' }),
-      },
+    const pedidos = page.getByRole('region', { name: 'Cómo reciben pedidos Cocina y Barra' })
+    await expect(pedidos.getByText('Opciones avanzadas y compatibilidad', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('Elige cómo recibirá los pedidos cada área del restaurante. Puedes usar una pantalla, una impresora o ambas.', { exact: true })).toBeVisible()
+    const textoPedidos = await pedidos.innerText()
+    assert.doesNotMatch(textoPedidos, /KDS|ticketera|compatibilidad|cola|salida/i, 'La explicación debe evitar términos técnicos')
+    const opciones = {
+      cocina: pedidos.getByRole('article', { name: 'Pedidos de Cocina' }),
+      barra: pedidos.getByRole('article', { name: 'Pedidos de Barra' }),
     }
-    const establecer = async (estacion, { kds, ticketera }) => {
-      if (kds) await destinos[estacion].kds.check()
-      else await destinos[estacion].kds.uncheck()
-      if (ticketera) await destinos[estacion].ticketera.check()
-      else await destinos[estacion].ticketera.uncheck()
+    const establecer = async (estacion, modo) => {
+      const radio = opciones[estacion].getByRole('radio', { name: new RegExp(modo, 'i') })
+      await radio.check()
+      await expect(radio).toBeChecked()
+      await expect(opciones[estacion].getByRole('radio', { checked: true })).toHaveCount(1)
+      const alturaTarjeta = await radio.evaluate((el) => el.parentElement.getBoundingClientRect().height)
+      assert(alturaTarjeta >= 44, `La opción ${modo} debe medir al menos 44px`)
     }
-    const revisarResumen = async (estacion, texto) => {
-      await expect(comandas.locator(`[aria-label="Comandas de ${estacion === 'cocina' ? 'Cocina' : 'Barra'}"]`)).toContainText(texto)
+    for (const estacion of ['cocina', 'barra']) {
+      await establecer(estacion, 'Solo pantalla')
+      await expect(opciones[estacion]).toContainText(`${estacion === 'cocina' ? 'Cocina' : 'Barra'} recibirá los pedidos solo en pantalla.`)
+      await establecer(estacion, 'Solo impresora')
+      await expect(opciones[estacion]).toContainText(`${estacion === 'cocina' ? 'Cocina' : 'Barra'} recibirá los pedidos solo por impresora.`)
+      await establecer(estacion, 'Pantalla e impresora')
+      await expect(opciones[estacion]).toContainText(`${estacion === 'cocina' ? 'Cocina' : 'Barra'} recibirá los pedidos en pantalla y por impresora.`)
     }
-    for (const estacion of ['cocina', 'bar']) {
-      await establecer(estacion, { kds: true, ticketera: false })
-      await revisarResumen(estacion, 'Solo pantalla KDS')
-      await establecer(estacion, { kds: false, ticketera: true })
-      await revisarResumen(estacion, 'Solo ticketera')
-      await establecer(estacion, { kds: true, ticketera: true })
-      await revisarResumen(estacion, 'Pantalla KDS y ticketera')
-      await establecer(estacion, { kds: false, ticketera: false })
-      await revisarResumen(estacion, 'Sin salida operativa')
-      await expect(comandas.getByText(`Los pedidos nuevos de ${estacion === 'cocina' ? 'Cocina' : 'Barra'} no aparecerán en KDS ni crearán una salida de impresión.`)).toBeVisible()
-    }
-    // Cocina queda en ambos destinos y Barra solo en ticketera para comprobar persistencia exacta.
-    await establecer('cocina', { kds: true, ticketera: true })
-    await establecer('bar', { kds: false, ticketera: true })
-    const revisarYGuardar = page.getByRole('button', { name: 'Revisar y guardar configuración', exact: true })
+    // Cocina queda con ambas opciones y Barra solo por impresora para probar persistencia.
+    await establecer('cocina', 'Pantalla e impresora')
+    await establecer('barra', 'Solo impresora')
+    const revisarYGuardar = page.getByRole('button', { name: 'Guardar configuración', exact: true }).first()
+    const botonBounds = await revisarYGuardar.boundingBox()
+    assert(botonBounds && botonBounds.height >= 44, `El botón Guardar configuración mide ${botonBounds?.height ?? 0}px`)
+    assert(await revisarYGuardar.evaluate((el) => el.classList.contains('btn')), 'El botón de configuración debe usar el estilo global de Mesora')
     await revisarYGuardar.click()
-    const confirmacionComandas = page.getByRole('dialog', { name: 'Revisa la configuración de comandas' })
+    const confirmacionComandas = page.getByRole('dialog', { name: 'Confirma la configuración' })
     await expect(confirmacionComandas).toContainText('Cocina')
     await expect(confirmacionComandas).toContainText('Barra')
-    await expect(confirmacionComandas).toContainText('solo las comandas nuevas')
+    await expect(confirmacionComandas).toContainText('solo a los pedidos nuevos')
     await page.evaluate(async () => {
       const api = (await import('/src/lib/api.ts')).getApi()
       window.__guardarConfiguracion = api.guardarConfiguracionOperativa
-      api.guardarConfiguracionOperativa = async () => ({ data: null, error: 'Conexión interrumpida al guardar destinos QA' })
+      api.guardarConfiguracionOperativa = async () => new Promise((resolve) => { window.__resolverConfiguracionQA = resolve })
     })
-    await confirmacionComandas.getByRole('button', { name: 'Confirmar y guardar configuración' }).click()
+    const confirmarConfiguracion = confirmacionComandas.getByRole('button').filter({ hasText: /Guardar configuración|Guardando configuración/ })
+    await confirmarConfiguracion.click()
+    await expect(confirmarConfiguracion).toBeDisabled()
+    await expect(confirmarConfiguracion).toContainText('Guardando configuración')
+    await expect(confirmarConfiguracion).toHaveAttribute('aria-busy', 'true')
+    await page.evaluate(() => window.__resolverConfiguracionQA({ data: null, error: 'Conexión interrumpida al guardar destinos QA' }))
     await expect(confirmacionComandas.getByRole('alert')).toContainText('Conexión interrumpida al guardar destinos QA')
-    await expect(destinos.cocina.kds).toBeChecked()
-    await expect(destinos.cocina.ticketera).toBeChecked()
-    await expect(destinos.bar.kds).not.toBeChecked()
-    await expect(destinos.bar.ticketera).toBeChecked()
-    await page.evaluate(async () => { (await import('/src/lib/api.ts')).getApi().guardarConfiguracionOperativa = window.__guardarConfiguracion })
-    await confirmacionComandas.getByRole('button', { name: 'Confirmar y guardar configuración' }).click()
-    await expect(page.getByText('Configuración de comandas guardada correctamente. Queda activa para comandas nuevas; las existentes conservan su ruta.', { exact: true })).toBeVisible()
+    await expect(opciones.cocina.getByRole('radio', { name: /Pantalla e impresora/ })).toBeChecked()
+    await expect(opciones.barra.getByRole('radio', { name: /Solo impresora/ })).toBeChecked()
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      api.guardarConfiguracionOperativa = window.__guardarConfiguracion
+      const guardarReal = api.guardarConfiguracionOperativa
+      api.guardarConfiguracionOperativa = async (rid, cambios) => {
+        window.__configuracionGuardadaQA = structuredClone(cambios)
+        return guardarReal(rid, cambios)
+      }
+    })
+    await confirmacionComandas.getByRole('button', { name: 'Guardar configuración', exact: true }).click()
+    await expect(page.getByText('Configuración guardada. Se aplicará a los pedidos nuevos; los anteriores conservan la configuración que tenían.', { exact: true })).toBeVisible()
+    const guardadoCompatibilidad = await page.evaluate(() => window.__configuracionGuardadaQA)
+    const otrosGuardado = guardadoCompatibilidad.estaciones.find((estacion) => estacion.codigo === 'otros')
+    assert(otrosGuardado.activo, 'La estación Otros se debe conservar al guardar desde Cocina y Barra')
+    assert(otrosGuardado.destinos.some((destino) => destino.grupo === 'respaldo' && destino.nombre === 'Respaldo de Otros QA' && destino.papel_mm === 58 && destino.configuracion.copias === 2), 'Los destinos de respaldo ocultos deben conservar todos sus ajustes')
+    assert.equal(guardadoCompatibilidad.categorias.find((categoria) => categoria.id === compatibilidadLocal.categoriaId)?.estacion_codigo, 'bar', 'La asignación histórica de categoría debe conservarse')
     assert.equal(await page.evaluate(() => window.__impresionesQA), 0, 'Configurar destinos no debe abrir window.print()')
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
     await page.reload({ waitUntil: 'networkidle' })
@@ -241,11 +276,10 @@ try {
     await irSeccion('Configuración operativa')
     await expect(page.getByRole('region', { name: '¿Quién puede cobrar?' }).getByText('Regla activa: Solo caja', { exact: false })).toBeVisible()
     await expect(page.getByRole('region', { name: '¿Quién puede cobrar?' }).getByText('Actualizada el', { exact: false })).toBeVisible()
-    const destinosTrasRecarga = page.getByRole('region', { name: 'Cómo reciben comandas Cocina y Barra' })
-    await expect(destinosTrasRecarga.getByRole('checkbox', { name: 'Pantalla KDS de Cocina' })).toBeChecked()
-    await expect(destinosTrasRecarga.getByRole('checkbox', { name: 'Ticketera de Cocina' })).toBeChecked()
-    await expect(destinosTrasRecarga.getByRole('checkbox', { name: 'Pantalla KDS de Barra' })).not.toBeChecked()
-    await expect(destinosTrasRecarga.getByRole('checkbox', { name: 'Ticketera de Barra' })).toBeChecked()
+    const destinosTrasRecarga = page.getByRole('region', { name: 'Cómo reciben pedidos Cocina y Barra' })
+    await expect(destinosTrasRecarga.getByRole('article', { name: 'Pedidos de Cocina' }).getByRole('radio', { name: /Pantalla e impresora/ })).toBeChecked()
+    await expect(destinosTrasRecarga.getByRole('article', { name: 'Pedidos de Barra' }).getByRole('radio', { name: /Solo impresora/ })).toBeChecked()
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Sin overflow horizontal a ${width}px`)
     await page.getByRole('link', { name: 'Cajero', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Cobrar una mesa' })).toBeVisible()
     await expect(page.getByText('No hay mesas pendientes de cobro.')).toBeVisible()
@@ -260,6 +294,7 @@ try {
     await page.getByRole('link', { name: 'Admin', exact: true }).click()
     await irSeccion('Menú')
     await expect(page.getByRole('heading', { name: 'Menú', exact: true })).toBeVisible()
+    await expect(page.getByText(/Opciones avanzadas y compatibilidad/)).toHaveCount(0)
     if (await page.getByRole('button', { name: 'Agregar producto' }).count() === 0) {
       await page.getByRole('button', { name: 'Nueva categoría', exact: true }).click()
       const categoria = page.getByRole('dialog', { name: 'Nueva categoría' })
@@ -269,6 +304,7 @@ try {
     }
     await page.getByRole('button', { name: 'Agregar producto' }).first().click()
     const nuevoProducto = page.getByRole('dialog', { name: 'Agregar producto' })
+    await expect(nuevoProducto.getByText(/Los productos existentes conservan su asignación actual\./)).toBeVisible()
     await expect(nuevoProducto.getByLabel('Nombre', { exact: true })).toBeVisible()
     await expect(nuevoProducto.getByLabel('Precio (S/)')).toBeVisible()
     await expect(nuevoProducto.getByLabel('Es bebida')).toBeVisible()
@@ -326,7 +362,7 @@ try {
     assert.deepEqual(errores, [])
     await context.close()
   }
-  console.log('Configuración OK: datos del local, modalidad de cobro confirmada y persistente, roles y responsive móvil/escritorio.')
+  console.log('Configuración OK: permisos, selección de recepción, guardado/persistencia, sin términos técnicos ni overflow; 390, 768, 1024 y 1440px.')
 } finally {
   if (browser) await browser.close()
   await server.close()

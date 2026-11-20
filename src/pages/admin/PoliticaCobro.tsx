@@ -63,17 +63,22 @@ export default function PoliticaCobro({ restauranteId, onAplicada }: {
     if (guardando || validacion) return
     setGuardando(true)
     setError(null)
-    const resultado = await getApi().guardarPoliticaCobro(restauranteId, modalidad, seleccionados)
-    setGuardando(false)
-    if (resultado.error || !resultado.data) {
-      setError(resultado.error ?? 'No se pudo confirmar el cambio. Actualiza los permisos antes de volver a intentarlo.')
-      return
+    try {
+      const resultado = await getApi().guardarPoliticaCobro(restauranteId, modalidad, seleccionados)
+      if (resultado.error || !resultado.data) {
+        setError(resultado.error ?? 'No se pudieron guardar los permisos. Revisa tu conexión e inténtalo otra vez.')
+        return
+      }
+      setConfirmar(false)
+      setPolitica(resultado.data)
+      setSeleccionados(resultado.data.usuarios_autorizados)
+      setAviso('Permisos guardados. Aplican a los próximos cobros; los recibos anteriores no cambian.')
+      onAplicada(resultado.data.modalidad_cobro)
+    } catch (fallo) {
+      setError(fallo instanceof Error ? fallo.message : 'Ocurrió un error al guardar los permisos. No se aplicaron cambios; inténtalo otra vez.')
+    } finally {
+      setGuardando(false)
     }
-    setConfirmar(false)
-    setPolitica(resultado.data)
-    setSeleccionados(resultado.data.usuarios_autorizados)
-    setAviso('Permisos de cobro aplicados. Rigen para los próximos cobros; los recibos anteriores no cambian.')
-    onAplicada(resultado.data.modalidad_cobro)
   }
 
   return (
@@ -81,8 +86,8 @@ export default function PoliticaCobro({ restauranteId, onAplicada }: {
       <h2 id="modalidad-cobro-titulo" className="text-lg font-extrabold text-zinc-100">¿Quién puede cobrar?</h2>
       <p className="mt-1 text-sm leading-relaxed text-zinc-400">Define quién puede cerrar la cuenta y entregar el recibo interno de Mesora. No es un comprobante electrónico SUNAT.</p>
       {cargando && <p className="mt-4 text-sm text-zinc-300" role="status">Cargando permisos de cobro…</p>}
-      {error && <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300" role="alert">{error} {!politica && <button type="button" className="underline" onClick={() => void cargar()}>Reintentar carga</button>}</p>}
-      {aviso && <p className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300" role="status">{aviso}</p>}
+      {error && <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200" role="alert" aria-live="assertive">{error} {!politica && <button type="button" className="ml-2 min-h-11 rounded-lg px-3 font-semibold underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400" onClick={() => void cargar()}>Reintentar carga</button>}</p>}
+      {aviso && <p className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200" role="status" aria-live="polite">{aviso}</p>}
       {politica && (
         <>
           <p className={`mt-4 rounded-lg border p-3 text-sm ${politica.modalidad_aplicada ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`} role="status">
@@ -94,7 +99,7 @@ export default function PoliticaCobro({ restauranteId, onAplicada }: {
             <legend className="text-sm font-bold text-zinc-200">¿Quién cobrará?</legend>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               {OPCIONES.map((opcion) => (
-                <label key={opcion.id} className={`flex min-w-0 cursor-pointer gap-3 rounded-xl border p-3 ${modalidad === opcion.id ? 'border-brand-500 bg-brand-500/10' : 'border-surface-700'}`}>
+                <label key={opcion.id} className={`flex min-h-11 min-w-0 cursor-pointer gap-3 rounded-xl border p-3 transition-colors focus-within:ring-2 focus-within:ring-brand-400 ${modalidad === opcion.id ? 'border-brand-500 bg-brand-500/10' : 'border-surface-700 hover:border-surface-500'} ${guardando ? 'cursor-not-allowed opacity-60' : ''}`}>
                   <input type="radio" name="modalidad-cobro" value={opcion.id} checked={modalidad === opcion.id} disabled={guardando} onChange={() => {
                     setModalidad(opcion.id)
                     setSeleccionados((actual) => actual.filter((id) => personal.some((u) => u.id === id && u.activo !== false && (
@@ -112,7 +117,7 @@ export default function PoliticaCobro({ restauranteId, onAplicada }: {
             <p className="mt-1 text-xs text-zinc-400">Selecciona personas activas del rol elegido. Cocina, administradores y personal inactivo no pueden incluirse; el administrador conserva su contingencia auditada.</p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {elegibles.map((u) => (
-                <label key={u.id} className="flex min-w-0 items-center gap-3 rounded-lg border border-surface-700 p-3 text-sm text-zinc-200">
+              <label key={u.id} className={`flex min-h-11 min-w-0 items-center gap-3 rounded-lg border border-surface-700 p-3 text-sm text-zinc-200 transition-colors focus-within:ring-2 focus-within:ring-brand-400 ${guardando ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-surface-500'}`}>
                   <input type="checkbox" checked={seleccionados.includes(u.id)} disabled={guardando} onChange={(e) => {
                     setSeleccionados((actual) => e.target.checked ? [...actual, u.id] : actual.filter((id) => id !== u.id))
                     setAviso(null)
@@ -126,8 +131,8 @@ export default function PoliticaCobro({ restauranteId, onAplicada }: {
           {validacion && <p className="mt-4 text-sm text-amber-300" role="status">{validacion} {modalidad === 'caja_central_meseros_autorizados' && 'Marca por lo menos un cajero y un mesero en «Personal autorizado».'}</p>}
           <p className="mt-4 text-xs leading-relaxed text-zinc-400">El administrador puede cobrar por contingencia y cada uso queda en auditoría. Los cambios aplican a cobros futuros; cuentas y recibos anteriores conservan sus datos.</p>
           <div className="mt-4 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-            <button type="button" disabled={guardando || Boolean(validacion)} aria-describedby={validacion ? 'ayuda-activacion-cobro' : undefined} onClick={() => { setError(null); setConfirmar(true) }} className="btn-primary min-h-11 w-full disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto">{politica.modalidad_aplicada ? 'Guardar cambios de permisos' : 'Revisar y activar modalidad'}</button>
-            {validacion && <button type="button" onClick={() => personalRef.current?.focus()} className="btn-secondary min-h-11 sm:w-auto">Ir al personal pendiente</button>}
+            <button type="button" aria-busy={guardando} disabled={guardando || Boolean(validacion)} aria-describedby={validacion ? 'ayuda-activacion-cobro' : undefined} onClick={() => { setError(null); setConfirmar(true) }} className="btn btn-primary min-h-11 w-full rounded-xl px-5 py-2.5 shadow-md shadow-brand-500/15 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">{guardando ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" /> Guardando permisos…</> : politica.modalidad_aplicada ? 'Guardar permisos' : 'Activar permisos'}</button>
+            {validacion && <button type="button" onClick={() => personalRef.current?.focus()} className="btn btn-outline min-h-11 rounded-xl px-4 py-2.5 sm:w-auto">Ir al personal pendiente</button>}
           </div>
           {validacion && <p id="ayuda-activacion-cobro" className="mt-2 text-xs text-amber-200">Completa la selección indicada arriba para habilitar la revisión.</p>}
         </>
@@ -142,8 +147,8 @@ export default function PoliticaCobro({ restauranteId, onAplicada }: {
             <p>El cambio y sus autorizaciones quedarán registrados en auditoría.</p>
           </div>
           <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <button type="button" disabled={guardando} onClick={() => setConfirmar(false)} className="btn-secondary min-h-11">Cancelar</button>
-            <button type="button" disabled={guardando || Boolean(validacion)} onClick={() => void aplicar()} className="btn-primary min-h-11">{guardando ? 'Guardando…' : politica.modalidad_aplicada ? 'Confirmar cambios' : 'Activar modalidad de cobro'}</button>
+            <button type="button" disabled={guardando} onClick={() => setConfirmar(false)} className="btn btn-outline min-h-11 rounded-xl px-4 py-2.5">Cancelar</button>
+            <button type="button" aria-busy={guardando} disabled={guardando || Boolean(validacion)} onClick={() => void aplicar()} className="btn btn-primary min-h-11 rounded-xl px-5 py-2.5 shadow-md shadow-brand-500/15 disabled:opacity-60">{guardando ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" /> Guardando permisos…</> : 'Guardar permisos'}</button>
           </div>
         </Modal>
       )}

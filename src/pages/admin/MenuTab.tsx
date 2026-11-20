@@ -920,7 +920,7 @@ export default function MenuTab() {
                 </span>
                 Es bebida
               </label>
-              <p className="mt-1 text-xs leading-relaxed text-zinc-500">En productos nuevos, las bebidas van a Barra y los demás a Cocina. Los productos existentes conservan su ruta explícita o heredada; puedes revisarla en Configuración operativa → Opciones avanzadas y compatibilidad.</p>
+              <p className="mt-1 text-xs leading-relaxed text-zinc-500">En productos nuevos, las bebidas van a Barra y los demás a Cocina. Los productos existentes conservan su asignación actual.</p>
             </Campo>
 
             {productoError && (
