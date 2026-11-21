@@ -87,6 +87,7 @@ jobs:
             sleep 5
           done
       - run: npm run verificar:impresion
+      - run: npm run verificar:agente-ui
       - run: npm run verificar:acceso
       - run: npm run verificar:contacto
       - run: npx --yes deno test --allow-env supabase/functions/contacto-comercial/index_test.ts

@@ -16,6 +16,7 @@
     "verificar:precuenta": "node scripts/verificar-precuenta.mjs",
     "verificar:impresion": "node scripts/verificar-impresion.mjs",
     "verificar:agente": "node scripts/verificar-agente.mjs",
+    "verificar:agente-ui": "node scripts/verificar-agentes-impresion-ui.mjs",
     "verificar:imagenes": "node scripts/verificar-imagenes.mjs && npx --yes deno test --allow-env supabase/functions/cloudinary-producto/index_test.ts && npx --yes deno check supabase/functions/cloudinary-producto/index.ts",
     "verificar:configuracion": "node scripts/verificar-configuracion.mjs",
     "verificar:enrutamiento": "node scripts/verificar-enrutamiento.mjs",
