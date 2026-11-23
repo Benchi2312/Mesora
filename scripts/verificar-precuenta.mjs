@@ -347,6 +347,82 @@ try {
     })
     escenarios++
 
+    // La RPC puede confirmar el cambio y perder su respuesta. La primera
+    // lectura también puede llegar atrasada; no se debe mostrar un falso error.
+    const asignacionRespuestaTardiaUi = await prepararMesaTraslado('respuesta tardia asignacion UI QA')
+    await visitar('/demo/mesero')
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      window.__apiTienePinTardioOriginalUiQa = api.tienePinAutorizacion
+      window.__apiAsignarTardioOriginalUiQa = api.asignarMesaMesero
+      window.__apiGetMesasTardioOriginalUiQa = api.getMesas
+      window.__asignacionesTardiasUiQa = 0
+      api.tienePinAutorizacion = async () => ({ data: true, error: null })
+      api.asignarMesaMesero = async (...args) => {
+        window.__asignacionesTardiasUiQa++
+        const confirmada = await window.__apiAsignarTardioOriginalUiQa(...args)
+        return confirmada.error
+          ? confirmada
+          : { data: null, error: 'No se pudo pasar la mesa. Actualiza las mesas e inténtalo de nuevo.', respuestaIncierta: true }
+      }
+      ;(await import('/src/components/pin.tsx')).olvidarPinCacheado()
+    })
+    await page.getByRole('button', { name: new RegExp(asignacionRespuestaTardiaUi.origen) }).click()
+    await page.getByRole('button', { name: 'Pasar a otro mesero', exact: true }).click()
+    await page.locator('#mesa-nuevo-mesero').selectOption('u-mesero-2')
+    await page.locator('#mesa-motivo-operacion').fill('Cambio confirmado con respuesta tardía')
+    await page.getByRole('button', { name: 'Revisar y confirmar', exact: true }).click()
+    await page.getByLabel('PIN del administrador o gerente').fill('4321')
+    await page.evaluate(async (mesaId) => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      window.__mesasTardiasUiQa = 0
+      const responsableAnterior = (await api.getMesas('r-demo')).data.find((m) => m.id === mesaId)?.mesero_responsable_id
+      window.__responsableAnteriorTardioUiQa = responsableAnterior
+      api.getMesas = async (...args) => {
+        const resultado = await window.__apiGetMesasTardioOriginalUiQa(...args)
+        if (window.__mesasTardiasUiQa < 2) window.__mesasTardiasUiQa++
+        if (window.__mesasTardiasUiQa === 1 && resultado.data) {
+          return {
+            ...resultado,
+            data: resultado.data.map((m) => m.id === mesaId ? { ...m, mesero_responsable_id: responsableAnterior } : m),
+          }
+        }
+        return resultado
+      }
+    }, asignacionRespuestaTardiaUi.origenId)
+    const auditoriasAntesRespuestaTardia = await page.evaluate((mesaId) => {
+      const datos = JSON.parse(localStorage.getItem('mesora.demo.datos.v2') ?? '{}')
+      return (datos.auditLogs ?? []).filter((l) => l.accion === 'mesa_transferir_responsable' && l.entidad_id === mesaId).length
+    }, asignacionRespuestaTardiaUi.origenId)
+    await page.getByRole('button', { name: 'Confirmar y guardar', exact: true }).click()
+    await expect(page.getByText('Mesa asignada a Carlos Pérez. Las comandas anteriores conservan su mesero original.', { exact: true })).toBeVisible()
+    const resultadoRespuestaTardiaUi = await page.evaluate(async (mesaId) => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      const [mesas, pedidos] = await Promise.all([api.getMesas('r-demo'), api.getPedidosDeMesa('r-demo', mesaId)])
+      const datos = JSON.parse(localStorage.getItem('mesora.demo.datos.v2') ?? '{}')
+      return {
+        responsable: mesas.data.find((m) => m.id === mesaId)?.mesero_responsable_id,
+        responsableAnterior: window.__responsableAnteriorTardioUiQa,
+        meserosPedidos: pedidos.data.map((p) => p.mesero_id),
+        auditorias: (datos.auditLogs ?? []).filter((l) => l.accion === 'mesa_transferir_responsable' && l.entidad_id === mesaId),
+        llamadasRPC: window.__asignacionesTardiasUiQa,
+        lecturasMesa: window.__mesasTardiasUiQa,
+      }
+    }, asignacionRespuestaTardiaUi.origenId)
+    assert.equal(resultadoRespuestaTardiaUi.responsable, 'u-mesero-2')
+    assert.equal(resultadoRespuestaTardiaUi.meserosPedidos[0], resultadoRespuestaTardiaUi.responsableAnterior)
+    assert.equal(resultadoRespuestaTardiaUi.auditorias.length, auditoriasAntesRespuestaTardia + 1)
+    assert.equal(resultadoRespuestaTardiaUi.llamadasRPC, 1, 'Reconciliar no vuelve a ejecutar la RPC')
+    assert.equal(resultadoRespuestaTardiaUi.lecturasMesa, 2, 'La primera lectura atrasada se vuelve a consultar')
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      api.getMesas = window.__apiGetMesasTardioOriginalUiQa
+      api.asignarMesaMesero = window.__apiAsignarTardioOriginalUiQa
+      api.tienePinAutorizacion = window.__apiTienePinTardioOriginalUiQa
+      ;(await import('/src/components/pin.tsx')).olvidarPinCacheado()
+    })
+    escenarios++
+
     const trasladoUi = await prepararMesaTraslado('reconciliación UI QA')
     await visitar('/demo/mesero')
     await page.evaluate(async () => {

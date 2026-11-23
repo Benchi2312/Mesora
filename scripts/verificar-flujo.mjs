@@ -58,6 +58,10 @@ const {
   esErrorDestinoOcupadoTraslado,
   mensajeDestinoNoDisponible,
 } = await servidor.ssrLoadModule('/src/domain/restaurant/trasladoConsumo.ts')
+const {
+  evaluarAsignacionMesaMesero,
+  reconciliarAsignacionMesaMesero,
+} = await servidor.ssrLoadModule('/src/domain/restaurant/asignacionMesaMesero.ts')
 const { localSeed, restablecerDatosLocal, cargarDatosLocal, localCredenciales, verificarCredencialLocal, PASSWORD_DE_PRUEBA } =
   await servidor.ssrLoadModule('/src/lib/localSeed.ts')
 const { mockZonas, mockRestaurante } = await servidor.ssrLoadModule('/src/lib/mockData.ts')
@@ -3803,6 +3807,34 @@ const traspasoCorrectoQa = await api.asignarMesaMesero(RID, mesaTraspasoQa.data.
 check('29c · con PIN correcto María recibe la mesa', !traspasoCorrectoQa.error && localSeed.mesas.find((m) => m.id === mesaTraspasoQa.data.id).mesero_responsable_id === meseroMariaQa.id)
 const auditoriaTraspasoQa = localSeed.auditLogs.find((l) => l.accion === 'mesa_transferir_responsable' && l.entidad_id === mesaTraspasoQa.data.id)
 check('29d · el registro incluye Carlos, María y el motivo', auditoriaTraspasoQa?.actor_id === meseroCarlosQa.id && auditoriaTraspasoQa.detalle?.mesero_nuevo_id === meseroMariaQa.id && auditoriaTraspasoQa.detalle?.motivo === 'Cambio de turno' && localSeed.auditLogs.length === auditoriaAntesTraspasoQa + 1)
+let lecturasReconciliacionMesero = 0
+const respuestaTardiaAsignacion = await reconciliarAsignacionMesaMesero(
+  meseroCarlosQa.id,
+  meseroMariaQa.id,
+  async () => {
+    lecturasReconciliacionMesero++
+    return lecturasReconciliacionMesero === 1
+      ? { ok: true, estadoMesa: 'ocupada', meseroResponsableId: meseroCarlosQa.id }
+      : { ok: true, estadoMesa: 'ocupada', meseroResponsableId: meseroMariaQa.id }
+  },
+  async () => {},
+)
+check('29d1 · la respuesta incierta se reconsulta y reconoce el cambio confirmado con demora', respuestaTardiaAsignacion.estado === 'confirmado' && respuestaTardiaAsignacion.meseroResponsableId === meseroMariaQa.id && lecturasReconciliacionMesero === 2)
+const asignacionSinCambios = await reconciliarAsignacionMesaMesero(
+  meseroCarlosQa.id,
+  meseroMariaQa.id,
+  async () => ({ ok: true, estadoMesa: 'ocupada', meseroResponsableId: meseroCarlosQa.id }),
+  async () => {},
+)
+check('29d2 · lecturas que conservan el responsable anterior no afirman éxito ni fallo definitivo', asignacionSinCambios.estado === 'sin_cambios')
+const asignacionLecturaFallida = await reconciliarAsignacionMesaMesero(
+  meseroCarlosQa.id,
+  meseroMariaQa.id,
+  async () => ({ ok: false }),
+  async () => {},
+)
+check('29d3 · lecturas fallidas dejan el resultado como incierto', asignacionLecturaFallida.estado === 'incierto')
+check('29d4 · un responsable distinto no se presenta como éxito del cambio solicitado', evaluarAsignacionMesaMesero(meseroCarlosQa.id, meseroMariaQa.id, { ok: true, estadoMesa: 'ocupada', meseroResponsableId: 'u-otro-mesero' }) === 'otro_cambio')
 apiMode.operadorId = meseroMariaQa.id
 const auditoriasAntesPinMaloMoverQa = localSeed.auditLogs.filter((l) => l.accion === 'mesa_mover_consumo' && l.entidad_id === mesaTraspasoQa.data.id).length
 const mesaDestinoOcupadaQa = await api.crearMesa(RID, { zona_id: zonaTraspasoQa.data.id, nombre: 'Mesa QA destino ocupada' })
