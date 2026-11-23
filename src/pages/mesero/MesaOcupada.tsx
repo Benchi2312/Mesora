@@ -86,6 +86,10 @@ function limpiarTrasladoPendiente(traslado: Pick<TrasladoPendiente, 'restaurante
   }
 }
 
+function esErrorPinIncorrectoOperacion(error: string | null | undefined): boolean {
+  return /pin de autorizaci[oó]n incorrecto|pin no coincide/i.test(error ?? '')
+}
+
 interface MesaOcupadaProps {
   mesa: Mesa
   onVolver: () => void
@@ -130,6 +134,8 @@ export default function MesaOcupada({
   const [meseroSeleccionado, setMeseroSeleccionado] = useState('')
   const [mesaSeleccionada, setMesaSeleccionada] = useState('')
   const [motivoOperacion, setMotivoOperacion] = useState('')
+  const [errorMeseroSeleccionado, setErrorMeseroSeleccionado] = useState<string | null>(null)
+  const [errorMotivoOperacion, setErrorMotivoOperacion] = useState<string | null>(null)
   const [guardandoOperacion, setGuardandoOperacion] = useState(false)
   const [trasladoPendiente, setTrasladoPendiente] = useState<TrasladoPendiente | null>(null)
   const [verificandoTraslado, setVerificandoTraslado] = useState(false)
@@ -154,6 +160,8 @@ export default function MesaOcupada({
     setMeseroSeleccionado('')
     setMesaSeleccionada('')
     setMotivoOperacion('')
+    setErrorMeseroSeleccionado(null)
+    setErrorMotivoOperacion(null)
     setPin('')
     setConfirmandoOperacion(false)
     try {
@@ -447,7 +455,8 @@ export default function MesaOcupada({
     if (!restaurante || !operacionMesa || guardandoOperacionRef.current || verificandoTrasladoRef.current || (operacionMesa === 'mover-consumo' && trasladoPendiente)) return
     const motivo = motivoOperacion.trim()
     if (motivo.length < 5 || motivo.length > 300) {
-      setErrorOperacion('Escribe un motivo de entre 5 y 300 caracteres.')
+      if (operacionMesa === 'pasar-mesero') setErrorMotivoOperacion('Escribe un motivo de entre 5 y 300 caracteres.')
+      else setErrorOperacion('Escribe un motivo de entre 5 y 300 caracteres.')
       return
     }
     guardandoOperacionRef.current = true
@@ -456,13 +465,19 @@ export default function MesaOcupada({
     try {
       const api = getApi()
       if (operacionMesa === 'pasar-mesero') {
-        const destino = meseros.find((m) => m.id === meseroSeleccionado)
+        const destino = meserosDisponibles.find((m) => m.id === meseroSeleccionado)
         if (!destino) {
-          setErrorOperacion('Elige el mesero que recibirá la mesa.')
+          setConfirmandoOperacion(false)
+          setErrorMeseroSeleccionado('Elige un mesero activo para recibir la mesa.')
           return
         }
         const res = await api.asignarMesaMesero(restaurante.id, mesa.id, destino.id, requierePin ? pin : null, motivo)
         if (res.error) {
+          if (esErrorPinIncorrectoOperacion(res.error)) {
+            setPin('')
+            setErrorOperacion('PIN incorrecto. No se realizó el cambio')
+            return
+          }
           setErrorOperacion(mensajeOperacion(res.error, 'No se pudo pasar la mesa. Actualiza las mesas e inténtalo de nuevo.'))
           return
         }
@@ -545,7 +560,11 @@ export default function MesaOcupada({
       setPin('')
       setErrorOperacion(MENSAJE_TRASLADO_INCIERTO)
     } catch {
-      setErrorOperacion(MENSAJE_TRASLADO_INCIERTO)
+      if (operacionMesa === 'pasar-mesero') {
+        setErrorOperacion('No se pudo confirmar la respuesta. Actualiza la mesa antes de volver a intentarlo.')
+      } else {
+        setErrorOperacion(MENSAJE_TRASLADO_INCIERTO)
+      }
     } finally {
       setPrevalidandoTraslado(false)
       guardandoOperacionRef.current = false
@@ -555,6 +574,13 @@ export default function MesaOcupada({
 
   async function revisarYConfirmarOperacion() {
     if (operacionMesa !== 'mover-consumo') {
+      const destino = meserosDisponibles.find((m) => m.id === meseroSeleccionado)
+      const motivo = motivoOperacion.trim()
+      setErrorMeseroSeleccionado(destino ? null : 'Elige un mesero activo para recibir la mesa.')
+      setErrorMotivoOperacion(motivo.length >= 5 && motivo.length <= 300
+        ? null
+        : 'Escribe un motivo de entre 5 y 300 caracteres.')
+      if (!destino || motivo.length < 5 || motivo.length > 300) return
       setErrorOperacion(null)
       setConfirmandoOperacion(true)
       return
@@ -814,10 +840,18 @@ export default function MesaOcupada({
                 La mesa seguirá siendo la misma. El nuevo responsable recibirá las próximas comandas; los pedidos y ventas anteriores conservan el mesero que los registró.
               </p>
               <label className="label mt-4" htmlFor="mesa-nuevo-mesero">Mesero que recibe</label>
-              <select id="mesa-nuevo-mesero" value={meseroSeleccionado} onChange={(e) => setMeseroSeleccionado(e.target.value)} className="input">
+              <select
+                id="mesa-nuevo-mesero"
+                value={meseroSeleccionado}
+                onChange={(e) => { setMeseroSeleccionado(e.target.value); setErrorMeseroSeleccionado(null) }}
+                className="input"
+                aria-invalid={Boolean(errorMeseroSeleccionado)}
+                aria-describedby={errorMeseroSeleccionado ? 'mesa-nuevo-mesero-error' : undefined}
+              >
                 <option value="">Selecciona un mesero</option>
                 {meserosDisponibles.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
               </select>
+              {errorMeseroSeleccionado ? <p id="mesa-nuevo-mesero-error" role="alert" className="mt-2 text-sm text-danger-500">{errorMeseroSeleccionado}</p> : null}
               {meserosDisponibles.length === 0 ? <p className="mt-2 text-xs text-zinc-500">No hay otros meseros activos disponibles.</p> : null}
             </>
           ) : !confirmandoOperacion ? (
@@ -842,11 +876,14 @@ export default function MesaOcupada({
               <textarea
                 id="mesa-motivo-operacion"
                 value={motivoOperacion}
-                onChange={(e) => { setMotivoOperacion(e.target.value.slice(0, 300)); setErrorOperacion(null) }}
+                onChange={(e) => { setMotivoOperacion(e.target.value.slice(0, 300)); setErrorOperacion(null); setErrorMotivoOperacion(null) }}
                 className="input min-h-20 resize-y"
                 maxLength={300}
+                aria-invalid={Boolean(errorMotivoOperacion)}
+                aria-describedby={errorMotivoOperacion ? 'mesa-motivo-operacion-error' : undefined}
                 placeholder={operacionMesa === 'pasar-mesero' ? 'Ej. Cambio de turno' : 'Ej. Cliente pidió cambiar de mesa'}
               />
+              {operacionMesa === 'pasar-mesero' && errorMotivoOperacion ? <p id="mesa-motivo-operacion-error" role="alert" className="mt-2 text-sm text-danger-500">{errorMotivoOperacion}</p> : null}
             </>
           ) : trasladoPendiente ? (
             <div className="rounded-xl border border-brand-500/30 bg-brand-500/10 p-4 text-sm leading-relaxed text-zinc-200">
@@ -910,7 +947,7 @@ export default function MesaOcupada({
             ) : (
               <button
                 type="button"
-                disabled={guardandoOperacion || prevalidandoTraslado || (operacionMesa === 'pasar-mesero' && cargandoPin) || motivoOperacion.trim().length < 5 || (operacionMesa === 'pasar-mesero' && requierePin && pin.length === 0) || (operacionMesa === 'pasar-mesero' ? !meseroSeleccionado : !mesaSeleccionada)}
+                disabled={guardandoOperacion || prevalidandoTraslado || (operacionMesa === 'mover-consumo' && (motivoOperacion.trim().length < 5 || !mesaSeleccionada))}
                 onClick={() => void revisarYConfirmarOperacion()}
                 className="btn min-h-11 px-4"
               >

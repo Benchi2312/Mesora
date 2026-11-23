@@ -257,6 +257,96 @@ try {
       }, { nombre: prefijo, crearComanda })
     }
 
+    // Reasignación de la mesa: el PIN se solicita después de revisar, nunca
+    // debe impedir abrir la confirmación que contiene el campo para escribirlo.
+    await visitar('/demo/admin')
+    const cambioResponsableUi = await prepararMesaTraslado('cambio responsable UI QA', false)
+    await visitar('/demo/mesero')
+    cambioResponsableUi.pedidoId = await page.evaluate(async (mesaId) => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      const producto = (await api.getProductos('r-demo')).data.find((p) => p.nombre === 'Producto motivo UI QA')
+      const resultado = await api.crearPedido('r-demo', mesaId, [{ producto_id: producto.id, nombre_producto: producto.nombre, cantidad: 1, precio_unitario: producto.precio }])
+      if (resultado.error) throw new Error(resultado.error)
+      return resultado.data
+    }, cambioResponsableUi.origenId)
+    await visitar('/demo/mesero')
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      window.__apiTienePinOriginalUiQa = api.tienePinAutorizacion
+      window.__apiAsignarMesaMeseroOriginalUiQa = api.asignarMesaMesero
+      window.__asignacionesMesaMeseroUiQa = 0
+      api.tienePinAutorizacion = async () => ({ data: true, error: null })
+      api.asignarMesaMesero = async (...args) => {
+        window.__asignacionesMesaMeseroUiQa++
+        if (args[3] !== '4321') return { data: null, error: 'PIN de autorización incorrecto' }
+        return window.__apiAsignarMesaMeseroOriginalUiQa(...args)
+      }
+      ;(await import('/src/components/pin.tsx')).olvidarPinCacheado()
+    })
+    await page.getByRole('button', { name: new RegExp(cambioResponsableUi.origen) }).click()
+    await page.getByRole('button', { name: 'Pasar a otro mesero', exact: true }).click()
+    const revisarCambioMesero = page.getByRole('button', { name: 'Revisar y confirmar', exact: true })
+    await expect(revisarCambioMesero).toBeEnabled()
+    await revisarCambioMesero.click()
+    await expect(page.getByText('Elige un mesero activo para recibir la mesa.', { exact: true })).toBeVisible()
+    await expect(page.getByText('Escribe un motivo de entre 5 y 300 caracteres.', { exact: true })).toBeVisible()
+    await page.locator('#mesa-nuevo-mesero').selectOption('u-mesero-2')
+    await page.locator('#mesa-motivo-operacion').fill('Cambio de turno validado por QA')
+    await revisarCambioMesero.click()
+    await expect(page.getByText('PIN del administrador o gerente', { exact: true })).toBeVisible()
+    await expect(page.getByText(`${cambioResponsableUi.origen}: María Torres → Carlos Pérez.`, { exact: false })).toBeVisible()
+    await expect(page.getByText('Cambio de turno validado por QA', { exact: false })).toBeVisible()
+    const auditoriasResponsableAntes = await page.evaluate((mesaId) => {
+      const datos = JSON.parse(localStorage.getItem('mesora.demo.datos.v2') ?? '{}')
+      return (datos.auditLogs ?? []).filter((l) => l.accion === 'mesa_transferir_responsable' && l.entidad_id === mesaId).length
+    }, cambioResponsableUi.origenId)
+    await page.locator('#campo-pin-autorizacion').fill('0000')
+    await page.getByRole('button', { name: 'Confirmar y guardar', exact: true }).click()
+    await expect(page.getByRole('alert')).toHaveText('PIN incorrecto. No se realizó el cambio')
+    await expect(page.locator('#campo-pin-autorizacion')).toBeVisible()
+    const responsableTrasPinMalo = await page.evaluate(async (mesaId) => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      const mesa = (await api.getMesas('r-demo')).data.find((m) => m.id === mesaId)
+      const datos = JSON.parse(localStorage.getItem('mesora.demo.datos.v2') ?? '{}')
+      return {
+        responsable: mesa?.mesero_responsable_id,
+        auditorias: (datos.auditLogs ?? []).filter((l) => l.accion === 'mesa_transferir_responsable' && l.entidad_id === mesaId).length,
+      }
+    }, cambioResponsableUi.origenId)
+    assert.equal(responsableTrasPinMalo.responsable, 'u-mesero-1')
+    assert.equal(responsableTrasPinMalo.auditorias, auditoriasResponsableAntes)
+    await page.locator('#campo-pin-autorizacion').fill('4321')
+    await page.getByRole('button', { name: 'Confirmar y guardar', exact: true }).dblclick()
+    await expect(page.getByText(`Mesa asignada a Carlos Pérez. Las comandas anteriores conservan su mesero original.`, { exact: true })).toBeVisible()
+    const cambioResponsablePersistido = await page.evaluate(async (ids) => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      const [mesas, pedidos] = await Promise.all([api.getMesas('r-demo'), api.getPedidosDeMesa('r-demo', ids.mesaId)])
+      const datos = JSON.parse(localStorage.getItem('mesora.demo.datos.v2') ?? '{}')
+      const auditorias = (datos.auditLogs ?? []).filter((l) => l.accion === 'mesa_transferir_responsable' && l.entidad_id === ids.mesaId)
+      return {
+        responsable: mesas.data.find((m) => m.id === ids.mesaId)?.mesero_responsable_id,
+        meserosPedidosHistoricos: pedidos.data.map((p) => p.mesero_id),
+        auditorias,
+        llamadas: window.__asignacionesMesaMeseroUiQa,
+      }
+    }, { mesaId: cambioResponsableUi.origenId })
+    assert.equal(cambioResponsablePersistido.responsable, 'u-mesero-2')
+    assert.deepEqual(cambioResponsablePersistido.meserosPedidosHistoricos, ['u-mesero-1'])
+    assert.equal(cambioResponsablePersistido.auditorias.length, auditoriasResponsableAntes + 1)
+    assert.equal(cambioResponsablePersistido.auditorias[0].actor_id, 'u-mesero-1')
+    assert.equal(cambioResponsablePersistido.auditorias[0].detalle.mesero_anterior_id, 'u-mesero-1')
+    assert.equal(cambioResponsablePersistido.auditorias[0].detalle.mesero_nuevo_id, 'u-mesero-2')
+    assert.equal(cambioResponsablePersistido.auditorias[0].detalle.motivo, 'Cambio de turno validado por QA')
+    assert.equal(cambioResponsablePersistido.auditorias[0].created_at != null, true)
+    assert.equal(cambioResponsablePersistido.llamadas, 2, 'PIN inválido y doble clic válido deben producir solo dos llamadas en total')
+    await page.evaluate(async () => {
+      const api = (await import('/src/lib/api.ts')).getApi()
+      api.asignarMesaMesero = window.__apiAsignarMesaMeseroOriginalUiQa
+      api.tienePinAutorizacion = window.__apiTienePinOriginalUiQa
+      ;(await import('/src/components/pin.tsx')).olvidarPinCacheado()
+    })
+    escenarios++
+
     const trasladoUi = await prepararMesaTraslado('reconciliación UI QA')
     await visitar('/demo/mesero')
     await page.evaluate(async () => {
