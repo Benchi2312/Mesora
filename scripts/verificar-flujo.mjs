@@ -311,20 +311,20 @@ check('los resultados usan singular y plural correctos',
   cantidadConNombre(1, 'recibo interno', 'recibos internos') === '1 recibo interno' &&
   cantidadConNombre(2, 'movimiento', 'movimientos') === '2 movimientos')
 check('la terminología visible reemplaza boleta sin alterar códigos',
-  textoReciboInterno('Boleta B001-000003 anulada') === 'Recibo interno B001-000003 anulado' &&
+  textoReciboInterno('Boleta B001-999999 anulada') === 'Recibo interno B001-999999 anulado' &&
   textoReciboInterno('Boletas anuladas') === 'Recibos internos anulados' &&
   textoReciboInterno('Boleta anulada y reembolsada') === 'Recibo interno anulado y reembolsado')
 const logLegible = presentarAuditoria({
   id: 'audit-qa', actor_id: 'admin-qa', actor_rol: 'cajero', actor_nombre: 'Luis',
   restaurante_id: RID, restaurante_nombre: 'QA', entidad: 'cuenta', entidad_id: 'cuenta-qa',
-  accion: 'cuenta_anular', descripcion: 'Boleta B001-000003 anulada; se registró la devolución.',
-  detalle: { numero: 'B001-000003', motivo: 'Error de cobro', boleta: 'B001-000003', monto_reembolsado: 30 },
+  accion: 'cuenta_anular', descripcion: 'Boleta B001-999999 anulada; se registró la devolución.',
+  detalle: { numero: 'B001-999999', motivo: 'Error de cobro', boleta: 'B001-999999', monto_reembolsado: 30 },
   created_at: '2026-11-13T06:30:54.000Z',
 })
 check('auditoría muestra acción, usuario, fecha, módulo, objetivo, motivo y resultado',
-  logLegible.accion.startsWith('Recibo interno B001-000003') &&
+  logLegible.accion.startsWith('Recibo interno B001-999999') &&
   logLegible.usuario === 'Luis · cajero' && logLegible.fecha.includes('2026') &&
-  logLegible.modulo === 'Cobros' && logLegible.objetivo === 'Recibo interno B001-000003' &&
+  logLegible.modulo === 'Cobros' && logLegible.objetivo === 'Recibo interno B001-999999' &&
   logLegible.motivo === 'Error de cobro' && logLegible.resultado === 'Recibo interno anulado' &&
   logLegible.json.includes('"boleta"'))
 check('auditoría sin descripción usa una etiqueta legible', presentarAuditoria({
