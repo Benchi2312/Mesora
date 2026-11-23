@@ -1,5 +1,22 @@
 # Flujos del sistema — Mesora 1.0
 
+## 0. Flujo general de Mesora
+
+```mermaid
+flowchart TD
+  A[Administrador configura el restaurante] --> B[Mesero inicia sesión]
+  B --> C[Selecciona mesa y crea pedido]
+  C --> D[Envía comanda]
+  D --> E[Cocina y Barra preparan los productos]
+  E --> F[Pedido listo y entregado]
+  F --> G[Mesero o cajero consulta el consumo]
+  G --> H[Cobro y emisión de recibo interno]
+  H --> I[Cierre de caja]
+  I --> J[Auditoría y reportes]
+```
+
+Mesora conecta la toma de pedidos, la preparación en Cocina y Barra, el cobro, el cierre de caja y el análisis administrativo en un solo flujo. Las acciones sensibles quedan registradas en auditoría.
+
 ## 1. Inicio de sesión y autorización
 
 ```mermaid
@@ -72,23 +89,25 @@ La precuenta es una vista previa. No registra pago, recibo ni cierre de mesa.
 
 ```mermaid
 sequenceDiagram
-  actor M as Mesero
-  participant UI as Mesora
-  participant DB as Backend / PostgreSQL
-  M->>UI: Elige acción, destino y motivo
-  UI->>DB: Consulta estado actual y permisos
-  DB-->>UI: Disponibilidad y datos afectados
-  UI-->>M: Resumen de confirmación; solicita PIN si aplica
-  M->>UI: Confirma
-  UI->>DB: RPC transaccional
-  DB-->>UI: Resultado o respuesta incierta
-  alt Operación confirmada
-    UI->>DB: Relee estado si la respuesta fue incierta
-    DB-->>UI: Confirma origen, destino e historial
-    UI-->>M: Muestra éxito confirmado
-  else Estado no verificable
-    UI-->>M: Pide actualizar; no sugiere repetir a ciegas
-  end
+    actor Mesero
+    participant UI as Mesora
+    participant DB as Backend PostgreSQL
+
+    Mesero->>UI: Elige acción, destino y motivo
+    UI->>DB: Consulta estado y permisos
+    DB-->>UI: Devuelve disponibilidad y datos
+    UI-->>Mesero: Muestra resumen y solicita PIN
+    Mesero->>UI: Confirma la operación
+    UI->>DB: Ejecuta RPC transaccional
+    DB-->>UI: Devuelve el resultado
+
+    alt Operación confirmada
+        UI->>DB: Relee el estado si la respuesta fue incierta
+        DB-->>UI: Confirma el cambio
+        UI-->>Mesero: Muestra éxito confirmado
+    else Estado no verificable
+        UI-->>Mesero: Solicita actualizar antes de reintentar
+    end
 ```
 
 ## 6. Impresión y soporte
