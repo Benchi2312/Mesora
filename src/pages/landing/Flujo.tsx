@@ -2,10 +2,10 @@ import SectionHeading from './SectionHeading'
 import { IconCard, IconChartBar, IconClipboard, IconPot } from './Icons'
 
 const pasos = [
-  { icon: IconClipboard, titulo: 'El mesero registra', desc: 'Toma el pedido desde la mesa con productos y precios configurados.' },
-  { icon: IconPot, titulo: 'La cocina prepara', desc: 'Consulta las comandas y actualiza su estado durante el servicio.' },
-  { icon: IconCard, titulo: 'Caja cierra la cuenta', desc: 'Revisa el consumo y registra el pago con el método utilizado.' },
-  { icon: IconChartBar, titulo: 'Administración consulta', desc: 'Revisa ventas, cuentas y productos por periodo.' },
+  { icon: IconClipboard, titulo: 'El mesero registra el pedido', desc: 'Selecciona la mesa, agrega productos y envía la comanda.' },
+  { icon: IconPot, titulo: 'Cocina y Barra preparan los productos', desc: 'Cada área trabaja con las comandas que le corresponden.' },
+  { icon: IconCard, titulo: 'Se realiza el cobro y cierre de caja', desc: 'El personal autorizado registra el pago y el responsable cierra el turno.' },
+  { icon: IconChartBar, titulo: 'El administrador revisa reportes y auditoría', desc: 'Consulta la actividad del restaurante y las acciones registradas.' },
 ]
 
 export default function Flujo() {
@@ -15,8 +15,8 @@ export default function Flujo() {
         <div className="flex flex-col items-center gap-3 text-center">
           <SectionHeading
             eyebrow="Cómo funciona"
-            title="Un flujo compartido, de la mesa a la gerencia"
-            subtitle="Cada persona entra a su vista de trabajo y registra la parte que le corresponde."
+            title="Cómo funciona"
+            subtitle="Cada rol participa en una secuencia clara, desde la toma del pedido hasta la revisión administrativa."
           />
         </div>
         <ol className="relative mx-auto mt-14 grid max-w-5xl gap-4 sm:grid-cols-2">
