@@ -5,8 +5,10 @@ import { useLandingConfig } from './useLandingConfig'
 
 const enlaces = [
   { href: '#inicio', label: 'Inicio' },
-  { href: '#soluciones', label: 'Funciones' },
+  { href: '#soluciones', label: 'Qué es Mesora' },
+  { href: '#roles', label: 'Roles' },
   { href: '#como-funciona', label: 'Cómo funciona' },
+  { href: '#seguridad', label: 'Seguridad' },
   { href: '#planes', label: 'Precio' },
   { href: '#preguntas', label: 'Preguntas frecuentes' },
   { href: '#contacto', label: 'Contacto' },

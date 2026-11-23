@@ -20,29 +20,36 @@ export default function Hero() {
             Gestión operativa para restaurantes
           </span>
           <h1 className="max-w-2xl text-4xl font-black leading-[1.04] tracking-tight text-white sm:text-5xl lg:text-[3.75rem]">
-            De la mesa al cierre,
-            <span className="mt-1 block text-brand-400">cada pedido en su lugar.</span>
+            Gestiona tu restaurante desde un solo lugar
           </h1>
           <p className="max-w-xl text-lg leading-relaxed text-zinc-300 sm:text-xl">
-            Cuando los pedidos, cocina y caja trabajan por separado, cuesta reconstruir qué pasó
-            en cada mesa. Mesora conecta salón, cocina, caja y administración, desde la comanda
-            hasta el cierre.
+            Mesora es una plataforma SaaS para restaurantes MYPES que conecta pedidos, mesas,
+            Cocina, Barra, caja y administración en un flujo claro para todo el equipo.
           </p>
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
             <Link
               to="/demo"
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-500 px-6 py-3 text-base font-bold text-surface-950 shadow-lg shadow-brand-500/20 transition hover:-translate-y-0.5 hover:bg-brand-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
             >
-              Probar el demo interactivo
+              Probar Mesora
               <IconArrowRight className="h-5 w-5" />
             </Link>
             <a
-              href="#contacto"
+              href="#como-funciona"
               className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 bg-white/[0.04] px-6 py-3 text-base font-semibold text-white transition hover:border-white/25 hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
             >
-              Solicitar una demostración
+              Ver cómo funciona
             </a>
           </div>
+          <p className="text-sm text-zinc-400">
+            ¿Ya conoces Mesora?{' '}
+            <a
+              href="https://mesora-sistema.vercel.app"
+              className="font-semibold text-brand-300 underline decoration-brand-500/50 underline-offset-4 hover:text-brand-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
+            >
+              Abrir la aplicación en producción
+            </a>
+          </p>
           <div className="flex flex-wrap gap-x-5 gap-y-2 pt-1 text-sm text-zinc-400">
             {['Sin crear una cuenta', 'Datos de ejemplo', 'Vistas por rol'].map((item) => (
               <span key={item} className="inline-flex items-center gap-2">

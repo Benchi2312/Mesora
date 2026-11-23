@@ -4,8 +4,10 @@ import { IconArrowRight } from './Icons'
 
 const links = [
   { href: '#inicio', label: 'Inicio' },
-  { href: '#soluciones', label: 'Funciones' },
+  { href: '#soluciones', label: 'Qué es Mesora' },
+  { href: '#roles', label: 'Roles' },
   { href: '#como-funciona', label: 'Cómo funciona' },
+  { href: '#seguridad', label: 'Seguridad' },
   { href: '#planes', label: 'Precio' },
   { href: '#preguntas', label: 'Preguntas' },
 ]
@@ -80,7 +82,7 @@ export default function Navbar() {
             to="/demo"
             className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-brand-500 px-2.5 py-2 text-xs font-bold text-surface-950 shadow-lg shadow-brand-500/25 transition hover:bg-brand-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 sm:px-4 sm:text-sm"
           >
-            Probar demo
+            Probar Mesora
             <IconArrowRight className="hidden h-4 w-4 sm:block" />
           </Link>
           <a

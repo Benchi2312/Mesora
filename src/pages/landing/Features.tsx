@@ -11,33 +11,33 @@ import {
 const features = [
   {
     icon: IconClipboard,
-    title: 'Pedidos ligados a cada mesa',
-    desc: 'El equipo de salón registra el consumo y mantiene a la vista qué se pidió en cada cuenta.',
+    title: 'Pedidos y mesas',
+    desc: 'Registra pedidos por mesa y consulta el consumo que corresponde a cada cuenta.',
   },
   {
     icon: IconPot,
-    title: 'Comandas para cocina',
-    desc: 'Cocina consulta los pedidos y actualiza su avance para que salón pueda seguirlos.',
+    title: 'Cocina y Barra',
+    desc: 'Cada equipo consulta o recibe las comandas de su área según la configuración del restaurante.',
   },
   {
     icon: IconCard,
-    title: 'Consumo y cobro claros',
-    desc: 'Caja revisa el detalle de la cuenta, registra pagos y realiza el cierre del turno.',
+    title: 'Caja',
+    desc: 'Consulta cuentas, registra cobros autorizados y organiza la apertura y el cierre de turno.',
   },
   {
     icon: IconChartBar,
-    title: 'Reportes para administrar',
-    desc: 'Consulta cobros, anulaciones, productos y bebidas vendidos, mesas y ventas por mesero.',
+    title: 'Reportes',
+    desc: 'Revisa ventas y actividad del restaurante por periodos con filtros y exportaciones disponibles.',
   },
   {
     icon: IconGrid,
-    title: 'Un menú a la medida del local',
-    desc: 'Configura zonas, mesas, categorías, productos y equipo desde administración.',
+    title: 'Auditoría',
+    desc: 'Consulta el historial de acciones sensibles y cambios registrados durante la operación.',
   },
   {
     icon: IconRocket,
-    title: 'Cada rol, su espacio de trabajo',
-    desc: 'Acceso desde navegador con vistas para salón, cocina, caja y administración.',
+    title: 'Soporte',
+    desc: 'Administra conversaciones de soporte desde el panel de Superadmin de la plataforma.',
   },
 ]
 
@@ -46,9 +46,9 @@ export default function Features() {
     <section id="soluciones" className="mx-auto w-full max-w-7xl scroll-mt-16 px-4 py-24 sm:px-6">
       <div className="flex flex-col items-center gap-3 text-center">
         <SectionHeading
-          eyebrow="Soluciones"
-          title="El mismo servicio, conectado de principio a fin"
-          subtitle="Mesora reúne los pedidos, la preparación, los cobros y los reportes para que cada área trabaje con el contexto de la mesa."
+          eyebrow="La plataforma"
+          title="¿Qué es Mesora?"
+          subtitle="Mesora permite administrar pedidos, mesas, Cocina, Barra, caja, reportes, auditoría y soporte desde espacios de trabajo pensados para cada rol."
         />
       </div>
       <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
