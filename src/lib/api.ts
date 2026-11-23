@@ -102,6 +102,8 @@ import {
 export interface Res<T> {
   data: T | null
   error: string | null
+  /** Indica que una mutación pudo confirmarse aunque su respuesta no llegara. */
+  respuestaIncierta?: boolean
 }
 
 export type FiltrosCobros = {
@@ -161,6 +163,7 @@ function envolverErroresApi(api: DataApi): DataApi {
             else registrarServidorAlcanzable()
             return {
               data: null,
+              ...(propiedad === 'asignarMesaMesero' ? { respuestaIncierta: true } : {}),
               error: esFalloDeRed(mensaje)
                 ? 'La conexión se interrumpió. Actualiza los datos antes de repetir la operación; la solicitud pudo haberse completado.'
                 : mensaje || 'No se pudo completar la operación. Inténtalo de nuevo.',
@@ -972,7 +975,12 @@ const realApi: DataApi = {
       p_pin: pin,
       p_motivo: motivo,
     })
-    return { data: null, error: mensajeOperacion(error?.message, 'No se pudo pasar la mesa. Actualiza las mesas e inténtalo de nuevo.') }
+    const detalle = error?.message?.trim() ?? ''
+    return {
+      data: null,
+      error: mensajeOperacion(detalle, 'No se pudo pasar la mesa. Actualiza las mesas e inténtalo de nuevo.'),
+      respuestaIncierta: Boolean(error && (!detalle || esFalloDeRed(detalle))),
+    }
   },
   async moverConsumoMesa(rid, origenId, destinoId, pin, motivo) {
     const { error } = await supabase.rpc('mover_consumo_mesa', {

@@ -26,6 +26,7 @@ import {
   type EstadoPrevalidacionTraslado,
   type ObservacionTrasladoConsumo,
 } from '../../domain/restaurant/trasladoConsumo'
+import { reconciliarAsignacionMesaMesero } from '../../domain/restaurant/asignacionMesaMesero'
 import Precuenta from '../../components/Precuenta'
 import type { Zona } from '../../types/database'
 
@@ -34,6 +35,8 @@ type OperacionMesa = 'pasar-mesero' | 'mover-consumo' | null
 const CANTIDAD_MAXIMA = 99
 const NOTA_MAXIMA = 120
 const MENSAJE_TRASLADO_INCIERTO = 'No se pudo confirmar el resultado. Actualiza las mesas antes de volver a intentarlo'
+const MENSAJE_ASIGNACION_INCIERTA = 'No se pudo confirmar el resultado. Actualiza las mesas antes de volver a intentarlo.'
+const ERROR_ASIGNACION_MESERO = 'No se pudo pasar la mesa. Actualiza las mesas e inténtalo de nuevo.'
 
 type TrasladoPendiente = {
   restauranteId: string
@@ -90,6 +93,10 @@ function esErrorPinIncorrectoOperacion(error: string | null | undefined): boolea
   return /pin de autorizaci[oó]n incorrecto|pin no coincide/i.test(error ?? '')
 }
 
+function esErrorMeseroYaAsignado(error: string | null | undefined): boolean {
+  return /ya es responsable de la mesa/i.test(error ?? '')
+}
+
 interface MesaOcupadaProps {
   mesa: Mesa
   onVolver: () => void
@@ -137,6 +144,7 @@ export default function MesaOcupada({
   const [errorMeseroSeleccionado, setErrorMeseroSeleccionado] = useState<string | null>(null)
   const [errorMotivoOperacion, setErrorMotivoOperacion] = useState<string | null>(null)
   const [guardandoOperacion, setGuardandoOperacion] = useState(false)
+  const [reconciliandoAsignacion, setReconciliandoAsignacion] = useState(false)
   const [trasladoPendiente, setTrasladoPendiente] = useState<TrasladoPendiente | null>(null)
   const [verificandoTraslado, setVerificandoTraslado] = useState(false)
   const guardandoOperacionRef = useRef(false)
@@ -290,6 +298,58 @@ export default function MesaOcupada({
     setConfirmandoOperacion(false)
     setErrorOperacion(null)
     onConsumoMovido(`Consumo movido correctamente de ${traslado.origenNombre} a ${traslado.destinoNombre}`)
+  }
+
+  function cerrarAsignacionMeseroConfirmada(destino: MeseroResumen) {
+    setMeseroResponsableId(destino.id)
+    setOperacionMesa(null)
+    setMeseroSeleccionado('')
+    setMotivoOperacion('')
+    setPin('')
+    setConfirmandoOperacion(false)
+    setErrorOperacion(null)
+    setErrorMeseroSeleccionado(null)
+    setErrorMotivoOperacion(null)
+    setFlash(`Mesa asignada a ${destino.nombre}. Las comandas anteriores conservan su mesero original.`)
+    // El cambio confirmado por la RPC no debe convertirse en error si la
+    // lectura posterior de comandas falla.
+    void cargar(true)
+  }
+
+  async function reconciliarAsignacionMesero(destino: MeseroResumen, meseroAnteriorId: string | null) {
+    if (!restaurante) return
+    setReconciliandoAsignacion(true)
+    setErrorOperacion(null)
+    setPin('')
+    try {
+      const resultado = await reconciliarAsignacionMesaMesero(
+        meseroAnteriorId,
+        destino.id,
+        async () => {
+          const lectura = await getApi().getMesas(restaurante.id)
+          const mesaActual = lectura.data?.find((fila) => fila.id === mesa.id)
+          return {
+            ok: !lectura.error && Boolean(mesaActual),
+            estadoMesa: mesaActual?.estado,
+            meseroResponsableId: mesaActual?.mesero_responsable_id ?? null,
+          }
+        },
+      )
+
+      if (resultado.meseroResponsableId !== undefined) setMeseroResponsableId(resultado.meseroResponsableId)
+      if (resultado.estado === 'confirmado') {
+        cerrarAsignacionMeseroConfirmada(destino)
+        return
+      }
+      if (resultado.estado === 'otro_cambio') {
+        setConfirmandoOperacion(false)
+        setErrorOperacion('La mesa cambió durante la confirmación. Actualiza las mesas antes de volver a intentarlo.')
+        return
+      }
+      setErrorOperacion(MENSAJE_ASIGNACION_INCIERTA)
+    } finally {
+      setReconciliandoAsignacion(false)
+    }
   }
 
   async function verificarTrasladoPendiente(traslado: TrasladoPendiente, automatico = false) {
@@ -471,6 +531,7 @@ export default function MesaOcupada({
           setErrorMeseroSeleccionado('Elige un mesero activo para recibir la mesa.')
           return
         }
+        const meseroAnteriorId = meseroResponsableId
         const res = await api.asignarMesaMesero(restaurante.id, mesa.id, destino.id, requierePin ? pin : null, motivo)
         if (res.error) {
           if (esErrorPinIncorrectoOperacion(res.error)) {
@@ -478,17 +539,14 @@ export default function MesaOcupada({
             setErrorOperacion('PIN incorrecto. No se realizó el cambio')
             return
           }
+          if (res.respuestaIncierta || esFalloDeRed(res.error) || esErrorMeseroYaAsignado(res.error) || res.error === ERROR_ASIGNACION_MESERO) {
+            await reconciliarAsignacionMesero(destino, meseroAnteriorId)
+            return
+          }
           setErrorOperacion(mensajeOperacion(res.error, 'No se pudo pasar la mesa. Actualiza las mesas e inténtalo de nuevo.'))
           return
         }
-        setMeseroResponsableId(destino.id)
-        setOperacionMesa(null)
-        setMeseroSeleccionado('')
-        setMotivoOperacion('')
-        setPin('')
-        setConfirmandoOperacion(false)
-        setFlash(`Mesa asignada a ${destino.nombre}. Las comandas anteriores conservan su mesero original.`)
-        await cargar(true)
+        cerrarAsignacionMeseroConfirmada(destino)
         return
       }
 
@@ -561,7 +619,9 @@ export default function MesaOcupada({
       setErrorOperacion(MENSAJE_TRASLADO_INCIERTO)
     } catch {
       if (operacionMesa === 'pasar-mesero') {
-        setErrorOperacion('No se pudo confirmar la respuesta. Actualiza la mesa antes de volver a intentarlo.')
+        const destino = meserosDisponibles.find((m) => m.id === meseroSeleccionado)
+        if (destino) await reconciliarAsignacionMesero(destino, meseroResponsableId)
+        else setErrorOperacion(MENSAJE_ASIGNACION_INCIERTA)
       } else {
         setErrorOperacion(MENSAJE_TRASLADO_INCIERTO)
       }
@@ -919,7 +979,7 @@ export default function MesaOcupada({
           {errorOperacion && !trasladoPendiente ? <div role="alert" className="aviso mt-4 border-danger-500/40 bg-danger-500/10 text-danger-500">{errorOperacion}</div> : null}
           {trasladoPendiente ? <div role="status" aria-live="polite" className="sr-only">{MENSAJE_TRASLADO_INCIERTO}</div> : null}
           {guardandoOperacion ? (
-            <div role="status" aria-live="polite" className="aviso mt-4 border-brand-500/30 bg-brand-500/10 text-brand-300"><Spinner className="mr-2 h-4 w-4 align-middle" />Guardando el cambio de mesa…</div>
+            <div role="status" aria-live="polite" className="aviso mt-4 border-brand-500/30 bg-brand-500/10 text-brand-300"><Spinner className="mr-2 h-4 w-4 align-middle" />{reconciliandoAsignacion ? 'Confirmando si cambió el responsable de la mesa…' : 'Guardando el cambio de mesa…'}</div>
           ) : null}
           {verificandoTraslado || prevalidandoTraslado ? (
             <div role="status" aria-live="polite" className="aviso mt-4 border-brand-500/30 bg-brand-500/10 text-brand-300"><Spinner className="mr-2 h-4 w-4 align-middle" />Verificando el estado de ambas mesas…</div>
