@@ -108,8 +108,8 @@ try {
       assert.equal(new URL(page.url()).origin, origen, `${caso.ruta}: redirección fuera del despliegue; revisa su protección de acceso.`)
 
       if (caso.tipo === 'landing') {
-        await expect(page.getByRole('heading', { level: 1, name: /De la mesa al cierre, cada pedido en su lugar/ })).toBeVisible()
-        await expect(page.getByRole('link', { name: 'Probar demo', exact: true })).toBeVisible()
+        await expect(page.getByRole('heading', { level: 1, name: /Gestiona tu restaurante desde un solo lugar/ })).toBeVisible()
+        await expect(page.locator('#inicio').getByRole('link', { name: 'Probar Mesora', exact: true })).toBeVisible()
         await expect(page.getByRole('heading', { name: 'Conversemos sobre el servicio de tu restaurante', exact: true })).toBeVisible()
         await expect(page.getByRole('heading', { name: 'Respuestas claras para evaluar Mesora', exact: true })).toBeVisible()
         await expect(page.getByRole('link', { name: 'mesoratech@gmail.com', exact: true }).first()).toHaveAttribute('href', 'mailto:mesoratech@gmail.com')
