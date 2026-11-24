@@ -41,15 +41,6 @@ export default function Hero() {
               Ver cómo funciona
             </a>
           </div>
-          <p className="text-sm text-zinc-400">
-            ¿Ya conoces Mesora?{' '}
-            <a
-              href="https://mesora-sistema.vercel.app"
-              className="font-semibold text-brand-300 underline decoration-brand-500/50 underline-offset-4 hover:text-brand-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
-            >
-              Abrir la aplicación en producción
-            </a>
-          </p>
           <div className="flex flex-wrap gap-x-5 gap-y-2 pt-1 text-sm text-zinc-400">
             {['Sin crear una cuenta', 'Datos de ejemplo', 'Vistas por rol'].map((item) => (
               <span key={item} className="inline-flex items-center gap-2">
